@@ -2775,6 +2775,13 @@ function _normalizarDiaSemanaCurso(valor) {
   var dia = String(valor || '').trim().toLowerCase();
   if (!dia) return '';
   var mapa = {
+    '0': 'domingo',
+    '1': 'segunda',
+    '2': 'terca',
+    '3': 'quarta',
+    '4': 'quinta',
+    '5': 'sexta',
+    '6': 'sabado',
     domingo: 'domingo', dom: 'domingo',
     segunda: 'segunda', 'segunda-feira': 'segunda', seg: 'segunda',
     terca: 'terca', 'terça': 'terca', 'terça-feira': 'terca', 'terca-feira': 'terca', ter: 'terca',
