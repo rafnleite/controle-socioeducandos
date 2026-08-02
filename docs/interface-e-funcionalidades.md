@@ -80,14 +80,16 @@ o primeiro paint da tela.
 
 - Cabeçalho com dados pessoais, idade, status atual e botão **Editar**.
 - **Agenda visual (FullCalendar)** dos últimos/próximos 14 dias, combinando saídas,
-  atendimentos e ocorrências recorrentes de cursos (por dia da semana).
+  atendimentos e ocorrências recorrentes de cursos (por dia da semana). O clique em
+  uma ocorrência de curso abre formulário diário para marcar ausência (`Ausente`) e
+  registrar observações daquele dia.
 - **Cursos**: tabela com tipo, nome, status do vínculo, local (interno/externo),
   instituição, período, dias da semana e situação de conclusão. Ações: editar vínculo (✏️), marcar
   conclusão (✔/📜).
 - **Atendimentos**: tabela com tipo, responsável, período, observações e status
   (realizado/não realizado, com motivo e link de reposição). Ação: marcar como não
   realizado (gera reposição automaticamente).
-- **Saídas**: tabela com local, ida/volta, condução, acompanhante, observações do
+- **Saídas**: tabela com local, tipo, ida/volta, condução, acompanhante, observações do
   evento, situação (retornou?) e status do vínculo (Prevista/Realizada/Cancelada).
   Ações: registrar volta (↩️), editar vínculo (✏️).
 - **Admissões**: histórico de internações, com ação de desligamento (🚪).
@@ -130,6 +132,9 @@ o primeiro paint da tela.
   mesmo em caso de desistência.
 - Página "Cursos" dedicada: cursos com inscrição prestes a encerrar (com contagem de
   vagas ocupadas/disponíveis) e socioeducandos internados sem curso recente.
+- **Evento diário do curso** (a partir do calendário do perfil): para cada dia de
+  ocorrência do curso e socioeducando, o sistema permite CRUD de observação e flag
+  `Ausente` em um modal (create/read/update/delete do registro diário).
 
 ### Interesses de Curso
 
@@ -147,14 +152,20 @@ o primeiro paint da tela.
 ### Saídas
 
 - Cadastro individual vinculado a um socioeducando (`mostrarFormSaida`), com status
-  (Prevista/Realizada/Cancelada), local, ida/volta, condução, **nome do(a)
+  (Prevista/Realizada/Cancelada), local, **tipo de saída** (Cultural, Familiar,
+  Lazer, Esportiva, Descida para casa, Outros), **Data de saída**, **Horário de saída**,
+  **Data de retorno** e **Horário de retorno** (todos obrigatórios), condução, **nome do(a)
   acompanhante obrigatório**,
   observações do evento (geral, compartilhada por todos os vinculados) e observações
   do vínculo (específica daquele socioeducando).
 - Cadastro **em lote** (`mostrarFormSaidaLote`): mesmo padrão do lote de Cursos — cria
   uma única saída (evento) e N vínculos, cada um com seu próprio status. A tela **não**
   oferece um campo de observação individual “padrão para todos”; observações de vínculo
-  continuam sendo lançadas individualmente depois, no histórico do socioeducando.
+  continuam sendo lançadas individualmente depois, no histórico do socioeducando. O
+  tipo da saída também é obrigatório no lote.
+- A data e o horário são exibidos em campos separados, mas cada par é armazenado junto
+  em `Saidas` (`Data/Hora Ida` e `Data/Hora Volta`). Ao preencher a data de saída com
+  a data de retorno vazia, a data de retorno é preenchida automaticamente com a mesma data.
 - Registro de volta (`mostrarFormVolta`) — atualiza a data/hora de volta do evento
   (compartilhada por todos os vinculados àquela saída).
 - **Verificação de conflitos de agenda** (`verificarConflitosAgenda`): ao preencher
@@ -163,6 +174,7 @@ o primeiro paint da tela.
   e exibe um alerta com os conflitos antes de salvar. No lote, ao clicar em
   "Cadastrar saídas", o sistema abre um **modal de confirmação detalhado** com
   os conflitos e as ações "Revisar horários" ou "Cadastrar saídas mesmo assim".
+  Vínculos com status cancelada não entram no cálculo de conflito.
 
 ### Atendimentos
 
@@ -194,6 +206,7 @@ exista no backend).
 | Fugas/Evasões | ✅ formulário | ✅ histórico no perfil | ✅ formulário + registrar retorno | ❌ |
 | Cursos (evento) | ✅ individual e em lote | ✅ perfil + página "Cursos" | ✅ (via edição do vínculo, que reescreve o evento) | ❌ |
 | CursoMatriculas (vínculo) | ✅ individual e em lote | ✅ perfil | ✅ status, conclusão, certificado | ❌ |
+| CursoEventos (dia de uma matrícula de curso) | ✅ modal no calendário do perfil | ✅ clique na ocorrência do curso no calendário | ✅ modal no calendário do perfil | ✅ modal no calendário do perfil |
 | Saídas (evento) | ✅ individual e em lote | ✅ perfil | ✅ (via edição do vínculo) | ❌ |
 | SaidaMatriculas (vínculo) | ✅ individual e em lote | ✅ perfil | ✅ status, observações, volta | ❌ |
 | Atendimentos | ✅ em lote | ✅ perfil | ✅ formulário de edição (tipo, responsável, horários, observações) + "marcar não realizado" | ❌ |
@@ -209,6 +222,12 @@ exista no backend).
 - Verificação de conflitos de agenda centralizada num único motor, cruzando cursos,
   saídas e atendimentos, com UX de
   confirmação explícita em vez de bloqueio rígido.
+- Ajuste fino de conflitos para cursos: ausências diárias registradas em eventos de
+  curso (`CursoEventos`, vinculados a `CursoMatriculas`) retiram aquela ocorrência específica do cálculo de conflito.
+- No calendário do perfil, uma ocorrência de curso marcada como ausente é exibida em
+  uma variação menos saturada da cor do curso; observações do evento também aparecem
+  no título e ao passar o cursor sobre a ocorrência. Salvar ou excluir esse evento
+  atualiza somente o calendário.
 - Fluxo de "atendimento não realizado → reposição automática" é elegante e mantém
   rastreabilidade.
 - Cadastro em lote (Cursos/Saídas/Atendimentos) reduz drasticamente o trabalho manual

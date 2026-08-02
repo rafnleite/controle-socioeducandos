@@ -22,6 +22,7 @@ var TIPOS_CURSO = [
 
 var TIPOS_ATENDIMENTO = [];
 var TIPOS_ATENDIMENTO_DURACAO = {};
+var TIPOS_SAIDA = ['Cultural', 'Familiar', 'Lazer', 'Esportiva', 'Descida para casa', 'Outros'];
 var DIAS_SEMANA_CURSO = [
   { value: '0', label: 'Dom' },
   { value: '1', label: 'Seg' },
@@ -510,7 +511,7 @@ function iconifyHtml(html){
   return out;
 }
 function fecharModaisAbertos(){
-  ['modal-confirmacao','modal-detalhes-curso','modal-editar-curso','modal-editar-vinculo','modal-editar-matriculas-lote','modal-readmissao','modal-nao-realizado'].forEach(function(id){
+  ['modal-confirmacao','modal-detalhes-curso','modal-editar-curso','modal-editar-vinculo','modal-editar-matriculas-lote','modal-readmissao','modal-nao-realizado','modal-curso-evento-dia'].forEach(function(id){
     var el = document.getElementById(id);
     if (el) el.remove();
   });
@@ -2181,8 +2182,158 @@ function toCalendarIsoLocal(dt){
     + ':' + String(dt.getMinutes()).padStart(2, '0');
 }
 
+function toIsoDateLocal(dt){
+  if(!dt) return '';
+  return dt.getFullYear()
+    + '-' + String(dt.getMonth() + 1).padStart(2, '0')
+    + '-' + String(dt.getDate()).padStart(2, '0');
+}
+
+function abrirModalCursoEventoDia(payload){
+  var existente = document.getElementById('modal-curso-evento-dia');
+  if(existente) existente.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'modal-curso-evento-dia';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(16,20,35,.55);display:flex;align-items:center;justify-content:center;z-index:10000';
+
+  var dataFmt = fmtDateComDia(payload.data_iso, fmtDateLocal(payload.data_iso));
+  overlay.innerHTML = ''
+    +'<div style="background:#fff;border-radius:10px;padding:24px 28px;max-width:560px;width:94%;box-shadow:0 8px 40px rgba(0,0,0,.25)">'
+    +'<div class="page-hdr" style="margin-bottom:10px;padding-bottom:8px"><h4><i class="fa-solid fa-book-open"></i> Evento do curso (dia)</h4><button class="modal-close-x" onclick="fecharModalCursoEventoDia()"><i class="fa-solid fa-xmark"></i></button></div>'
+    +'<div id="ced-msg"></div>'
+    +'<input type="hidden" id="ced-id" value="'+esc(payload.id || '')+'">'
+    +'<input type="hidden" id="ced-matricula" value="'+esc(payload.curso_matricula_id)+'">'
+    +'<input type="hidden" id="ced-data" value="'+esc(payload.data_iso)+'">'
+    +'<div class="form-group"><label>Curso</label><div style="padding:6px 0;font-size:13px">'+esc(payload.curso_nome || 'Curso')+'</div></div>'
+    +'<div class="form-group"><label>Data</label><div style="padding:6px 0;font-size:13px">'+esc(dataFmt || payload.data_iso)+'</div></div>'
+    +'<div class="form-check mb-2"><input type="checkbox" id="ced-ausente"'+(payload.ausente?' checked':'')+'><label for="ced-ausente" style="margin:0;font-weight:500">Ausente neste dia</label></div>'
+    +'<div class="form-group"><label>Observações</label><textarea id="ced-obs" rows="3" style="resize:vertical">'+esc(payload.observacoes || '')+'</textarea></div>'
+    +'<div class="d-flex gap-2">'
+    +'<button class="btn btn-primary" onclick="submitCursoEventoDia()"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>'
+    +(payload.id ? '<button class="btn btn-danger" onclick="excluirCursoEventoDiaUI()"><i class="fa-solid fa-trash"></i> Excluir</button>' : '')
+    +'<button class="btn btn-secondary" onclick="fecharModalCursoEventoDia()">Cancelar</button>'
+    +'</div>'
+    +'</div>';
+
+  overlay.addEventListener('click', function(e){ if(e.target === overlay) fecharModalCursoEventoDia(); });
+  document.body.appendChild(overlay);
+}
+
+function fecharModalCursoEventoDia(){
+  var el = document.getElementById('modal-curso-evento-dia');
+  if(el) el.remove();
+}
+
+function atualizarAgendaPerfilCursoEventos(){
+  if(!ESTADO.socioeducandoId || !DADOS_AGENDA_PERFIL) return;
+  google.script.run
+    .withSuccessHandler(function(eventos){
+      DADOS_AGENDA_PERFIL.curso_eventos = eventos || [];
+      renderAgendaPerfil(DADOS_AGENDA_PERFIL);
+    })
+    .withFailureHandler(function(err){
+      var msgEl = document.getElementById('ced-msg');
+      if(msgEl) msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
+    })
+    .carregarEventosCursoAgenda(ESTADO.socioeducandoId);
+}
+
+function abrirFormularioCursoEventoPeloCalendario(info){
+  if(!info || !info.event) return;
+  var props = info.event.extendedProps || {};
+  if(props.tipo !== 'curso') return;
+
+  var dataIso = props.data_iso || (info.event.start ? toIsoDateLocal(info.event.start) : '');
+  if(!props.curso_matricula_id || !dataIso) return;
+
+  setBusyState(true, 'Carregando evento do curso...');
+  google.script.run
+    .withSuccessHandler(function(reg){
+      setBusyState(false);
+      abrirModalCursoEventoDia({
+        id: reg && reg.id ? reg.id : '',
+        curso_matricula_id: props.curso_matricula_id,
+        data_iso: dataIso,
+        curso_nome: props.curso_nome || info.event.title || 'Curso',
+        ausente: !!(reg && reg.ausente),
+        observacoes: reg && reg.observacoes ? reg.observacoes : ''
+      });
+    })
+    .withFailureHandler(function(err){
+      setBusyState(false);
+      var msg = err && err.message ? err.message : 'Erro ao carregar evento do curso.';
+      showError(new Error(msg));
+    })
+    .carregarCursoEventoDia(props.curso_matricula_id, dataIso);
+}
+
+function submitCursoEventoDia(){
+  var dados = {
+    id: document.getElementById('ced-id').value,
+    curso_matricula_id: document.getElementById('ced-matricula').value,
+    data_iso: document.getElementById('ced-data').value,
+    ausente: !!document.getElementById('ced-ausente').checked,
+    observacoes: document.getElementById('ced-obs').value.trim()
+  };
+
+  setBusyState(true, 'Salvando evento do curso...');
+  google.script.run
+    .withSuccessHandler(function(){
+      setBusyState(false);
+      fecharModalCursoEventoDia();
+      atualizarAgendaPerfilCursoEventos();
+    })
+    .withFailureHandler(function(err){
+      setBusyState(false);
+      var msgEl = document.getElementById('ced-msg');
+      if(msgEl) msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
+    })
+    .salvarCursoEventoDia(dados);
+}
+
+function excluirCursoEventoDiaUI(){
+  var id = document.getElementById('ced-id').value;
+  if(!id) return;
+  abrirModalConfirmacao({
+    titulo: 'Excluir evento do curso',
+    mensagem: 'Deseja excluir esta marcação de ausência/observação do dia?',
+    textoConfirmar: 'Excluir',
+    onConfirmar: function(){
+      setBusyState(true, 'Excluindo evento do curso...');
+      google.script.run
+        .withSuccessHandler(function(){
+          setBusyState(false);
+          fecharModalCursoEventoDia();
+          atualizarAgendaPerfilCursoEventos();
+        })
+        .withFailureHandler(function(err){
+          setBusyState(false);
+          var msgEl = document.getElementById('ced-msg');
+          if(msgEl) msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
+        })
+        .excluirCursoEventoDia(id);
+    }
+  });
+}
+
+var CALENDARIO_PERFIL = null;
+var DADOS_AGENDA_PERFIL = null;
+
+function corCursoAusente(corBase){
+  var coresMenosSaturadas = {
+    '#e67e00': '#c9a86a',
+    '#6c757d': '#92989d'
+  };
+  return coresMenosSaturadas[String(corBase || '').toLowerCase()] || '#a6adb4';
+}
+
 function eventosAgendaPerfil(d){
   var eventos = [];
+  var eventosCursoPorMatriculaEDia = {};
+  (d.curso_eventos || []).forEach(function(evento){
+    eventosCursoPorMatriculaEDia[String(evento.curso_matricula_id) + '|' + String(evento.data_iso)] = evento;
+  });
 
   // Saídas — sem janela de tempo, todos os registros
   (d.saidas || []).forEach(function(s){
@@ -2244,13 +2395,29 @@ function eventosAgendaPerfil(d){
         var dtFim = new Date(cursor);
         dtFim.setHours(hFim, mFim, 0, 0);
         if(dtFim <= dtIni) dtFim.setDate(dtFim.getDate() + 1); // passa meia-noite
+        var dataIso = toIsoDateLocal(dtIni);
+        var eventoDia = eventosCursoPorMatriculaEDia[String(c.matricula_id) + '|' + dataIso];
+        var ausente = !!(eventoDia && eventoDia.ausente);
+        var observacoes = eventoDia && eventoDia.observacoes ? String(eventoDia.observacoes).trim() : '';
+        var tituloEvento = titulo
+          + (ausente ? ' — Ausente' : '')
+          + (observacoes ? ' — ' + observacoes : '');
+        var corEvento = ausente ? corCursoAusente(cor) : cor;
         eventos.push({
-          title: titulo,
+          title: tituloEvento,
           start: toCalendarIsoLocal(dtIni),
           end:   toCalendarIsoLocal(dtFim),
-          backgroundColor: cor,
-          borderColor: cor,
-          extendedProps: { tipo: 'curso', curso_id: c.curso_id }
+          backgroundColor: corEvento,
+          borderColor: corEvento,
+          extendedProps: {
+            tipo: 'curso',
+            curso_id: c.curso_id,
+            curso_matricula_id: c.matricula_id,
+            data_iso: dataIso,
+            curso_nome: c.nome_curso || 'Curso',
+            ausente: ausente,
+            observacoes: observacoes
+          }
         });
         count++;
       }
@@ -2266,10 +2433,15 @@ function renderAgendaPerfil(d){
   var empty = document.getElementById('perfil-agenda-empty');
   if(!el || typeof FullCalendar === 'undefined') return;
 
+  DADOS_AGENDA_PERFIL = d;
+  if(CALENDARIO_PERFIL) {
+    CALENDARIO_PERFIL.destroy();
+    CALENDARIO_PERFIL = null;
+  }
   var eventos = eventosAgendaPerfil(d);
   if(empty) empty.style.display = eventos.length ? 'none' : 'block';
 
-  var cal = new FullCalendar.Calendar(el, {
+  CALENDARIO_PERFIL = new FullCalendar.Calendar(el, {
     locale: 'pt-br',
     initialView: 'timeGridWeek',
     height: 340,
@@ -2290,10 +2462,22 @@ function renderAgendaPerfil(d){
       month: 'Mês'
     },
     events: eventos,
-    eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false }
+    eventDidMount: function(info){
+      if(info && info.event && info.event.extendedProps && info.event.extendedProps.tipo === 'curso'){
+        info.el.style.cursor = 'pointer';
+      }
+    },
+    eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
+    eventClick: abrirFormularioCursoEventoPeloCalendario,
+    eventDidMount: function(info){
+      var props = info.event.extendedProps || {};
+      if(props.tipo === 'curso' && props.observacoes) {
+        info.el.title = 'Observações: ' + props.observacoes;
+      }
+    }
   });
 
-  cal.render();
+  CALENDARIO_PERFIL.render();
 }
 
 // ══════════════════════════════════════════════════
@@ -2591,7 +2775,7 @@ function renderPerfil(d){
     +'<div class="sec-hdr"><h5><i class="fa-solid fa-bus"></i> Saídas ('+d.saidas.length+')</h5>'+(status==='desligado' ? '' : '<button class="btn btn-success btn-xs" onclick="mostrarFormSaida(\''+j.id+'\')"><i class="fa-solid fa-plus"></i> Nova saída</button>')+'</div>'
     +(d.saidas.length === 0
       ? '<p class="no-records">Nenhuma saída registrada.</p>'
-      : '<div style="overflow-x:auto"><table><thead><tr><th>Local</th><th>Ida</th><th>Volta</th><th>Condução</th><th>Acompanhante</th><th>Observações</th><th>Situação</th><th>Status</th><th></th></tr></thead><tbody>'
+      : '<div style="overflow-x:auto"><table><thead><tr><th>Local</th><th>Tipo</th><th>Ida</th><th>Volta</th><th>Condução</th><th>Acompanhante</th><th>Observações</th><th>Situação</th><th>Status</th><th></th></tr></thead><tbody>'
         + d.saidas.map(function(s){
             var volta = s.data_hora_volta || '<span class="text-danger">Não retornou</span>';
             var st = s.data_hora_volta ? '<span class="badge b-green">Retornou</span>' : '<span class="badge b-orange">Saída</span>';
@@ -2605,6 +2789,7 @@ function renderPerfil(d){
             var btnVolta = !s.data_hora_volta_iso ? '<button class="btn btn-outline btn-xs" onclick="mostrarFormVolta(\''+s.saida_id+'\')"><i class="fa-solid fa-rotate-left"></i> Volta</button> ' : '';
             return '<tr>'
               +'<td>'+esc(s.local)+'</td>'
+              +'<td>'+esc(s.tipo||'—')+'</td>'
               +'<td>'+s.data_hora_ida+'</td>'
               +'<td>'+volta+'</td>'
               +'<td><span class="badge b-blue">'+esc(s.conducao)+'</span></td>'
@@ -3267,9 +3452,16 @@ function renderFormSaida(socioeducandoId, saida){
     +'<input type="hidden" id="sa-said" value="'+(saida?esc(saida.saida_id):'')+'">'
     +'<input type="hidden" id="sa-sid" value="'+esc(socioeducandoId)+'">'
     +'<div class="form-group"><label>Local <span class="req">*</span></label><input type="text" id="sa-local" value="'+(saida?esc(saida.local):'')+'"\ placeholder="Ex: Hospital, Fórum, Escola..."></div>'
+    +'<div class="form-group"><label>Tipo <span class="req">*</span></label><select id="sa-tipo"><option value="">Selecione...</option>'
+    +TIPOS_SAIDA.map(function(tp){ return '<option value="'+esc(tp)+'"'+(saida&&saida.tipo===tp?' selected':'')+'>'+esc(tp)+'</option>'; }).join('')
+    +'</select></div>'
     +'<div class="row2">'
-    +'<div class="form-group"><label>Data/Hora de ida <span class="req">*</span></label><input type="datetime-local" id="sa-ida" value="'+(saida?esc(saida.data_hora_ida_iso):'')+'"></div>'
-    +'<div class="form-group"><label>Data/Hora de volta <small class="text-muted">(se retornou)</small></label><input type="datetime-local" id="sa-volta" value="'+(saida?esc(saida.data_hora_volta_iso):'')+'"></div>'
+    +'<div class="form-group"><label>Data de saída <span class="req">*</span></label><input type="date" id="sa-data-ida" required value="'+valorDataHoraSaida(saida && saida.data_hora_ida_iso, 'data')+'"></div>'
+    +'<div class="form-group"><label>Horário de saída <span class="req">*</span></label><input type="time" id="sa-hora-ida" required value="'+valorDataHoraSaida(saida && saida.data_hora_ida_iso, 'hora')+'"></div>'
+    +'</div>'
+    +'<div class="row2">'
+    +'<div class="form-group"><label>Data de retorno <span class="req">*</span></label><input type="date" id="sa-data-volta" required value="'+valorDataHoraSaida(saida && saida.data_hora_volta_iso, 'data')+'"></div>'
+    +'<div class="form-group"><label>Horário de retorno <span class="req">*</span></label><input type="time" id="sa-hora-volta" required value="'+valorDataHoraSaida(saida && saida.data_hora_volta_iso, 'hora')+'"></div>'
     +'</div>'
     +'<div class="row2">'
     +'<div class="form-group"><label>Condução <span class="req">*</span></label>'
@@ -3290,17 +3482,40 @@ function renderFormSaida(socioeducandoId, saida){
     +'</div>';
   setContent(html);
 
-  var ida = document.getElementById('sa-ida');
-  var volta = document.getElementById('sa-volta');
-  if(ida) ida.addEventListener('input', function(){ debounceConflito('saida-form', verificarConflitosSaidaFormulario, 250); });
-  if(volta) volta.addEventListener('input', function(){ debounceConflito('saida-form', verificarConflitosSaidaFormulario, 250); });
+  ['sa-data-ida', 'sa-hora-ida', 'sa-data-volta', 'sa-hora-volta'].forEach(function(id){
+    var campo = document.getElementById(id);
+    if(campo) campo.addEventListener('input', function(){ debounceConflito('saida-form', verificarConflitosSaidaFormulario, 250); });
+  });
+  var dataIda = document.getElementById('sa-data-ida');
+  if(dataIda) dataIda.addEventListener('change', function(){
+    preencherDataRetornoSeVazia('sa-data-ida', 'sa-data-volta');
+  });
   verificarConflitosSaidaFormulario();
+}
+
+function valorDataHoraSaida(valor, parte){
+  var iso = String(valor || '');
+  return parte === 'data' ? iso.slice(0, 10) : iso.slice(11, 16);
+}
+
+function combinarDataHoraSaida(dataId, horaId){
+  var data = obterValorDateTimeFlatpickr(document.getElementById(dataId));
+  var hora = obterValorDateTimeFlatpickr(document.getElementById(horaId));
+  return data && hora ? data + 'T' + hora : '';
+}
+
+function preencherDataRetornoSeVazia(dataSaidaId, dataRetornoId){
+  var dataSaida = obterValorDateTimeFlatpickr(document.getElementById(dataSaidaId));
+  var dataRetorno = document.getElementById(dataRetornoId);
+  if(!dataSaida || !dataRetorno || obterValorDateTimeFlatpickr(dataRetorno)) return;
+  if(dataRetorno._flatpickr) dataRetorno._flatpickr.setDate(dataSaida, true, 'Y-m-d');
+  else dataRetorno.value = dataSaida;
 }
 
 function verificarConflitosSaidaFormulario(done){
   var sid = document.getElementById('sa-sid') ? document.getElementById('sa-sid').value : '';
-  var ini = obterValorDateTimeFlatpickr(document.getElementById('sa-ida'));
-  var fim = obterValorDateTimeFlatpickr(document.getElementById('sa-volta'));
+  var ini = combinarDataHoraSaida('sa-data-ida', 'sa-hora-ida');
+  var fim = combinarDataHoraSaida('sa-data-volta', 'sa-hora-volta');
   var matriculaId = document.getElementById('sa-matid') ? document.getElementById('sa-matid').value : '';
   var box = document.getElementById('sa-conflitos');
 
@@ -3326,13 +3541,18 @@ function verificarConflitosSaidaFormulario(done){
 }
 
 function submitFormSaida(){
-  var ida = obterValorDateTimeFlatpickr(document.getElementById('sa-ida'));
-  var volta = obterValorDateTimeFlatpickr(document.getElementById('sa-volta'));
+  var dataIda = obterValorDateTimeFlatpickr(document.getElementById('sa-data-ida'));
+  var horaIda = obterValorDateTimeFlatpickr(document.getElementById('sa-hora-ida'));
+  var dataVolta = obterValorDateTimeFlatpickr(document.getElementById('sa-data-volta'));
+  var horaVolta = obterValorDateTimeFlatpickr(document.getElementById('sa-hora-volta'));
+  var ida = combinarDataHoraSaida('sa-data-ida', 'sa-hora-ida');
+  var volta = combinarDataHoraSaida('sa-data-volta', 'sa-hora-volta');
   var dados = {
     matricula_id: document.getElementById('sa-matid').value,
     saida_id: document.getElementById('sa-said').value,
     socioeducando_id: document.getElementById('sa-sid').value,
     local: document.getElementById('sa-local').value.trim(),
+    tipo: document.getElementById('sa-tipo').value,
     data_hora_ida: ida,
     data_hora_volta: volta,
     conducao: document.getElementById('sa-cond').value,
@@ -3342,7 +3562,11 @@ function submitFormSaida(){
     observacoes: document.getElementById('sa-obs').value.trim()
   };
 
-  if(dados.data_hora_ida && dados.data_hora_volta && dados.data_hora_volta < dados.data_hora_ida){
+  if(!dataIda || !horaIda || !dataVolta || !horaVolta){
+    document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Preencha data e horário de saída e de retorno.</div>';
+    return;
+  }
+  if(dados.data_hora_volta < dados.data_hora_ida){
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">A data/hora de volta não pode ser anterior à data/hora de ida.</div>';
     return;
   }
@@ -3350,7 +3574,10 @@ function submitFormSaida(){
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o nome do(a) acompanhante.</div>';
     return;
   }
-
+  if(!dados.tipo){
+    document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o tipo da saída.</div>';
+    return;
+  }
   verificarConflitosSaidaFormulario(function(conflitos){
     if(conflitos && conflitos.conflitos && conflitos.conflitos.length && !modalConfirmarConflitos(conflitos)) return;
 
@@ -4132,9 +4359,16 @@ function renderFormSaidaLote(socioeducandos){
     +'<div class="card">'
     +'<div class="sec-hdr"><h5><i class="fa-solid fa-bus"></i> Dados da Saída</h5></div>'
     +'<div class="form-group"><label>Local <span class="req">*</span></label><input type="text" id="sl-local" placeholder="Ex: Hospital, Fórum, Escola..."></div>'
+    +'<div class="form-group"><label>Tipo <span class="req">*</span></label><select id="sl-tipo"><option value="">Selecione...</option>'
+    +TIPOS_SAIDA.map(function(tp){ return '<option value="'+esc(tp)+'">'+esc(tp)+'</option>'; }).join('')
+    +'</select></div>'
     +'<div class="row2">'
-    +'<div class="form-group"><label>Data/Hora de ida <span class="req">*</span></label><input type="datetime-local" id="sl-ida"></div>'
-    +'<div class="form-group"><label>Data/Hora de volta <small class="text-muted">(se retornou)</small></label><input type="datetime-local" id="sl-volta"></div>'
+    +'<div class="form-group"><label>Data de saída <span class="req">*</span></label><input type="date" id="sl-data-ida" required></div>'
+    +'<div class="form-group"><label>Horário de saída <span class="req">*</span></label><input type="time" id="sl-hora-ida" required></div>'
+    +'</div>'
+    +'<div class="row2">'
+    +'<div class="form-group"><label>Data de retorno <span class="req">*</span></label><input type="date" id="sl-data-volta" required></div>'
+    +'<div class="form-group"><label>Horário de retorno <span class="req">*</span></label><input type="time" id="sl-hora-volta" required></div>'
     +'</div>'
     +'<div class="row2">'
     +'<div class="form-group"><label>Condução <span class="req">*</span></label>'
@@ -4155,10 +4389,14 @@ function renderFormSaidaLote(socioeducandos){
   setContent(html);
   document.getElementById('tabela-slote').addEventListener('change', atualizarContadorSlote);
   document.getElementById('tabela-slote').addEventListener('change', function(){ debounceConflito('saida-lote', verificarConflitosSaidaLoteFormulario, 250); });
-  var ida = document.getElementById('sl-ida');
-  var volta = document.getElementById('sl-volta');
-  if(ida) ida.addEventListener('input', function(){ debounceConflito('saida-lote', verificarConflitosSaidaLoteFormulario, 250); });
-  if(volta) volta.addEventListener('input', function(){ debounceConflito('saida-lote', verificarConflitosSaidaLoteFormulario, 250); });
+  ['sl-data-ida', 'sl-hora-ida', 'sl-data-volta', 'sl-hora-volta'].forEach(function(id){
+    var campo = document.getElementById(id);
+    if(campo) campo.addEventListener('input', function(){ debounceConflito('saida-lote', verificarConflitosSaidaLoteFormulario, 250); });
+  });
+  var dataIda = document.getElementById('sl-data-ida');
+  if(dataIda) dataIda.addEventListener('change', function(){
+    preencherDataRetornoSeVazia('sl-data-ida', 'sl-data-volta');
+  });
   verificarConflitosSaidaLoteFormulario();
 }
 
@@ -4182,8 +4420,8 @@ function atualizarContadorSlote(){
 }
 
 function verificarConflitosSaidaLoteFormulario(done){
-  var ini = obterValorDateTimeFlatpickr(document.getElementById('sl-ida'));
-  var fim = obterValorDateTimeFlatpickr(document.getElementById('sl-volta'));
+  var ini = combinarDataHoraSaida('sl-data-ida', 'sl-hora-ida');
+  var fim = combinarDataHoraSaida('sl-data-volta', 'sl-hora-volta');
   var box = document.getElementById('slote-conflitos');
   var itens = [];
 
@@ -4218,11 +4456,16 @@ function submitSaidaLote(){
   });
   if(!vinculos.length){ document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">Defina o status de ao menos um socioeducando.</div>'; return; }
 
-  var ida = obterValorDateTimeFlatpickr(document.getElementById('sl-ida'));
-  var volta = obterValorDateTimeFlatpickr(document.getElementById('sl-volta'));
+  var dataIda = obterValorDateTimeFlatpickr(document.getElementById('sl-data-ida'));
+  var horaIda = obterValorDateTimeFlatpickr(document.getElementById('sl-hora-ida'));
+  var dataVolta = obterValorDateTimeFlatpickr(document.getElementById('sl-data-volta'));
+  var horaVolta = obterValorDateTimeFlatpickr(document.getElementById('sl-hora-volta'));
+  var ida = combinarDataHoraSaida('sl-data-ida', 'sl-hora-ida');
+  var volta = combinarDataHoraSaida('sl-data-volta', 'sl-hora-volta');
 
   var dados = {
     local: document.getElementById('sl-local').value.trim(),
+    tipo: document.getElementById('sl-tipo').value,
     data_hora_ida: ida,
     data_hora_volta: volta,
     conducao: document.getElementById('sl-cond').value,
@@ -4234,8 +4477,16 @@ function submitSaidaLote(){
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o nome do(a) acompanhante.</div>';
     return;
   }
+  if(!dados.tipo){
+    document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o tipo da saída.</div>';
+    return;
+  }
+  if(!dataIda || !horaIda || !dataVolta || !horaVolta){
+    document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Preencha data e horário de saída e de retorno.</div>';
+    return;
+  }
 
-  if(dados.data_hora_ida && dados.data_hora_volta && dados.data_hora_volta < dados.data_hora_ida){
+  if(dados.data_hora_volta < dados.data_hora_ida){
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">A data/hora de volta não pode ser anterior à data/hora de ida.</div>';
     return;
   }

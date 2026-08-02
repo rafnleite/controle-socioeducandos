@@ -104,14 +104,26 @@
 - [ ] Cadastro de interesse em lote (vários socioeducandos, um texto) → ignora silenciosamente quem já tem o mesmo interesse; conta inseridos/ignorados corretamente.
 - [ ] Interesses aparecem corretamente na tela de Curso em Lote (nome + interesses) e no filtro por interesse.
 
+### 4.5 Evento diário do curso (calendário do perfil)
+- [ ] No calendário do perfil, clicar em uma ocorrência de curso abre o modal de evento diário.
+- [ ] Salvar `Ausente = true` para um dia do curso cria registro em `CursoEventos` com a data correta e o `ID Curso Matrícula` do vínculo exibido no calendário.
+- [ ] Salvar observação sem marcar ausente também cria/atualiza o registro diário normalmente.
+- [ ] Reabrir o mesmo dia no calendário mostra os dados persistidos (ausente e observações).
+- [ ] Curso marcado como ausente é exibido no calendário com cor menos saturada e, quando houver, a observação aparece no evento.
+- [ ] Salvar ou excluir o evento diário atualiza somente o calendário, sem recarregar o perfil inteiro.
+- [ ] Excluir o evento diário remove a marcação para aquele dia (sem afetar curso/matrícula).
+- [ ] Com `Ausente = true` no dia, o motor de conflitos ignora aquela ocorrência de curso para novas verificações no mesmo intervalo.
+- [ ] Em uma planilha legada, a migração converte `ID Curso` + `ID Socioeducando` para `ID Curso Matrícula` quando houver uma matrícula correspondente.
+
 ---
 
 ## 5. Saídas / Vínculos de Saída
 
 ### 5.1 Cadastro individual (Saída + Vínculo, a partir do perfil)
-- [ ] Criar nova saída vinculando um socioeducando (Local, Data/Hora Ida, Condução, **Nome do acompanhante**, Status) → cria linha em `Saidas` e `SaidaMatriculas`.
+- [ ] Criar nova saída vinculando um socioeducando (Local, **Tipo**, Data de saída, Horário de saída, Data de retorno, Horário de retorno, Condução, **Nome do acompanhante**, Status) → cria linha em `Saidas` e `SaidaMatriculas`.
+- [ ] Ao informar a data de saída com a data de retorno vazia, a data de retorno é preenchida automaticamente com a mesma data.
 - [ ] Data/Hora de volta anterior à ida → erro de validação.
-- [ ] Campos obrigatórios (Local, Data/Hora Ida, Condução, Status) → erro se algum faltar.
+- [ ] Campos obrigatórios (Local, **Tipo**, Data/Hora Ida, **Data/Hora Volta**, Condução, Status) → erro se algum faltar.
 - [ ] Editar uma saída existente → atualiza sem duplicar; `Atualizado por` preenchido.
 - [ ] Preencher **Observações da saída** (evento, geral) e salvar → persiste em `Saidas.Observações`, distinta da observação por vínculo em `SaidaMatriculas`.
 - [ ] **Verificação de conflito de agenda**: socioeducando já tem curso/saída/atendimento no mesmo horário → alerta de conflito (não bloqueia, apenas avisa).
@@ -121,6 +133,8 @@
 - [ ] Selecionar vários socioeducandos com status individual (Prevista/Realizada/Cancelada) → 1 `Saida` + N `SaidaMatriculas`.
 - [ ] Nenhum vínculo com status definido → erro bloqueando.
 - [ ] Nome do(a) acompanhante vazio → erro de validação (campo obrigatório).
+- [ ] Tipo vazio no formulário em lote → erro de validação (campo obrigatório).
+- [ ] Data/Hora de volta vazia no formulário em lote → erro de validação (campo obrigatório).
 - [ ] O formulário não oferece “observação individual padrão para todos”; observações de vínculo seguem sendo lançadas individualmente depois.
 - [ ] **Verificação de conflito de agenda**: socioeducando já tem curso/saída/atendimento no mesmo horário → alerta de conflito (não bloqueia, apenas avisa).
 - [ ] Ao clicar em **Cadastrar saídas** com conflitos, abrir modal detalhado com os conflitos e botões **Revisar horários** e **Cadastrar saídas mesmo assim**.

@@ -19,6 +19,7 @@ Sheets não impõe chaves estrangeiras, `UNIQUE`, nem *constraints*.
   - [Fugas](#fugas)
   - [Cursos](#cursos)
   - [CursoMatriculas](#cursomatriculas)
+  - [CursoEventos](#cursoeventos)
   - [Saidas](#saidas)
   - [SaidaMatriculas](#saidamatriculas)
   - [Atendimentos](#atendimentos)
@@ -114,9 +115,24 @@ erDiagram
     string Deletado_por
   }
 
+  CURSOEVENTOS {
+    number ID PK
+    number ID_Curso_Matricula FK
+    date Data
+    boolean Ausente
+    string Observacoes
+    datetime Registrado_em
+    string Criado_por
+    datetime Atualizado_em
+    string Atualizado_por
+    datetime Deletado_em
+    string Deletado_por
+  }
+
   SAIDAS {
     number ID PK
     string Local
+    string Tipo "Cultural | Familiar | Lazer | Esportiva | Descida para casa | Outros"
     datetime Data_Hora_Ida
     datetime Data_Hora_Volta
     string Conducao "Ônibus | Escolta | Acompanhado"
@@ -184,6 +200,7 @@ erDiagram
   SOCIOEDUCANDOS ||--o{ SAIDAMATRICULAS : "vincula-se a"
   SOCIOEDUCANDOS ||--o{ INTERESSESCURSO : "manifesta"
   CURSOS ||--o{ CURSOMATRICULAS : "possui"
+  CURSOMATRICULAS ||--o{ CURSOEVENTOS : "tem registro diário"
   SAIDAS ||--o{ SAIDAMATRICULAS : "possui"
   TIPOSATENDIMENTO ||--o{ ATENDIMENTOS : "classifica"
   ATENDIMENTOS ||--o| ATENDIMENTOS : "reposição de"
@@ -373,6 +390,31 @@ um socioeducando com um curso.
 > mais lida pela aplicação (ver migração `ensureCursoMatriculasMatriculadoTipoTermino()`
 > em `Code.gs`).
 
+### CursoEventos
+
+Tabela de controle diário de uma matrícula de curso. Uma linha representa um dia
+específico da matrícula, permitindo registrar ausência e observações daquele dia.
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `ID` | number (PK) | |
+| `ID Curso Matrícula` | number (FK → CursoMatriculas) | Identifica diretamente o vínculo do socioeducando com o curso. O curso e o socioeducando são obtidos por essa matrícula. |
+| `Data` | date | Dia da ocorrência do curso (sem hora). |
+| `Ausente` | boolean | `true` quando o socioeducando faltou no dia. |
+| `Observações` | string | Observação pontual do dia (ex.: justificativa de falta, intercorrência). |
+| `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | — | Auditoria. |
+| `Deletado em`, `Deletado por` | — | Reservadas para futura exclusão lógica; não preenchidas atualmente. |
+
+**Regra de negócio:** no motor de conflitos de agenda, ocorrências de curso marcadas
+como ausente em `CursoEventos` são ignoradas para aquele dia específico. A referência
+à matrícula preserva o histórico caso um socioeducando seja matriculado novamente no
+mesmo curso.
+
+**Migração:** em planilhas que usam o modelo anterior (`ID Curso` + `ID Socioeducando`),
+o sistema converte automaticamente cada evento para `ID Curso Matrícula` quando há uma
+única matrícula correspondente. Se houver nenhuma ou mais de uma matrícula para o par,
+a migração é interrompida para evitar vincular um histórico ao registro incorreto.
+
 ### Saidas
 
 Entidade **compartilhada** (evento) representando uma saída externa (ex.: consulta
@@ -383,8 +425,9 @@ evento ficam aqui; o vínculo com socioeducando(s) fica em `SaidaMatriculas`.
 |---|---|---|
 | `ID` | number (PK) | |
 | `Local` | string | |
-| `Data/Hora Ida` | datetime | |
-| `Data/Hora Volta` | datetime | Vazia enquanto ninguém retornou; compartilhada por todos os vinculados (não há horário de volta individual). |
+| `Tipo` | string | Classificação da saída: `Cultural`, `Familiar`, `Lazer`, `Esportiva`, `Descida para casa` ou `Outros`. |
+| `Data/Hora Ida` | datetime | Gravada como um único valor; no formulário, é preenchida separadamente em `Data de saída` e `Horário de saída`. |
+| `Data/Hora Volta` | datetime | Obrigatória no cadastro e gravada como um único valor; no formulário, é preenchida em `Data de retorno` e `Horário de retorno`. A data de retorno recebe automaticamente a data de saída quando ainda estiver vazia. Compartilhada por todos os vinculados (não há horário de volta individual). |
 | `Condução` | string | `"Ônibus"`, `"Escolta"` ou `"Acompanhado"`. |
 | `Nome Acompanhante` | string | |
 | `Observações` | string | Observação geral do evento de saída (ex.: intercorrência no transporte), compartilhada por todos os vinculados. Distinta da `Observações` de `SaidaMatriculas`, que é específica de cada socioeducando. |
@@ -406,8 +449,9 @@ um com seu próprio status e observação).
 | `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | — | Auditoria. |
 | `Deletado em`, `Deletado por` | — | Reservadas para futura exclusão lógica; não preenchidas atualmente. |
 
-**Regra de negócio:** vínculos com `Status = "Cancelada"` são ignorados pela verificação
-de conflitos de agenda (`verificarConflitosAgenda`).
+**Regra de negócio:** vínculos com status cancelada são ignorados pela verificação de
+conflitos de agenda (`verificarConflitosAgenda`), com normalização de texto
+(sem diferença por maiúsculas/minúsculas e acentuação).
 
 ### Atendimentos
 
