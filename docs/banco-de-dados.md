@@ -23,6 +23,9 @@ Sheets não impõe chaves estrangeiras, `UNIQUE`, nem *constraints*.
   - [Saidas](#saidas)
   - [SaidaMatriculas](#saidamatriculas)
   - [Atendimentos](#atendimentos)
+  - [Trabalhos](#trabalhos)
+  - [VisitasTerritoriais](#visitasterritoriais)
+  - [Familiares](#familiares)
   - [TiposAtendimento](#tiposatendimento)
   - [InteressesCurso](#interessescurso)
 - [Abas legadas (histórico de migrações)](#abas-legadas-histórico-de-migrações)
@@ -40,6 +43,8 @@ erDiagram
     string Nome
     date Data_de_Nascimento
     string Escolaridade
+    string Email_Profissional
+    string Senha_Profissional_Criptografada
     datetime Registrado_em
     string Criado_por
     datetime Atualizado_em
@@ -193,12 +198,69 @@ erDiagram
     string Criado_por
   }
 
+  TRABALHOS {
+    number ID PK
+    number ID_Socioeducando FK
+    string Tipo
+    string Empresa
+    string Curso
+    date Data_de_Contrato
+    date Data_Inicio
+    date Data_Fim
+    string Horario_Inicio
+    string Horario_Fim
+    string Dias_da_Semana
+    datetime Registrado_em
+    string Criado_por
+    datetime Atualizado_em
+    string Atualizado_por
+    datetime Deletado_em
+    string Deletado_por
+  }
+
+  VISITASTERRITORIAIS {
+    number ID PK
+    number ID_Socioeducando FK
+    date Data
+    string Tec_Responsavel
+    string Atendido_por
+    boolean CREAS
+    boolean CAPS
+    boolean Ameaca
+    string Observacoes
+    datetime Registrado_em
+    string Criado_por
+    datetime Atualizado_em
+    string Atualizado_por
+    datetime Deletado_em
+    string Deletado_por
+  }
+
+  FAMILIARES {
+    number ID PK
+    number ID_Socioeducando FK
+    string Nome
+    string Telefone
+    string Tipo_de_Vinculo
+    string Endereco
+    boolean Principal
+    datetime Registrado_em
+    string Criado_por
+    datetime Atualizado_em
+    string Atualizado_por
+    datetime Deletado_em
+    string Deletado_por
+  }
+
   SOCIOEDUCANDOS ||--o{ ADMISSOES : "tem histórico de"
   SOCIOEDUCANDOS ||--o{ FUGAS : "tem ocorrências de"
   SOCIOEDUCANDOS ||--o{ ATENDIMENTOS : "recebe"
   SOCIOEDUCANDOS ||--o{ CURSOMATRICULAS : "vincula-se a"
   SOCIOEDUCANDOS ||--o{ SAIDAMATRICULAS : "vincula-se a"
   SOCIOEDUCANDOS ||--o{ INTERESSESCURSO : "manifesta"
+  SOCIOEDUCANDOS ||--o{ TRABALHOS : "possui vínculos de"
+  SOCIOEDUCANDOS ||--o{ VISITASTERRITORIAIS : "recebe"
+  SOCIOEDUCANDOS ||--o{ FAMILIARES : "possui contatos de"
   CURSOS ||--o{ CURSOMATRICULAS : "possui"
   CURSOMATRICULAS ||--o{ CURSOEVENTOS : "tem registro diário"
   SAIDAS ||--o{ SAIDAMATRICULAS : "possui"
@@ -226,10 +288,11 @@ erDiagram
   alterações (apenas o último editor é conhecido, não o quê foi alterado).
 - **Colunas de exclusão lógica (reservadas):** a maioria das tabelas também possui,
   como as duas últimas colunas, `Deletado em` e `Deletado por` — reservadas para uma
-  futura funcionalidade de exclusão lógica (*soft delete*). Atualmente **não são
-  preenchidas por nenhuma rotina** (todas as exclusões continuam sendo físicas, via
-  `deleteRow`); as colunas só existem para já reservar o espaço na planilha. As
-  mesmas exceções (`TiposAtendimento` e `InteressesCurso`) não reservam essas colunas.
+  futura funcionalidade de exclusão lógica (*soft delete*). Atualmente, esse padrão
+  já está ativo em `Familiares` (exclusão lógica com preenchimento de `Deletado em`/
+  `Deletado por`), enquanto nas demais rotinas de exclusão o comportamento predominante
+  ainda é exclusão física (`deleteRow`). As mesmas exceções (`TiposAtendimento` e
+  `InteressesCurso`) não reservam essas colunas.
   A migração automática que garante a existência dessas colunas (e da tríade de
   auditoria, quando ainda ausente) é feita por `ensureColunasPadraoAuditoria()`,
   chamada tanto em `inicializarPlanilha()` quanto defensivamente nas funções de
@@ -275,11 +338,30 @@ Cadastro mestre dos adolescentes/jovens atendidos pela unidade.
 | `Nome` | string | Nome completo. Sempre normalizado para **maiúsculas** (`.toUpperCase()`) antes de gravar, tanto no cadastro/edição manual quanto na importação via CSV. |
 | `Data de Nascimento` | date | Opcional. Usada para calcular idade no perfil. Não pode ser futura. |
 | `Escolaridade` | string | Lista fechada no formulário (do 1º ano do fundamental ao 3º do médio, ou "Concluído"), mas armazenada como texto livre. |
+| `E-mail Profissional` | string | Opcional. Dado de credencial profissional do socioeducando. Exibido no perfil e no painel geral. |
+| `Senha Profissional (Criptografada)` | string | Opcional. Armazenada apenas em formato criptografado; a senha em texto puro não é persistida em planilha. |
 | `Registrado em` | datetime | Timestamp de criação do registro. |
 | `Criado por` | string | E-mail de quem criou o registro. |
 | `Atualizado em` | datetime | Timestamp da última edição. |
 | `Atualizado por` | string | E-mail de quem editou por último. |
 | `Deletado em` / `Deletado por` | datetime / string | Reservadas para futura exclusão lógica; não preenchidas atualmente. |
+
+**Ordem física de colunas:** `E-mail Profissional` e `Senha Profissional (Criptografada)`
+ficam imediatamente após `Escolaridade` (normalizada automaticamente por
+`ensureOrdemColunas`).
+
+**Credenciais profissionais (acesso restrito):**
+
+- Somente o usuário `luizasoarespedagoga@gmail.com` pode alterar e visualizar
+  credenciais profissionais.
+- Qualquer tentativa de alteração por outro usuário é bloqueada no backend
+  (`salvarSocioeducando` lança erro de permissão).
+- A senha é criptografada no backend antes de gravar (`criptografarSenhaProfissional`).
+- A visualização da senha em texto claro só ocorre via endpoint protegido
+  (`obterCredenciaisSocioeducando`), que descriptografa para o usuário autorizado.
+- A chave de criptografia/descriptografia é derivada do e-mail do usuário logado.
+  Se a chave não corresponder ao payload, a descriptografia falha de forma
+  segura (retorno vazio).
 
 **Regra de negócio:** no cadastro de um novo socioeducando, a *Data de admissão* é
 **obrigatória** e não pode ser futura; o sistema cria automaticamente a primeira linha
@@ -478,6 +560,65 @@ não realizado, o sistema (a) marca a linha original com `Realizado = "Não"` e 
 e (b) cria automaticamente uma **nova linha** de atendimento (reposição) com o mesmo
 tipo/responsável/socioeducando e a nova data informada, ligando as duas por
 `ID Atendimento Reposição`. Isso forma uma cadeia rastreável de reagendamentos.
+
+### Trabalhos
+
+Registra vínculos de trabalho/aprendizagem de cada socioeducando em relação **1:N**
+direta com `Socioeducandos` (sem cadastro em lote).
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `ID` | number (PK) | |
+| `ID Socioeducando` | number (FK) | Referencia `Socioeducandos.ID (SUASE)`. |
+| `Tipo` | string | `Trabalho` ou `Aprendizagem`. |
+| `Empresa` | string | Nome da empresa empregadora. |
+| `Curso` | string | Opcional (ex.: curso/linha de aprendizagem associada). |
+| `Data de Contrato` | date | Data formal do contrato. |
+| `Data Início` | date | Início efetivo do vínculo. |
+| `Data Fim` | date | Opcional; vazio indica vínculo em andamento. |
+| `Horário Início` / `Horário Fim` | time (texto) | Horário diário do vínculo. |
+| `Dias da Semana` | string | Dias no formato `0;1;...;6` (Dom..Sáb), igual ao padrão de cursos. |
+| `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | — | Auditoria. |
+| `Deletado em`, `Deletado por` | — | Reservadas para futura exclusão lógica; não preenchidas atualmente. |
+
+### VisitasTerritoriais
+
+Registra visitas territoriais em relação **1:N** direta com `Socioeducandos`.
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `ID` | number (PK) | |
+| `ID Socioeducando` | number (FK) | Referencia `Socioeducandos.ID (SUASE)`. |
+| `Data` | date | Data da visita territorial. |
+| `Tec Responsável` | string | Técnico responsável pela visita. |
+| `Atendido por` | string | Profissional/equipe que realizou o atendimento. |
+| `CREAS` | boolean | Encaminhamento/acionamento para CREAS (`true`/`false`). |
+| `CAPS` | boolean | Encaminhamento/acionamento para CAPS (`true`/`false`). |
+| `Ameaça` | boolean | Indicador de ameaça/risco identificado (`true`/`false`). |
+| `Observações` | string | Observações livres da visita. |
+| `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | — | Auditoria. |
+| `Deletado em`, `Deletado por` | — | Reservadas para futura exclusão lógica; não preenchidas atualmente. |
+
+### Familiares
+
+Registra contatos familiares do socioeducando em relação **1:N** direta com
+`Socioeducandos`.
+
+| Coluna | Tipo | Descrição |
+|---|---|---|
+| `ID` | number (PK) | |
+| `ID Socioeducando` | number (FK) | Referencia `Socioeducandos.ID (SUASE)`. |
+| `Nome` | string | Nome do familiar/contato. |
+| `Telefone` | string | Telefone principal do contato (opcional). |
+| `Tipo de Vínculo` | string | Ex.: mãe, pai, avó, responsável legal (opcional). |
+| `Endereço` | string | Endereço do contato (opcional). |
+| `Principal` | boolean | Indica o contato principal daquele socioeducando. |
+| `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | — | Auditoria. |
+| `Deletado em`, `Deletado por` | — | **Usados ativamente** para exclusão lógica em `excluirFamiliar`. |
+
+**Regra de negócio:** por socioeducando, apenas **1 familiar ativo** pode estar com
+`Principal = true`. Ao salvar um familiar marcado como principal, o backend desmarca
+automaticamente quaisquer outros familiares ativos daquele mesmo socioeducando.
 
 ### TiposAtendimento
 

@@ -49,7 +49,7 @@ Barra superior (`Main.html`):
 | **Painel Geral** | `mostrarOverview()` — dashboard com indicadores e resumo do dia. |
 | **Cursos** | `mostrarPaginaCursos()` — página dedicada com cursos próximos do encerramento de inscrição e socioeducandos sem curso recente. |
 | **Importar dados** | `mostrarMenuImportar()` — menu de importação de CSV. |
-| **Cadastrar ▾** | menu suspenso: Socioeducandos, Atendimentos, Cursos, Interesses de Curso, Saídas. |
+| **Cadastrar ▾** | menu suspenso: Socioeducandos, Atendimentos, Cursos, Trabalho, Interesses de Curso, Saídas. |
 | **Configurações ▾** | menu suspenso: Tipos de Atendimento — CRUD (`mostrarConfigTiposAtendimento()`) do catálogo de tipos e duração padrão. Separado do menu "Cadastrar" por um divisor na barra. |
 | **Busca (topo)** | campo de busca *live* por nome/ID que abre um menu de resultados navegando direto para `mostrarPerfil(id)`. |
 
@@ -69,6 +69,27 @@ específica: `?page=perfil&id=...`, `?page=atendimento[&id=...]`, `?page=saida`,
   com navegação entre dias (setas ◀▶, seletor de data, botão "Hoje").
 - Listagem de socioeducandos com status (internado/ausente/desligado) e atalho para o
   perfil.
+- A tabela também exibe o atributo **E-mail profissional** e permite ordenação por
+  essa coluna.
+- A grade principal do painel segue a ordem: **ID**, **Nome**, **Status**,
+  **Internado desde**, **Idade**, **Escolaridade**, **E-mail** e **Resumo**.
+- A coluna **Resumo** consolida indicadores em pills:
+  - curso: ícone + quantidade de cursos ativos;
+  - trabalho: ícone + empresa (uma pill por vínculo ativo);
+  - visita territorial: alerta `SEM VISITA TERRITORIAL` quando não houver nenhum
+    registro de visita para o socioeducando;
+  - alerta: pill `NÃO FEZ SAÍDA CULTURAL` para quem ainda não realizou saída cultural.
+- **Drill-down por clique nos pills**:
+  - ao clicar na pill de cursos, abre modal com os cursos ativos do socioeducando
+    (tipo, curso, local, período e horário), com atalho para abrir o vínculo;
+  - ao clicar em uma pill de trabalho, abre modal com os detalhes do vínculo
+    selecionado (tipo, empresa, curso, contrato, início/fim e horário), com
+    atalho para abrir a edição do trabalho.
+- Socioeducandos sem saída cultural realizada também recebem destaque visual na linha
+  da tabela para facilitar priorização.
+- Regra do alerta cultural no overview: considera que o socioeducando **fez saída
+  cultural** quando existe vínculo em saída do tipo `Cultural`, não cancelado, com
+  status `Realizada` ou com retorno registrado no evento.
 
 **Ajuste recente de desempenho:** o Painel Geral passou a carregar em duas etapas.
 Primeiro renderiza cartões, filtros e tabela principal; depois busca o bloco
@@ -79,26 +100,53 @@ o primeiro paint da tela.
 ### Perfil do Socioeducando
 
 - Cabeçalho com dados pessoais, idade, status atual e botão **Editar**.
+- Quando houver dado cadastrado, o cabeçalho também exibe **E-mail profissional**.
+- Para o usuário autorizado (`luizasoarespedagoga@gmail.com`), o perfil mostra o
+  botão **Ver credenciais**, que abre modal com e-mail e senha profissional
+  descriptografada.
 - **Agenda visual (FullCalendar)** dos últimos/próximos 14 dias, combinando saídas,
-  atendimentos e ocorrências recorrentes de cursos (por dia da semana). O clique em
+  atendimentos e ocorrências recorrentes de cursos e trabalhos (por dia da semana). O clique em
   uma ocorrência de curso abre formulário diário para marcar ausência (`Ausente`) e
   registrar observações daquele dia.
-- **Cursos**: tabela com tipo, nome, status do vínculo, local (interno/externo),
-  instituição, período, dias da semana e situação de conclusão. Ações: editar vínculo (✏️), marcar
-  conclusão (✔/📜).
-- **Atendimentos**: tabela com tipo, responsável, período, observações e status
+- **Familiares (card dedicado)**: seção em cards posicionada abaixo da agenda e acima
+  do card único de registros, com listagem dos contatos do socioeducando.
+- **Principal em destaque**: o familiar marcado como principal aparece sempre primeiro
+  e com destaque visual.
+- **Ações por card**: cada familiar possui ações de editar e excluir.
+- **Card "Adicionar familiar"**: aparece ao final da lista e abre modal para
+  cadastro/edição (nome, telefone, tipo de vínculo, endereço e marcador de principal).
+- **Atualização parcial**: após criar/editar/excluir familiar, somente a seção de
+  familiares é atualizada, sem recarregar o perfil inteiro.
+- **Admissões**: histórico de internações, com ação de desligamento (🚪), mantido em
+  card próprio.
+- **Card único de registros com abas**: as seções `Cursos`, `Atendimentos`,
+  `Trabalhos`, `Visitas Territoriais`, `Saídas` e `Fugas/Evasões` ficam reunidas em
+  um único card com abas, no padrão de seleção segmentada (similar ao painel de
+  cursos).
+- **Cursos (aba)**: tabela com tipo, nome, status do vínculo, local
+  (interno/externo), instituição, período, dias da semana e situação de conclusão.
+  Ações: editar vínculo (✏️), marcar conclusão (✔/📜).
+- **Atendimentos (aba)**: tabela com tipo, responsável, período, observações e status
   (realizado/não realizado, com motivo e link de reposição). Ação: marcar como não
   realizado (gera reposição automaticamente).
-- **Saídas**: tabela com local, tipo, ida/volta, condução, acompanhante, observações do
-  evento, situação (retornou?) e status do vínculo (Prevista/Realizada/Cancelada).
-  Ações: registrar volta (↩️), editar vínculo (✏️).
-- **Admissões**: histórico de internações, com ação de desligamento (🚪).
-- **Fugas/Evasões**: histórico com ação de registrar retorno (↩️) e editar (✏️).
+- **Trabalhos (aba)**: tabela com tipo, empresa, curso (opcional), contrato,
+  início/fim e horário semanal. Ações: novo trabalho e editar vínculo existente.
+- **Visitas Territoriais (aba)**: tabela com data, técnico responsável,
+  atendido por, sinalizadores `CREAS`, `CAPS` e `Ameaça` (sim/não),
+  além de observações. Ações: nova visita e editar registro.
+- **Saídas (aba)**: tabela com local, tipo, ida/volta, condução, acompanhante,
+  observações do evento, situação (retornou?) e status do vínculo
+  (Prevista/Realizada/Cancelada). Ações: registrar volta (↩️), editar vínculo (✏️).
+- **Fugas/Evasões (aba)**: histórico com ação de registrar retorno (↩️) e editar (✏️).
 
 ### Cadastro de Socioeducando
 
 - Formulário único de criação/edição. Na edição, o `ID` é exibido apenas como texto
   (não como campo editável).
+- Foram adicionados os atributos **E-mail profissional** e **Senha profissional**.
+- Esses dois campos são exibidos no formulário **somente** para o usuário autorizado
+  (`luizasoarespedagoga@gmail.com`).
+- Na edição, deixar a senha em branco mantém a senha criptografada já existente.
 - O **Nome** é sempre normalizado para maiúsculas antes de gravar (cadastro, edição e
   importação via CSV).
 - Na criação, a **Data de admissão é obrigatória** e não pode ser futura (assim como a
@@ -185,6 +233,35 @@ o primeiro paint da tela.
 - **Marcar como não realizado**: modal que exige motivo e nova data/hora, criando
   automaticamente um atendimento de reposição encadeado ao original.
 
+### Trabalhos
+
+- Cadastro individual (`mostrarFormTrabalho`): registra vínculo de `Trabalho` ou
+  `Aprendizagem` para um socioeducando, com empresa, curso opcional, data de
+  contrato, início/fim e horário semanal (dias da semana + hora início/fim).
+- Acesso pelo menu **Cadastrar** e também pelo **perfil** do socioeducando.
+- No perfil, aparece na aba **Trabalhos** dentro do card único de registros, com
+  listagem e ações de **Novo trabalho** e **Editar** vínculo existente.
+- Não possui cadastro em lote: o fluxo é sempre 1 registro por vez.
+
+### Visitas Territoriais
+
+- Cadastro individual por socioeducando (`mostrarFormVisitaTerritorial`), com os
+  campos: data, técnico responsável, atendido por, indicadores de encaminhamento
+  (`CREAS`, `CAPS`) e indicador de risco (`Ameaça`), além de observações.
+- Acesso principal pela aba **Visitas Territoriais** no perfil do socioeducando.
+- Relação **1 socioeducando : N visitas territoriais** (não possui cadastro em lote).
+- O overview sinaliza automaticamente com pill de alerta os socioeducandos sem
+  nenhum registro de visita territorial.
+
+### Familiares
+
+- Relação **1 socioeducando : N familiares** (`Familiares`), sem cadastro em lote.
+- CRUD via modal no perfil: nome, telefone, tipo de vínculo, endereço e marcador de
+  principal.
+- Regra de negócio: apenas **1 familiar ativo** pode ser principal por socioeducando;
+  ao marcar um principal, os demais são desmarcados automaticamente.
+- Exclusão disponível no card de cada familiar (deleção lógica).
+
 ### Importação de dados (CSV)
 
 - **Importar Socioeducandos**: a partir do relatório "Documentos Pessoais" do Portal
@@ -201,7 +278,7 @@ exista no backend).
 
 | Entidade | Create | Read | Update | Delete |
 |---|---|---|---|---|
-| Socioeducandos | ✅ formulário (nome/data de nascimento/admissão validados; readmissão de desligados oferece nova admissão em vez de duplicar) | ✅ perfil/listagem/busca | ✅ formulário (exceto ID, exibido como texto) | ❌ |
+| Socioeducandos | ✅ formulário (nome/data de nascimento/admissão validados; readmissão de desligados oferece nova admissão em vez de duplicar; credenciais com permissão restrita) | ✅ perfil/listagem/busca (e-mail visível; senha só por modal restrito) | ✅ formulário (exceto ID, exibido como texto; credenciais apenas por usuário autorizado) | ❌ |
 | Admissões | ✅ formulário próprio (`mostrarFormAdmissao`) + automático no cadastro do socioeducando + readmissão de socioeducando desligado | ✅ histórico no perfil | ✅ formulário de edição (`Data Admissão`/`Data Desligamento`) + "desligar" | ❌ |
 | Fugas/Evasões | ✅ formulário | ✅ histórico no perfil | ✅ formulário + registrar retorno | ❌ |
 | Cursos (evento) | ✅ individual e em lote | ✅ perfil + página "Cursos" | ✅ (via edição do vínculo, que reescreve o evento) | ❌ |
@@ -210,6 +287,8 @@ exista no backend).
 | Saídas (evento) | ✅ individual e em lote | ✅ perfil | ✅ (via edição do vínculo) | ❌ |
 | SaidaMatriculas (vínculo) | ✅ individual e em lote | ✅ perfil | ✅ status, observações, volta | ❌ |
 | Atendimentos | ✅ em lote | ✅ perfil | ✅ formulário de edição (tipo, responsável, horários, observações) + "marcar não realizado" | ❌ |
+| Trabalhos | ✅ individual | ✅ perfil | ✅ formulário de edição | ❌ |
+| Familiares | ✅ individual (modal no perfil) | ✅ perfil (cards) | ✅ edição por modal | ✅ exclusão lógica (card) |
 | TiposAtendimento | ✅ tela de Configurações | ✅ tela de Configurações + lista de seleção | ✅ tela de Configurações | ✅ tela de Configurações (bloqueia/confirma se houver atendimentos vinculados) |
 | InteressesCurso | ✅ perfil (individual) e em lote (`mostrarFormInteressesLote`) | ✅ perfil + lista de cadastro de curso em lote (com filtro) | ✅ (remover + recriar, sem tela de edição de texto dedicada) | ✅ perfil (chip ✕) |
 
@@ -239,9 +318,9 @@ exista no backend).
   presente na maioria das tabelas, sempre como os últimos atributos "principais".
   `TiposAtendimento` e `InteressesCurso` usam apenas `Registrado em`/`Criado por`.
   A maioria das tabelas também reserva, como últimas colunas, `Deletado em`/
-  `Deletado por` para uma futura exclusão lógica (ainda não implementada — todas as
-  exclusões continuam físicas); as mesmas duas tabelas são a exceção e não reservam
-  essas colunas.
+  `Deletado por` para exclusão lógica. Esse padrão já está ativo em `Familiares`;
+  nas demais rotinas de exclusão, o comportamento predominante ainda é exclusão
+  física. As mesmas duas tabelas são a exceção e não reservam essas colunas.
 - **Ícones consistentes**: toda a interface usa ícones Font Awesome (`fa-solid`) em vez
   de emojis, inclusive nas mensagens de alerta/erro exibidas diretamente via
   `innerHTML` (que não passam pela conversão automática de `iconifyHtml()`).
@@ -253,12 +332,10 @@ exista no backend).
 
 ## Lacunas e comandos de CRUD faltando
 
-1. **Exclusão (Delete) não está exposta em nenhuma tela.** Existe uma função genérica
-   no backend (`excluirRegistro(tabela, id)`), capaz de excluir uma linha de qualquer
-   aba pelo ID, mas **ela não é chamada por nenhum código do frontend** — não há botão
-   de excluir em nenhuma tabela/lista da aplicação. Hoje a única forma de remover um
-   registro incorreto é editar a planilha diretamente (o que é bloqueado pela proteção
-   de abas para quem não é o proprietário).
+1. **Exclusão (Delete) ainda é limitada na UI.** Hoje há exclusão apenas em alguns
+  fluxos específicos (ex.: interesses de curso e familiares). Ainda não existe um
+  padrão amplo de exclusão para a maioria das entidades principais (admissões, fugas,
+  cursos, saídas, atendimentos, trabalhos).
 2. **Sem exclusão em cascata / verificação de dependências**: mesmo que a exclusão seja
    implementada, apagar um `Curso`/`Saida` deixaria matrículas "órfãs" em
    `CursoMatriculas`/`SaidaMatriculas` se não houver tratamento explícito.
@@ -299,10 +376,11 @@ exista no backend).
      forma explícita e auditada);
    - preferir **exclusão lógica** (`Ativo = Sim/Não` ou coluna `Excluído em`) a uma
      exclusão física, para manter histórico e permitir auditoria/recuperação.
-2. **Controle de acesso**: atualmente qualquer pessoa com a URL do Web App publicado
-   pode ler e alterar todos os dados (não há checagem de papel/permissão em `doGet`
-   nem nas funções RPC). Dado que o sistema trata dados sensíveis de adolescentes em
-   medida socioeducativa, é recomendável:
+2. **Controle de acesso global**: já existe controle de acesso pontual para
+  credenciais profissionais de socioeducandos (campo e endpoint restritos ao e-mail
+  autorizado). Porém, o restante do sistema ainda não possui uma camada completa de
+  perfis/papéis em `doGet` e em todas as RPCs. Dado que o sistema trata dados
+  sensíveis de adolescentes em medida socioeducativa, é recomendável:
    - restringir o deploy a "somente pessoas da organização" (configuração de
      implantação do Apps Script) e/ou
    - validar `Session.getActiveUser().getEmail()` contra uma lista de usuários

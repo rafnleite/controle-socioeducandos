@@ -9,6 +9,20 @@
 
 ## 1. Socioeducandos
 
+### 1.0 Painel Geral (overview)
+- [ ] Tabela do painel exibe colunas na ordem: ID, Nome, Status, Internado desde, Idade, Escolaridade, E-mail, Resumo.
+- [ ] Coluna **Resumo** mostra pill de cursos com ícone + quantidade de cursos ativos.
+- [ ] Ao clicar na pill de cursos, abre modal com os cursos ativos do socioeducando (tipo, curso, local, período e horário).
+- [ ] No modal de cursos, a ação **Ver vínculo** abre o vínculo de matrícula correspondente para edição.
+- [ ] Quando houver vínculos de trabalho ativos, a coluna **Resumo** mostra uma pill por empresa empregadora.
+- [ ] Ao clicar em uma pill de trabalho, abre modal com os detalhes do vínculo selecionado (tipo, empresa, curso, contrato, início/fim e horário).
+- [ ] No modal de trabalho, a ação **Abrir vínculo** abre a edição do trabalho correto (mesmo ID do pill clicado).
+- [ ] Quando o socioeducando não tiver nenhuma visita territorial registrada, aparece a pill `SEM VISITA TERRITORIAL` na coluna Resumo.
+- [ ] Ao cadastrar a primeira visita territorial de um socioeducando, a pill `SEM VISITA TERRITORIAL` deixa de aparecer no overview após atualizar o painel.
+- [ ] Quando o socioeducando não tiver saída cultural realizada, aparece a pill `NÃO FEZ SAÍDA CULTURAL`.
+- [ ] Linhas de socioeducandos sem saída cultural realizada aparecem destacadas visualmente.
+- [ ] Ao registrar uma saída cultural como realizada (ou com retorno), o alerta de saída cultural deixa de aparecer no overview após atualizar o painel.
+
 ### 1.1 Importar Socioeducandos (CSV — "Documentos Pessoais" do SUASE)
 - [ ] Selecionar CSV válido → pré-visualização mostra corretamente novos vs. já existentes.
 - [ ] Desmarcar um socioeducando na pré-visualização → não é importado.
@@ -27,6 +41,8 @@
 ### 1.3 Cadastrar Socioeducando (manual)
 - [ ] Preencher ID (SUASE), Nome, Escolaridade, Data de Nascimento (opcional), Data de admissão → salva com sucesso.
 - [ ] Nome salvo é convertido automaticamente para **MAIÚSCULAS**, independente de como foi digitado.
+- [ ] (Usuário autorizado) Preencher **E-mail profissional** e **Senha profissional** no cadastro → salva com sucesso e a coluna `Senha Profissional (Criptografada)` não armazena texto puro.
+- [ ] (Usuário não autorizado) Campos de e-mail/senha não aparecem na UI de cadastro.
 - [ ] Não informar "Data de admissão" → erro "Data de admissão é obrigatória." (bloqueado no cliente e no servidor).
 - [ ] Informar Data de admissão futura → erro "Data de admissão não pode ser futura." (campo já tem `max` = hoje no calendário).
 - [ ] ID que já existe e está **internado (ativo)** → erro bloqueando: "Já existe um socioeducando com o ID ..., atualmente internado.".
@@ -41,10 +57,18 @@
 ### 1.4 Editar Socioeducando
 - [ ] Tela de edição mostra o **ID como texto simples** (não como campo de formulário editável).
 - [ ] Alterar Nome/Escolaridade/Data de Nascimento → salva e reflete no perfil.
+- [ ] Alterar **E-mail profissional** (usuário autorizado) → salva e reflete no perfil/painel geral.
+- [ ] Informar nova **Senha profissional** (usuário autorizado) → atualiza o valor criptografado; deixar senha em branco mantém a senha anterior.
+- [ ] (Usuário não autorizado) não consegue alterar credenciais (nem por UI, nem por chamada direta ao backend).
 - [ ] Nome editado também é convertido para MAIÚSCULAS ao salvar.
 - [ ] `Registrado em`/`Criado por` originais são preservados (não sobrescritos).
 - [ ] `Atualizado por` passa a refletir o usuário que editou.
 - [ ] ID não é editável (não enviado no formulário de edição, apenas exibido).
+
+### 1.5 Visualizar credenciais no perfil
+- [ ] (Usuário autorizado) botão **Ver credenciais** aparece no perfil e abre modal com e-mail profissional + senha descriptografada.
+- [ ] (Usuário não autorizado) botão **Ver credenciais** não aparece no perfil.
+- [ ] Tentativa de chamar `obterCredenciaisSocioeducando` sem permissão retorna erro de autorização.
 
 ---
 
@@ -165,7 +189,67 @@
 
 ---
 
-## 7. Configurações — Tipos de Atendimento
+## 7. Trabalhos
+
+### 7.1 Cadastro individual (sem lote)
+- [ ] Abrir por **Cadastrar ▾ → Trabalho** e registrar vínculo com: socioeducando, tipo (Trabalho/Aprendizagem), empresa, data de contrato e data de início.
+- [ ] Campo `Curso` opcional: deixar vazio e salvar normalmente.
+- [ ] Informar apenas horário de início ou apenas horário de fim → erro de validação.
+- [ ] Informar horário sem dias da semana → erro de validação.
+- [ ] Informar dias da semana sem horários → erro de validação.
+- [ ] Data de fim anterior à data de início → erro de validação.
+- [ ] Salvar com sucesso → nova linha em `Trabalhos` com `Registrado em` e `Criado por` preenchidos.
+
+### 7.2 Edição
+- [ ] Abrir edição pelo perfil (aba Trabalhos, dentro do card único de registros) e alterar empresa/curso/período/horário → salva sem duplicar.
+- [ ] `Registrado em`/`Criado por` são preservados na edição.
+- [ ] `Atualizado em`/`Atualizado por` são preenchidos na edição.
+
+### 7.3 Perfil
+- [ ] A aba "Trabalhos" aparece no card único de registros do perfil, com listagem das relações registradas.
+- [ ] Botão **Novo trabalho** cria vínculo já contextualizado ao socioeducando do perfil.
+- [ ] Botão **Editar** abre o mesmo vínculo para atualização.
+
+### 7.4 Card único com abas (perfil)
+- [ ] No perfil, `Cursos`, `Atendimentos`, `Trabalhos`, `Saídas` e `Fugas/Evasões` aparecem em um único card com abas.
+- [ ] Alternar entre abas troca o conteúdo sem recarregar todo o perfil.
+- [ ] Contadores de cada aba refletem a quantidade de registros carregados.
+
+### 7.5 Visitas Territoriais
+- [ ] No perfil, a aba **Visitas Territoriais** aparece no card único de registros.
+- [ ] Cadastrar visita territorial com `Data` e `Tec responsável` obrigatórios → cria linha em `VisitasTerritoriais`.
+- [ ] Deixar `Data` vazia → erro de validação.
+- [ ] Informar data futura → erro de validação.
+- [ ] Deixar `Tec responsável` vazio → erro de validação.
+- [ ] Campos `CREAS`, `CAPS` e `Ameaça` persistem corretamente como sim/não.
+- [ ] Editar visita territorial existente pelo botão **Editar** → atualiza sem duplicar linha.
+- [ ] `Registrado em`/`Criado por` são preservados na edição.
+- [ ] `Atualizado em`/`Atualizado por` são preenchidos na edição.
+- [ ] Contador da aba **Visitas Territoriais** reflete a quantidade de registros carregados.
+
+---
+
+## 8. Familiares
+
+### 8.1 Cadastro e edição
+- [ ] No perfil, clicar em **Adicionar familiar** abre modal de cadastro.
+- [ ] Cadastrar familiar com `Nome` obrigatório e demais campos opcionais → cria linha em `Familiares`.
+- [ ] Editar familiar existente pelo card → atualiza sem duplicar linha.
+- [ ] `Registrado em`/`Criado por` são preservados na edição.
+- [ ] `Atualizado em`/`Atualizado por` são preenchidos na edição.
+
+### 8.2 Regra de principal único
+- [ ] Marcar um familiar como principal → aparece destacado e em primeiro na lista.
+- [ ] Marcar outro familiar como principal no mesmo socioeducando → o principal anterior é desmarcado automaticamente.
+- [ ] Em qualquer momento, no máximo 1 familiar ativo permanece com `Principal = true` para o mesmo socioeducando.
+
+### 8.3 Exclusão e atualização parcial
+- [ ] Excluir familiar pelo card (com confirmação) → não remove fisicamente a linha; preenche `Deletado em`/`Deletado por`.
+- [ ] Após salvar/editar/excluir familiar, apenas a seção de familiares é recarregada (sem recarregar todo o perfil).
+
+---
+
+## 9. Configurações — Tipos de Atendimento
 
 - [ ] Criar novo tipo (nome + duração padrão em minutos) → aparece na lista e nos formulários de atendimento.
 - [ ] Nome duplicado (mesmo nome, outro tipo) → erro "Já existe um tipo de atendimento chamado ...".
@@ -178,15 +262,18 @@
 
 ---
 
-## 8. Validações transversais (repetir em pelo menos 2-3 telas)
+## 10. Validações transversais (repetir em pelo menos 2-3 telas)
 
 - [ ] Todo registro criado tem `Registrado em` = data/hora atual e `Criado por` = usuário logado.
 - [ ] Todo registro editado tem `Atualizado em` preenchido e `Atualizado por` atualizado, mas `Registrado em`/`Criado por` preservados, exceto nas tabelas `TiposAtendimento` e `InteressesCurso`, que não usam esses campos.
 - [ ] Tentar salvar qualquer formulário referenciando um `ID Socioeducando` inexistente (ex.: id removido/forjado) → erro "Socioeducando com ID ... não encontrado." (`validarSocioeducandoExiste`).
-- [ ] Colunas `Deletado em`/`Deletado por` existem na maioria das abas mas permanecem **sempre vazias** (nenhuma função de exclusão atual as preenche — todas as exclusões continuam físicas); `TiposAtendimento` e `InteressesCurso` não usam essas colunas.
+- [ ] Coluna de senha em `Socioeducandos` nunca expõe senha em texto puro; valor deve permanecer criptografado na planilha.
+- [ ] Com usuário diferente da chave de criptografia original, a descriptografia retorna vazio/falha segura (sem revelar senha).
+- [ ] Em `Familiares`, exclusões preenchem `Deletado em`/`Deletado por` (deleção lógica).
+- [ ] Nas demais entidades com botão de exclusão, validar o comportamento esperado (físico ou lógico) conforme o fluxo específico.
 
 ---
 
-## 9. Fora de escopo nesta rodada (backend existe, sem UI dedicada)
+## 11. Fora de escopo nesta rodada (backend existe, sem UI dedicada)
 
 - Edição do **texto** de um interesse de curso já existente (`salvarInteresseCurso` aceita `dados.id`, mas a UI só permite adicionar/remover chips, não editar in-place).

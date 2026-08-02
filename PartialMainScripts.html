@@ -5,8 +5,10 @@
 var ESTADO = {
   tela: 'overview',
   socioeducandoId: null,
+  perfilAbaRel: 'cursos',
   overviewFiltroStatus: ['internado'],
   overviewFiltroCursos: 'todos',
+  overviewFiltroTrabalho: 'todos',
   overviewBusca: '',
   cursosEncFiltroTipo: null,
   cursosEncFiltroLocal: null,
@@ -20,9 +22,12 @@ var TIPOS_CURSO = [
   'Cursos virtuais'
 ];
 
+var EMAIL_ADMIN_CREDENCIAIS = 'luizasoarespedagoga@gmail.com';
+
 var TIPOS_ATENDIMENTO = [];
 var TIPOS_ATENDIMENTO_DURACAO = {};
 var TIPOS_SAIDA = ['Cultural', 'Familiar', 'Lazer', 'Esportiva', 'Descida para casa', 'Outros'];
+var TIPOS_TRABALHO = ['Trabalho', 'Aprendizagem'];
 var DIAS_SEMANA_CURSO = [
   { value: '0', label: 'Dom' },
   { value: '1', label: 'Seg' },
@@ -64,6 +69,9 @@ var IL_INTERESSE_ATIVO_IDX = -1;
 // ══════════════════════════════════════════════════
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function escNl(s){ return esc(s).replace(/\r\n|\r|\n/g, '<br>'); }
+function podeGerenciarCredenciaisFrontend(){
+  return String(EMAIL_USUARIO || '').trim().toLowerCase() === EMAIL_ADMIN_CREDENCIAIS;
+}
 function today(){
   var d = new Date();
   var mm = String(d.getMonth()+1).padStart(2,'0');
@@ -616,7 +624,7 @@ function htmlConflitosAgenda(resultado){
     return '<li><strong>'+esc(prefixo+nome)+'</strong><br><small>'+det+'</small></li>';
   }).join('');
 
-  return '<div class="alert alert-warning"><strong><i class="fa-solid fa-triangle-exclamation"></i>Conflitos de agenda detectados ('+total+')</strong><div style="margin-top:6px">Há sobreposição com cursos, saídas e/ou atendimentos já cadastrados.</div><ul style="margin:8px 0 0 18px">'+linhas+'</ul></div>';
+  return '<div class="alert alert-warning"><strong><i class="fa-solid fa-triangle-exclamation"></i>Conflitos de agenda detectados ('+total+')</strong><div style="margin-top:6px">Há sobreposição com cursos, trabalhos, saídas e/ou atendimentos já cadastrados.</div><ul style="margin:8px 0 0 18px">'+linhas+'</ul></div>';
 }
 
 function modalConfirmarConflitos(resultado){
@@ -673,11 +681,11 @@ function abrirModalConflitosAgenda(opts){
     + '<h5 style="margin:0;color:#dc3545"><i class="fa-solid fa-triangle-exclamation"></i> Conflitos de agenda detectados ('+esc(String(resultado.total_conflitos || 0))+')</h5>'
     + '<button class="modal-close-x" id="mca-fechar" aria-label="Fechar">&times;</button>'
     + '</div>'
-    + '<p style="margin:0 0 10px;font-size:13px;color:#333">Existem sobreposições com cursos, saídas e/ou atendimentos. Revise os conflitos abaixo antes de confirmar.</p>'
+    + '<p style="margin:0 0 10px;font-size:13px;color:#333">Existem sobreposições com cursos, trabalhos, saídas e/ou atendimentos. Revise os conflitos abaixo antes de confirmar.</p>'
     + '<div>'+linhas+'</div>'
     + '<div class="d-flex gap-2" style="justify-content:flex-end;margin-top:12px">'
     + '<button class="btn btn-secondary" id="mca-revisar">Revisar horários</button>'
-    + '<button class="btn btn-warning" id="mca-confirmar"><i class="fa-solid fa-floppy-disk"></i> Cadastrar saídas mesmo assim</button>'
+    + '<button class="btn btn-warning" id="mca-confirmar"><i class="fa-solid fa-floppy-disk"></i> '+esc((opts && opts.confirmarTexto) || 'Salvar mesmo assim')+'</button>'
     + '</div>'
     + '</div>';
 
@@ -706,6 +714,98 @@ function abrirModalConflitosAgenda(opts){
     fechar();
     if(opts && typeof opts.onConfirmar === 'function') opts.onConfirmar();
   };
+}
+
+function parseHoraHHMM(valor){
+  var m = String(valor || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+  if(!m) return null;
+  var h = Number(m[1]);
+  var min = Number(m[2]);
+  if(isNaN(h) || isNaN(min) || h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return { h: h, m: min };
+}
+
+function toIsoDateLocalSimple(d){
+  return d.getFullYear()
+    + '-' + String(d.getMonth() + 1).padStart(2, '0')
+    + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function gerarItensConflitoRecorrenciaSemanal(cfg){
+  cfg = cfg || {};
+  var sid = String(cfg.socioeducando_id || '').trim();
+  var dataInicio = String(cfg.data_inicio || '').trim();
+  var dataTermino = String(cfg.data_termino || '').trim();
+  var hi = parseHoraHHMM(cfg.horario_inicio);
+  var hf = parseHoraHHMM(cfg.horario_termino);
+  var linha = Number(cfg.linha || 1);
+  var maxOcorrencias = Number(cfg.max_ocorrencias || 500);
+
+  if(!sid || !dataInicio || !dataTermino || !hi || !hf) return [];
+
+  var diasSemana = String(cfg.dias_semana || '').split(/[;,]/)
+    .map(function(v){ return parseInt(String(v || '').trim(), 10); })
+    .filter(function(v){ return !isNaN(v) && v >= 0 && v <= 6; });
+  if(!diasSemana.length) return [];
+
+  var cursor = new Date(dataInicio + 'T00:00:00');
+  var fim = new Date(dataTermino + 'T23:59:59');
+  if(isNaN(cursor.getTime()) || isNaN(fim.getTime())) return [];
+
+  var itens = [];
+  var count = 0;
+  while(cursor <= fim && count < maxOcorrencias){
+    if(diasSemana.indexOf(cursor.getDay()) >= 0){
+      var dtIni = new Date(cursor);
+      dtIni.setHours(hi.h, hi.m, 0, 0);
+      var dtFim = new Date(cursor);
+      dtFim.setHours(hf.h, hf.m, 0, 0);
+      if(dtFim <= dtIni) dtFim.setDate(dtFim.getDate() + 1);
+
+      itens.push({
+        linha: linha,
+        socioeducando_id: sid,
+        data_hora_inicio: formatIsoDateTimeLocal(dtIni),
+        data_hora_termino: formatIsoDateTimeLocal(dtFim)
+      });
+      count++;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return itens;
+}
+
+function montarItensConflitoCursoParaSocio(cfg){
+  return gerarItensConflitoRecorrenciaSemanal({
+    socioeducando_id: cfg && cfg.socioeducando_id,
+    data_inicio: cfg && cfg.data_inicio,
+    data_termino: cfg && cfg.data_termino,
+    horario_inicio: cfg && cfg.horario_inicio,
+    horario_termino: cfg && cfg.horario_termino,
+    dias_semana: cfg && cfg.dias_semana,
+    linha: cfg && cfg.linha,
+    max_ocorrencias: cfg && cfg.max_ocorrencias
+  });
+}
+
+function montarItensConflitoTrabalhoParaSocio(cfg){
+  var dataInicio = cfg && cfg.data_inicio ? String(cfg.data_inicio) : '';
+  var dataTermino = cfg && cfg.data_termino ? String(cfg.data_termino) : '';
+
+  // Sem data de término o trabalho é tratado por uma checagem recorrente no backend
+  // (janela aberta/infinita), então não geramos ocorrências locais aqui.
+  if(!dataTermino) return [];
+
+  return gerarItensConflitoRecorrenciaSemanal({
+    socioeducando_id: cfg && cfg.socioeducando_id,
+    data_inicio: dataInicio,
+    data_termino: dataTermino,
+    horario_inicio: cfg && cfg.horario_inicio,
+    horario_termino: cfg && cfg.horario_termino,
+    dias_semana: cfg && cfg.dias_semana,
+    linha: cfg && cfg.linha,
+    max_ocorrencias: cfg && cfg.max_ocorrencias
+  });
 }
 
 function abrirModalConfirmacao(opts){
@@ -770,6 +870,13 @@ function abrirCadastroCurso(){
   navActive('btn-nav-cad');
   ESTADO.socioeducandoId = null;
   mostrarFormCursoLote();
+}
+
+function abrirCadastroTrabalho(){
+  navActive('btn-nav-cad');
+  ESTADO.socioeducandoId = null;
+  ESTADO.socioeducandoNome = '';
+  mostrarFormTrabalho();
 }
 
 function abrirCadastroAtendimento(){
@@ -1416,25 +1523,62 @@ function submitEditarVinculoCurso(cursoId) {
     data_termino: dataTermino,
     certificado: tipoTermino ? document.getElementById('ev-cert').checked : false
   };
-  setBusyState(true, 'Salvando vínculo...');
-  google.script.run
-    .withSuccessHandler(function() {
-      google.script.run
-        .withSuccessHandler(function(d) {
-          setBusyState(false);
-          var mEl = document.getElementById('modal-editar-vinculo');
-          if (mEl) mEl.remove();
-          renderPaginaCursos(d);
-          abrirDetalhesCursoEncerramento(cursoId);
-        })
-        .withFailureHandler(function(err) { setBusyState(false); showError(err); })
-        .carregarPaginaCursos();
-    })
-    .withFailureHandler(function(err) {
-      setBusyState(false);
-      msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
-    })
-    .atualizarVinculoCurso(dados);
+
+  var c = obterCursoPaginaCursos(cursoId);
+  var m = c && Array.isArray(c.matriculas)
+    ? c.matriculas.find(function(x){ return String(x.matricula_id) === String(dados.matricula_id); })
+    : null;
+
+  var itensConflito = (dados.matriculado && m)
+    ? montarItensConflitoCursoParaSocio({
+        socioeducando_id: m.id,
+        data_inicio: c.data_inicio_iso,
+        data_termino: dados.tipo_termino ? dados.data_termino : c.data_termino_iso,
+        horario_inicio: c.horario_inicio,
+        horario_termino: c.horario_termino,
+        dias_semana: c.dias_semana,
+        linha: 1
+      })
+    : [];
+
+  function executarSalvarVinculoCurso(){
+    setBusyState(true, 'Salvando vínculo...');
+    google.script.run
+      .withSuccessHandler(function() {
+        google.script.run
+          .withSuccessHandler(function(d) {
+            setBusyState(false);
+            var mEl = document.getElementById('modal-editar-vinculo');
+            if (mEl) mEl.remove();
+            renderPaginaCursos(d);
+            abrirDetalhesCursoEncerramento(cursoId);
+          })
+          .withFailureHandler(function(err) { setBusyState(false); showError(err); })
+          .carregarPaginaCursos();
+      })
+      .withFailureHandler(function(err) {
+        setBusyState(false);
+        msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
+      })
+      .atualizarVinculoCurso(dados);
+  }
+
+  if(!itensConflito.length){
+    executarSalvarVinculoCurso();
+    return;
+  }
+
+  consultarConflitosAgenda(itensConflito, { curso_matricula_id: dados.matricula_id }, function(conflitos){
+    if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      abrirModalConflitosAgenda({
+        resultado: conflitos,
+        confirmarTexto: 'Salvar vínculo mesmo assim',
+        onConfirmar: executarSalvarVinculoCurso
+      });
+      return;
+    }
+    executarSalvarVinculoCurso();
+  });
 }
 
 function abrirEditarVinculoPerfil(matriculaId) {
@@ -1497,19 +1641,52 @@ function submitEditarVinculoPerfil() {
     data_termino: dataTermino,
     certificado: tipoTermino ? document.getElementById('ev-cert').checked : false
   };
-  setBusyState(true, 'Salvando vínculo...');
-  google.script.run
-    .withSuccessHandler(function() {
-      var mEl = document.getElementById('modal-editar-vinculo');
-      if (mEl) mEl.remove();
-      setBusyState(false);
-      mostrarPerfil(ESTADO.socioeducandoId);
-    })
-    .withFailureHandler(function(err) {
-      setBusyState(false);
-      msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
-    })
-    .atualizarVinculoCurso(dados);
+
+  var cursoPerfil = (PERFIL_CURSOS_DATA || []).find(function(x){ return String(x.matricula_id) === String(dados.matricula_id); });
+  var itensConflito = (dados.matriculado && cursoPerfil)
+    ? montarItensConflitoCursoParaSocio({
+        socioeducando_id: ESTADO.socioeducandoId,
+        data_inicio: cursoPerfil.data_inicio_iso,
+        data_termino: dados.tipo_termino ? dados.data_termino : cursoPerfil.data_termino_iso,
+        horario_inicio: cursoPerfil.horario_inicio,
+        horario_termino: cursoPerfil.horario_termino,
+        dias_semana: cursoPerfil.dias_semana,
+        linha: 1
+      })
+    : [];
+
+  function executarSalvarVinculoPerfil(){
+    setBusyState(true, 'Salvando vínculo...');
+    google.script.run
+      .withSuccessHandler(function() {
+        var mEl = document.getElementById('modal-editar-vinculo');
+        if (mEl) mEl.remove();
+        setBusyState(false);
+        mostrarPerfil(ESTADO.socioeducandoId);
+      })
+      .withFailureHandler(function(err) {
+        setBusyState(false);
+        msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
+      })
+      .atualizarVinculoCurso(dados);
+  }
+
+  if(!itensConflito.length){
+    executarSalvarVinculoPerfil();
+    return;
+  }
+
+  consultarConflitosAgenda(itensConflito, { curso_matricula_id: dados.matricula_id }, function(conflitos){
+    if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      abrirModalConflitosAgenda({
+        resultado: conflitos,
+        confirmarTexto: 'Salvar vínculo mesmo assim',
+        onConfirmar: executarSalvarVinculoPerfil
+      });
+      return;
+    }
+    executarSalvarVinculoPerfil();
+  });
 }
 
 // ══════════════════════════════════════════════════
@@ -1709,24 +1886,80 @@ function submitEditarMatriculasLote(cursoId) {
     return;
   }
 
-  setBusyState(true, 'Salvando matrículas...');
-  google.script.run
-    .withSuccessHandler(function() {
-      google.script.run
-        .withSuccessHandler(function(d) {
-          setBusyState(false);
-          var mEl = document.getElementById('modal-editar-matriculas-lote');
-          if (mEl) mEl.remove();
-          renderPaginaCursos(d);
-        })
-        .withFailureHandler(function(err) { setBusyState(false); showError(err); })
-        .carregarPaginaCursos();
-    })
-    .withFailureHandler(function(err) {
-      setBusyState(false);
-      msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
-    })
-    .atualizarMatriculasCursoLote(cursoId, edicoes, novos);
+  var curso = obterCursoPaginaCursos(cursoId);
+  var matriculasMap = {};
+  (curso && curso.matriculas ? curso.matriculas : []).forEach(function(m){
+    matriculasMap[String(m.matricula_id)] = m;
+  });
+
+  var itensConflito = [];
+  edicoes.forEach(function(e, idx){
+    if(e.remover || !e.matriculado) return;
+    var m = matriculasMap[String(e.matricula_id)];
+    if(!m) return;
+    var itens = montarItensConflitoCursoParaSocio({
+      socioeducando_id: m.id,
+      data_inicio: curso ? curso.data_inicio_iso : '',
+      data_termino: e.tipo_termino ? e.data_termino : (curso ? curso.data_termino_iso : ''),
+      horario_inicio: curso ? curso.horario_inicio : '',
+      horario_termino: curso ? curso.horario_termino : '',
+      dias_semana: curso ? curso.dias_semana : '',
+      linha: idx + 1
+    });
+    itensConflito = itensConflito.concat(itens);
+  });
+
+  novos.forEach(function(n, idx){
+    if(!n.matriculado) return;
+    var itens = montarItensConflitoCursoParaSocio({
+      socioeducando_id: n.socioeducando_id,
+      data_inicio: curso ? curso.data_inicio_iso : '',
+      data_termino: n.tipo_termino ? n.data_termino : (curso ? curso.data_termino_iso : ''),
+      horario_inicio: curso ? curso.horario_inicio : '',
+      horario_termino: curso ? curso.horario_termino : '',
+      dias_semana: curso ? curso.dias_semana : '',
+      linha: edicoes.length + idx + 1
+    });
+    itensConflito = itensConflito.concat(itens);
+  });
+
+  function executarSalvarMatriculasLote(){
+    setBusyState(true, 'Salvando matrículas...');
+    google.script.run
+      .withSuccessHandler(function() {
+        google.script.run
+          .withSuccessHandler(function(d) {
+            setBusyState(false);
+            var mEl = document.getElementById('modal-editar-matriculas-lote');
+            if (mEl) mEl.remove();
+            renderPaginaCursos(d);
+          })
+          .withFailureHandler(function(err) { setBusyState(false); showError(err); })
+          .carregarPaginaCursos();
+      })
+      .withFailureHandler(function(err) {
+        setBusyState(false);
+        msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
+      })
+      .atualizarMatriculasCursoLote(cursoId, edicoes, novos);
+  }
+
+  if(!itensConflito.length){
+    executarSalvarMatriculasLote();
+    return;
+  }
+
+  consultarConflitosAgenda(itensConflito, { curso_id: cursoId }, function(conflitos){
+    if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      abrirModalConflitosAgenda({
+        resultado: conflitos,
+        confirmarTexto: 'Salvar matrículas mesmo assim',
+        onConfirmar: executarSalvarMatriculasLote
+      });
+      return;
+    }
+    executarSalvarMatriculasLote();
+  });
 }
 
 function toggleAccordion(id) {
@@ -1824,19 +2057,57 @@ function submitEditarCurso() {
     observacoes: document.getElementById('ec-obs').value.trim()
   };
 
-  setBusyState(true, 'Salvando curso...');
-  google.script.run
-    .withSuccessHandler(function() {
-      setBusyState(false);
-      var m = document.getElementById('modal-editar-curso');
-      if (m) m.remove();
-      mostrarPaginaCursos();
-    })
-    .withFailureHandler(function(err) {
-      setBusyState(false);
-      msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
-    })
-    .atualizarCurso(dados);
+  var cursoAtual = obterCursoPaginaCursos(dados.curso_id);
+  var matriculasAtivas = cursoAtual && Array.isArray(cursoAtual.matriculas)
+    ? cursoAtual.matriculas.filter(function(m){ return !!m.matriculado && !m.tipo_termino; })
+    : [];
+  var itensConflito = [];
+
+  matriculasAtivas.forEach(function(m, idx){
+    var itens = montarItensConflitoCursoParaSocio({
+      socioeducando_id: m.id,
+      data_inicio: dados.data_inicio,
+      data_termino: dados.data_termino,
+      horario_inicio: dados.horario_inicio,
+      horario_termino: dados.horario_termino,
+      dias_semana: dados.dias_semana,
+      linha: idx + 1
+    });
+    itensConflito = itensConflito.concat(itens);
+  });
+
+  function executarSalvarCursoEditado(){
+    setBusyState(true, 'Salvando curso...');
+    google.script.run
+      .withSuccessHandler(function() {
+        setBusyState(false);
+        var m = document.getElementById('modal-editar-curso');
+        if (m) m.remove();
+        mostrarPaginaCursos();
+      })
+      .withFailureHandler(function(err) {
+        setBusyState(false);
+        msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
+      })
+      .atualizarCurso(dados);
+  }
+
+  if(!itensConflito.length){
+    executarSalvarCursoEditado();
+    return;
+  }
+
+  consultarConflitosAgenda(itensConflito, { curso_id: dados.curso_id }, function(conflitos){
+    if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      abrirModalConflitosAgenda({
+        resultado: conflitos,
+        confirmarTexto: 'Salvar edição do curso mesmo assim',
+        onConfirmar: executarSalvarCursoEditado
+      });
+      return;
+    }
+    executarSalvarCursoEditado();
+  });
 }
 
 // ══════════════════════════════════════════════════
@@ -1882,6 +2153,7 @@ function renderOverview(d){
   var socioeducandosAtivos = filtrarAtivos(d.socioeducandos);
   var filtStatus = ESTADO.overviewFiltroStatus;
   var filtCursos = ESTADO.overviewFiltroCursos;
+  var filtTrabalho = ESTADO.overviewFiltroTrabalho || 'todos';
   var busca = ESTADO.overviewBusca.toLowerCase();
   var sortKey = ESTADO.overviewSortKey || 'id';
   var sortDir = ESTADO.overviewSortDir || 'asc';
@@ -1890,6 +2162,8 @@ function renderOverview(d){
     if(filtStatus.length && filtStatus.indexOf(j.status) < 0) return false;
     if(filtCursos === 'sim' && j.cursos_ativos === 0) return false;
     if(filtCursos === 'nao' && j.cursos_ativos > 0) return false;
+    if(filtTrabalho === 'sim' && !j.trabalhando) return false;
+    if(filtTrabalho === 'nao' && j.trabalhando) return false;
     if(busca && j.nome.toLowerCase().indexOf(busca) < 0 && String(j.id).indexOf(busca) < 0) return false;
     return true;
   });
@@ -1910,9 +2184,17 @@ function renderOverview(d){
     } else if(sortKey === 'escolaridade') {
       av = String(a.escolaridade || '').toUpperCase();
       bv = String(b.escolaridade || '').toUpperCase();
+    } else if(sortKey === 'email') {
+      av = String(a.email_profissional || '').toUpperCase();
+      bv = String(b.email_profissional || '').toUpperCase();
     } else if(sortKey === 'internado') {
       av = a.internado_desde_iso || '9999-12-31';
       bv = b.internado_desde_iso || '9999-12-31';
+    } else if(sortKey === 'status') {
+      var rankA = a.status === 'internado' ? 0 : (a.status === 'ausente' ? 1 : 2);
+      var rankB = b.status === 'internado' ? 0 : (b.status === 'ausente' ? 1 : 2);
+      av = rankA;
+      bv = rankB;
     } else if(sortKey === 'cursos') {
       av = Number(a.cursos_ativos) || 0;
       bv = Number(b.cursos_ativos) || 0;
@@ -1940,6 +2222,12 @@ function renderOverview(d){
     return '<button class="seg-btn'+ativo+'" onclick="setFiltrosCursos(\''+v+'\')" data-cv="'+v+'">'+label+'</button>';
   }).join('');
 
+  var trabalhoBtns = ['todos','sim','nao'].map(function(v){
+    var label = {todos:'Todos',sim:'Sim',nao:'Não'}[v];
+    var ativo = filtTrabalho === v ? ' active' : '';
+    return '<button class="seg-btn'+ativo+'" onclick="setFiltrosTrabalho(\''+v+'\')" data-tv="'+v+'">'+label+'</button>';
+  }).join('');
+
   function headOrdenavel(key, label){
     var ativo = sortKey === key;
     var seta = ativo ? (sortDir === 'asc' ? '▲' : '▼') : '↕';
@@ -1960,15 +2248,38 @@ function renderOverview(d){
       : '<span class="text-muted">—</span>';
 
     var idade = idadeAnos(j.data_nascimento_iso);
+    var trabalhosDetalhes = Array.isArray(j.trabalhos_ativos_detalhes) ? j.trabalhos_ativos_detalhes : [];
+    var pillsResumo = [];
 
-    return '<tr data-id="'+j.id+'">'
+    pillsResumo.push('<button type="button" class="overview-pill overview-pill-cursos overview-pill-btn" onclick="abrirDetalhesCursosOverview(\''+esc(j.id)+'\')" title="Ver cursos ativos"><i class="fa-solid fa-book-open"></i> '+Number(j.cursos_ativos || 0)+'</button>');
+
+    trabalhosDetalhes.forEach(function(t){
+      pillsResumo.push('<button type="button" class="overview-pill overview-pill-trabalho overview-pill-btn" onclick="abrirDetalhesTrabalhoOverview(\''+esc(j.id)+'\',\''+esc(t.id)+'\')" title="Ver detalhes do trabalho"><i class="fa-solid fa-briefcase"></i> '+esc(t.empresa || 'Sem empresa')+'</button>');
+    });
+
+    if(j.nao_possui_visita_territorial){
+      pillsResumo.push('<span class="overview-pill overview-pill-alerta"><i class="fa-solid fa-map-location-dot"></i> SEM VISITA TERRITORIAL</span>');
+    }
+
+    if(j.nao_fez_saida_cultural){
+      pillsResumo.push('<span class="overview-pill overview-pill-alerta"><i class="fa-solid fa-triangle-exclamation"></i> NÃO FEZ SAÍDA CULTURAL</span>');
+    }
+
+    var resumoCol = pillsResumo.length
+      ? '<div class="overview-resumo-pills">'+pillsResumo.join('')+'</div>'
+      : '<span class="text-muted">—</span>';
+
+    var rowClass = j.nao_fez_saida_cultural ? ' class="overview-row-alerta"' : '';
+
+    return '<tr data-id="'+j.id+'"'+rowClass+'>'
       +'<td>'+esc(j.id)+'</td>'
       +'<td><a class="link-btn" onclick="mostrarPerfil(\''+j.id+'\')">'+esc(j.nome)+'</a></td>'
+      +'<td>'+badge+'</td>'
+      +'<td>'+desde+'</td>'
       +'<td>'+formatarIdade(idade)+'</td>'
       +'<td>'+esc(j.escolaridade||'—')+'</td>'
-      +'<td>'+desde+'</td>'
-      +'<td>'+badge+'</td>'
-      +'<td>'+(j.cursos_ativos > 0 ? '<span class="badge b-cyan">'+j.cursos_ativos+'</span>' : '<span class="text-muted">0</span>')+'</td>'
+      +'<td>'+esc(j.email_profissional||'—')+'</td>'
+      +'<td>'+resumoCol+'</td>'
       +'</tr>';
   }).join('');
   console.timeEnd('overview.render.linhas_tabela');
@@ -1997,11 +2308,12 @@ function renderOverview(d){
     +'<div><span class="fw-bold">Busca:</span> <input type="text" class="overview-busca" id="buscaInput" value="'+esc(ESTADO.overviewBusca)+'" placeholder="Nome ou ID SUASE..." oninput="ESTADO.overviewBusca=this.value;filtrarOverview()" style="padding:4px 8px"></div>'
     +'<div><span class="fw-bold">Status:</span> <div class="segmented">'+statusBtns+'</div></div>'
     +'<div><span class="fw-bold">Em cursos:</span> <div class="segmented">'+cursosBtns+'</div></div>'
+    +'<div><span class="fw-bold">Trabalhando:</span> <div class="segmented">'+trabalhoBtns+'</div></div>'
     +'</div>'
     // Tabela
     +(filtrados.length === 0
       ? '<p class="no-records">Nenhum socioeducando encontrado com os filtros aplicados.</p>'
-      : '<div style="overflow-x:auto"><table><thead><tr>'+headOrdenavel('id','#')+headOrdenavel('nome','Nome')+headOrdenavel('idade','Idade')+headOrdenavel('escolaridade','Escolaridade')+headOrdenavel('internado','Internado desde')+'<th>Status</th>'+headOrdenavel('cursos','Cursos ativos')+'</tr></thead><tbody>'+linhas+'</tbody></table></div>'
+      : '<div style="overflow-x:auto"><table><thead><tr>'+headOrdenavel('id','ID')+headOrdenavel('nome','Nome')+headOrdenavel('status','Status')+headOrdenavel('internado','Internado desde')+headOrdenavel('idade','Idade')+headOrdenavel('escolaridade','Escolaridade')+headOrdenavel('email','E-mail')+'<th>Resumo</th></tr></thead><tbody>'+linhas+'</tbody></table></div>'
     )
     +'</div>';
   console.timeEnd('overview.render.html_final');
@@ -2026,6 +2338,99 @@ function toggleFiltroStatus(s){
   filtrarOverview();
 }
 function setFiltrosCursos(v){ ESTADO.overviewFiltroCursos = v; filtrarOverview(); }
+function setFiltrosTrabalho(v){ ESTADO.overviewFiltroTrabalho = v; filtrarOverview(); }
+
+function obterSocioeducandoOverviewPorId(socioeducandoId){
+  if(!OVERVIEW_DATA || !Array.isArray(OVERVIEW_DATA.socioeducandos)) return null;
+  return OVERVIEW_DATA.socioeducandos.find(function(j){ return String(j.id) === String(socioeducandoId); }) || null;
+}
+
+function fecharModalDetalhesOverview(){
+  var el = document.getElementById('modal-overview-detalhes');
+  if(el) el.remove();
+}
+
+function abrirModalDetalhesOverview(titulo, corpoHtml){
+  fecharModalDetalhesOverview();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'modal-overview-detalhes';
+  overlay.className = 'perfil-modal-overlay';
+  overlay.innerHTML = ''
+    + '<div class="perfil-modal-card" style="max-width:760px;max-height:88vh;overflow:auto">'
+    + '<div class="page-hdr" style="margin-bottom:10px;padding-bottom:8px">'
+    + '<h4 style="margin:0">'+titulo+'</h4>'
+    + '<button class="modal-close-x" onclick="fecharModalDetalhesOverview()"><i class="fa-solid fa-xmark"></i></button>'
+    + '</div>'
+    + corpoHtml
+    + '</div>';
+
+  overlay.addEventListener('click', function(e){ if(e.target === overlay) fecharModalDetalhesOverview(); });
+  document.body.appendChild(overlay);
+}
+
+function abrirVinculoCursoDoOverview(socioeducandoId, matriculaId, nomeSocioeducando){
+  fecharModalDetalhesOverview();
+  ESTADO.socioeducandoId = String(socioeducandoId || '');
+  ESTADO.socioeducandoNome = String(nomeSocioeducando || '');
+  mostrarFormCurso(socioeducandoId, matriculaId);
+}
+
+function abrirDetalhesCursosOverview(socioeducandoId){
+  var j = obterSocioeducandoOverviewPorId(socioeducandoId);
+  if(!j) return;
+  var cursos = Array.isArray(j.cursos_ativos_detalhes) ? j.cursos_ativos_detalhes : [];
+
+  var linhas = cursos.length === 0
+    ? '<tr><td colspan="6" class="no-records">Nenhum curso ativo.</td></tr>'
+    : cursos.map(function(c){
+        var cursoNome = '<strong>'+esc(c.nome_curso || '—')+'</strong>'
+          + (c.instituicao ? '<br><small class="text-muted">'+esc(c.instituicao)+'</small>' : '');
+        var periodo = esc(c.data_inicio || '—') + ' a ' + esc(c.data_termino || '—');
+        var horario = textoHorarioCurso(c.dias_semana, c.horario_inicio, c.horario_termino);
+        var local = c.local ? '<span class="badge '+(c.local === 'Externo' ? 'b-orange' : 'b-grey')+'">'+esc(c.local)+'</span>' : '<span class="text-muted">—</span>';
+        return '<tr>'
+          + '<td><span class="badge b-blue">'+esc(c.tipo_curso || '—')+'</span></td>'
+          + '<td>'+cursoNome+'</td>'
+          + '<td>'+local+'</td>'
+          + '<td>'+periodo+'</td>'
+          + '<td>'+horario+'</td>'
+          + '<td><button class="btn btn-outline btn-xs" onclick="abrirVinculoCursoDoOverview(\''+esc(j.id)+'\',\''+esc(c.matricula_id)+'\',\''+esc(j.nome)+'\')"><i class="fa-solid fa-pen-to-square"></i> Ver vínculo</button></td>'
+          + '</tr>';
+      }).join('');
+
+  var corpo = ''
+    + '<div class="text-muted" style="margin-bottom:10px">Socioeducando: <strong>'+esc(j.nome)+'</strong> (ID '+esc(j.id)+')</div>'
+    + '<div style="overflow-x:auto"><table><thead><tr><th>Tipo</th><th>Curso</th><th>Local</th><th>Período</th><th>Horário</th><th></th></tr></thead><tbody>'+linhas+'</tbody></table></div>';
+
+  abrirModalDetalhesOverview('<i class="fa-solid fa-book-open"></i> Cursos ativos', corpo);
+}
+
+function abrirDetalhesTrabalhoOverview(socioeducandoId, trabalhoId){
+  var j = obterSocioeducandoOverviewPorId(socioeducandoId);
+  if(!j) return;
+  var trabalhos = Array.isArray(j.trabalhos_ativos_detalhes) ? j.trabalhos_ativos_detalhes : [];
+  var t = trabalhos.find(function(x){ return String(x.id) === String(trabalhoId); });
+  if(!t) return;
+
+  var corpo = ''
+    + '<div class="text-muted" style="margin-bottom:10px">Socioeducando: <strong>'+esc(j.nome)+'</strong> (ID '+esc(j.id)+')</div>'
+    + '<div class="row2">'
+    + '<div><span class="text-muted" style="font-size:11px">TIPO</span><div>'+esc(t.tipo || '—')+'</div></div>'
+    + '<div><span class="text-muted" style="font-size:11px">EMPRESA</span><div>'+esc(t.empresa || '—')+'</div></div>'
+    + '<div><span class="text-muted" style="font-size:11px">CURSO</span><div>'+(t.curso ? esc(t.curso) : '<span class="text-muted">—</span>')+'</div></div>'
+    + '<div><span class="text-muted" style="font-size:11px">DATA CONTRATO</span><div>'+esc(t.data_contrato || '—')+'</div></div>'
+    + '<div><span class="text-muted" style="font-size:11px">INÍCIO</span><div>'+esc(t.data_inicio || '—')+'</div></div>'
+    + '<div><span class="text-muted" style="font-size:11px">FIM</span><div>'+(t.data_fim ? esc(t.data_fim) : '<span class="text-muted">Em andamento</span>')+'</div></div>'
+    + '<div style="grid-column:1 / -1"><span class="text-muted" style="font-size:11px">HORÁRIO</span><div>'+textoHorarioCurso(t.dias_semana, t.horario_inicio, t.horario_fim)+'</div></div>'
+    + '</div>'
+    + '<div class="d-flex" style="justify-content:flex-end;margin-top:12px">'
+    + '<button class="btn btn-outline btn-sm" onclick="fecharModalDetalhesOverview();mostrarFormTrabalho(\''+esc(j.id)+'\',\''+esc(t.id)+'\')"><i class="fa-solid fa-pen-to-square"></i> Abrir vínculo</button>'
+    + '</div>';
+
+  abrirModalDetalhesOverview('<i class="fa-solid fa-briefcase"></i> Detalhes do trabalho', corpo);
+}
+
 function ordenarOverview(key){
   if(ESTADO.overviewSortKey === key) {
     ESTADO.overviewSortDir = ESTADO.overviewSortDir === 'asc' ? 'desc' : 'asc';
@@ -2363,6 +2768,56 @@ function eventosAgendaPerfil(d){
     });
   });
 
+  // Trabalhos — gerar ocorrências semanais para cada dia da semana cadastrado
+  // Mapa: '0'=Dom … '6'=Sáb  →  getDay() do JS
+  (d.trabalhos || []).forEach(function(t){
+    if(!t.data_inicio_iso || !t.data_termino_iso) return;
+    var hi = String(t.horario_inicio || '').trim();
+    var ht = String(t.horario_termino || '').trim();
+    if(!hi || !ht) return;
+
+    var diasSemana = String(t.dias_semana || '').split(/[;,]/)
+      .map(function(v){ return parseInt(v.trim(), 10); })
+      .filter(function(v){ return !isNaN(v) && v >= 0 && v <= 6; });
+    if(!diasSemana.length) return;
+
+    var hiParts = hi.split(':');
+    var htParts = ht.split(':');
+    var hIni = parseInt(hiParts[0], 10), mIni = parseInt(hiParts[1] || '0', 10);
+    var hFim = parseInt(htParts[0], 10), mFim = parseInt(htParts[1] || '0', 10);
+
+    var cursor = new Date(t.data_inicio_iso + 'T00:00:00');
+    var fim    = new Date(t.data_termino_iso + 'T23:59:59');
+    var cor    = '#7a4cc2';
+    var titulo = 'Trabalho: ' + (t.nome_trabalho || 'Trabalho');
+    var MAX_OCORRENCIAS = 500;
+    var count = 0;
+
+    while(cursor <= fim && count < MAX_OCORRENCIAS) {
+      if(diasSemana.indexOf(cursor.getDay()) >= 0) {
+        var dtIni = new Date(cursor);
+        dtIni.setHours(hIni, mIni, 0, 0);
+        var dtFim = new Date(cursor);
+        dtFim.setHours(hFim, mFim, 0, 0);
+        if(dtFim <= dtIni) dtFim.setDate(dtFim.getDate() + 1);
+        eventos.push({
+          title: titulo,
+          start: toCalendarIsoLocal(dtIni),
+          end: toCalendarIsoLocal(dtFim),
+          backgroundColor: cor,
+          borderColor: cor,
+          extendedProps: {
+            tipo: 'trabalho',
+            trabalho_id: t.id,
+            nome_trabalho: t.nome_trabalho || 'Trabalho'
+          }
+        });
+        count++;
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  });
+
   // Cursos — gerar ocorrências semanais para cada dia da semana cadastrado
   // Mapa: '0'=Dom … '6'=Sáb  →  getDay() do JS
   (d.cursos || []).forEach(function(c){
@@ -2463,18 +2918,14 @@ function renderAgendaPerfil(d){
     },
     events: eventos,
     eventDidMount: function(info){
-      if(info && info.event && info.event.extendedProps && info.event.extendedProps.tipo === 'curso'){
+      var props = info.event.extendedProps || {};
+      if(props.tipo === 'curso') {
         info.el.style.cursor = 'pointer';
+        if(props.observacoes) info.el.title = 'Observações: ' + props.observacoes;
       }
     },
     eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
-    eventClick: abrirFormularioCursoEventoPeloCalendario,
-    eventDidMount: function(info){
-      var props = info.event.extendedProps || {};
-      if(props.tipo === 'curso' && props.observacoes) {
-        info.el.title = 'Observações: ' + props.observacoes;
-      }
-    }
+    eventClick: abrirFormularioCursoEventoPeloCalendario
   });
 
   CALENDARIO_PERFIL.render();
@@ -2553,14 +3004,772 @@ function excluirInteresseCursoUI(id, socioeducandoId){
   });
 }
 
+function abrirModalFamiliar(socioeducandoId, familiarId){
+  if(!socioeducandoId) return;
+  var existente = document.getElementById('modal-familiar');
+  if(existente) existente.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'modal-familiar';
+  overlay.className = 'perfil-modal-overlay';
+  overlay.innerHTML = ''
+    + '<div class="perfil-modal-card">'
+    + '<div class="page-hdr" style="margin-bottom:10px">'
+    + '<h4 id="mf-titulo"><i class="fa-solid fa-users"></i> '+(familiarId ? 'Editar familiar' : 'Novo familiar')+'</h4>'
+    + '<button class="modal-close-x" onclick="fecharModalFamiliar()"><i class="fa-solid fa-xmark"></i></button>'
+    + '</div>'
+    + '<div id="mf-body"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando...</div></div>'
+    + '</div>';
+
+  overlay.addEventListener('click', function(e){ if(e.target === overlay) fecharModalFamiliar(); });
+  document.body.appendChild(overlay);
+
+  function renderForm(familiar){
+    var f = familiar || {};
+    var body = document.getElementById('mf-body');
+    if(!body) return;
+    body.innerHTML = ''
+      + '<div id="mf-msg"></div>'
+      + '<input type="hidden" id="mf-id" value="'+esc(f.id || '')+'">'
+      + '<input type="hidden" id="mf-sid" value="'+esc(socioeducandoId)+'">'
+      + '<div class="form-group"><label>Nome <span class="req">*</span></label><input type="text" id="mf-nome" value="'+esc(f.nome || '')+'" placeholder="Nome do familiar"></div>'
+      + '<div class="row2">'
+      + '<div class="form-group"><label>Telefone</label><input type="text" id="mf-telefone" value="'+esc(f.telefone || '')+'" placeholder="(00) 00000-0000"></div>'
+      + '<div class="form-group"><label>Tipo de vínculo</label><input type="text" id="mf-vinculo" value="'+esc(f.tipo_vinculo || '')+'" placeholder="Ex: Mãe, Pai, Avó"></div>'
+      + '</div>'
+      + '<div class="form-group"><label>Endereço</label><textarea id="mf-endereco" rows="3" style="resize:vertical" placeholder="Endereço do familiar">'+esc(f.endereco || '')+'</textarea></div>'
+      + '<div class="form-check"><input type="checkbox" id="mf-principal" '+(f.principal ? 'checked' : '')+'><label for="mf-principal" style="margin-bottom:0">Marcar como familiar principal</label></div>'
+      + '<div class="d-flex gap-2" style="justify-content:flex-end;margin-top:10px">'
+      + '<button class="btn btn-secondary" onclick="fecharModalFamiliar()">Cancelar</button>'
+      + '<button class="btn btn-primary" onclick="submitModalFamiliar()"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>'
+      + '</div>';
+  }
+
+  if(familiarId){
+    google.script.run
+      .withSuccessHandler(function(familiar){
+        if(!familiar){
+          fecharModalFamiliar();
+          showError(new Error('Familiar não encontrado.'));
+          return;
+        }
+        renderForm(familiar);
+      })
+      .withFailureHandler(function(err){
+        fecharModalFamiliar();
+        showError(err);
+      })
+      .carregarFamiliar(familiarId);
+    return;
+  }
+
+  renderForm(null);
+}
+
+function fecharModalFamiliar(){
+  var modal = document.getElementById('modal-familiar');
+  if(modal) modal.remove();
+}
+
+function submitModalFamiliar(){
+  var dados = {
+    id: (document.getElementById('mf-id').value || '').trim(),
+    socioeducando_id: (document.getElementById('mf-sid').value || '').trim(),
+    nome: (document.getElementById('mf-nome').value || '').trim(),
+    telefone: (document.getElementById('mf-telefone').value || '').trim(),
+    tipo_vinculo: (document.getElementById('mf-vinculo').value || '').trim(),
+    endereco: (document.getElementById('mf-endereco').value || '').trim(),
+    principal: !!document.getElementById('mf-principal').checked
+  };
+
+  var msgEl = document.getElementById('mf-msg');
+  if(!dados.nome){
+    if(msgEl) msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o nome do familiar.</div>';
+    return;
+  }
+
+  setBusyState(true, 'Salvando familiar...');
+  google.script.run
+    .withSuccessHandler(function(){
+      atualizarFamiliaresPerfilUI(dados.socioeducando_id, function(){
+        setBusyState(false);
+        fecharModalFamiliar();
+      });
+    })
+    .withFailureHandler(function(err){
+      setBusyState(false);
+      if(msgEl) msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
+    })
+    .salvarFamiliar(dados);
+}
+
+function excluirFamiliarUI(familiarId, socioeducandoId){
+  abrirModalConfirmacao({
+    titulo: 'Excluir familiar',
+    mensagem: 'Tem certeza que deseja excluir este familiar?',
+    textoConfirmar: 'Excluir',
+    onConfirmar: function(){
+      setBusyState(true, 'Excluindo familiar...');
+      google.script.run
+        .withSuccessHandler(function(){
+          atualizarFamiliaresPerfilUI(socioeducandoId, function(){ setBusyState(false); });
+        })
+        .withFailureHandler(function(err){
+          setBusyState(false);
+          showError(err);
+        })
+        .excluirFamiliar(familiarId);
+    }
+  });
+}
+
+function atualizarFamiliaresPerfilUI(socioeducandoId, callback){
+  google.script.run
+    .withSuccessHandler(function(familiares){
+      var ativos = filtrarAtivos(familiares || []);
+      if(ESTADO.perfilChunks) ESTADO.perfilChunks.familiares = ativos;
+      renderPerfilSecaoFamiliares(socioeducandoId, ativos);
+      if(typeof callback === 'function') callback();
+    })
+    .withFailureHandler(function(err){
+      showError(err);
+      if(typeof callback === 'function') callback();
+    })
+    .getFamiliaresBySocioeducando(socioeducandoId, true);
+}
+
 function mostrarPerfil(socioeducandoId){
   navActive('btn-nav-ov');
   ESTADO.socioeducandoId = socioeducandoId;
-  showSpinner('Carregando perfil...');
-  google.script.run.withSuccessHandler(function(d){
-    ESTADO.socioeducandoNome = d && d.socioeducando ? d.socioeducando.nome : '';
-    renderPerfil(d);
-  }).withFailureHandler(showError).carregarPerfil(socioeducandoId);
+  ESTADO.tela = 'perfil';
+  ESTADO.perfilRequestId = (ESTADO.perfilRequestId || 0) + 1;
+  var reqId = ESTADO.perfilRequestId;
+
+  setContent(renderPerfilSkeleton());
+
+  google.script.run.withSuccessHandler(function(resumo){
+    if(!isPerfilRequestAtivo(reqId, socioeducandoId)) return;
+    if(!resumo || !resumo.socioeducando){
+      showError({message:'Socioeducando não encontrado.'});
+      return;
+    }
+
+    ESTADO.socioeducandoNome = resumo.socioeducando.nome || '';
+    ESTADO.perfilChunks = {
+      resumo: resumo,
+      admissoes: null,
+      familiares: null,
+      cursos: null,
+      trabalhos: null,
+      visitas_territoriais: null,
+      fugas: null,
+      saidas: null,
+      atendimentos: null,
+      interesses: null,
+      curso_eventos: null
+    };
+
+    renderPerfilCabecalhoResumo(resumo);
+    carregarSecoesPerfil(reqId, socioeducandoId);
+  }).withFailureHandler(function(err){
+    if(!isPerfilRequestAtivo(reqId, socioeducandoId)) return;
+    showError(err);
+  }).carregarPerfilResumo(socioeducandoId);
+}
+
+function isPerfilRequestAtivo(reqId, socioeducandoId){
+  return ESTADO.tela === 'perfil'
+    && String(ESTADO.socioeducandoId || '') === String(socioeducandoId || '')
+    && Number(ESTADO.perfilRequestId || 0) === Number(reqId || 0);
+}
+
+function renderPerfilSkeleton(){
+  return ''
+    + '<div id="perfil-topo-slot" class="card"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando cabeçalho do perfil...</div></div>'
+    + '<div id="perfil-admissoes-slot" class="card"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando admissões...</div></div>'
+    + '<div class="card agenda-perfil-card">'
+    + '<div class="sec-hdr"><h5><i class="fa-solid fa-calendar-days"></i> Agenda dos últimos e próximos 14 dias</h5><small class="text-muted">Cursos, trabalhos, saídas e atendimentos do período</small></div>'
+    + '<div id="perfil-agenda"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando agenda...</div></div>'
+    + '<div id="perfil-agenda-empty" style="display:none">Sem atividades registradas para este socioeducando.</div>'
+    + '<div class="agenda-legenda">'
+    + '<span class="agenda-legenda-item" style="--cor:#e67e00">Cursos (em andamento)</span>'
+    + '<span class="agenda-legenda-item" style="--cor:#6c757d">Cursos (finalizados)</span>'
+    + '<span class="agenda-legenda-item" style="--cor:#7a4cc2">Trabalhos</span>'
+    + '<span class="agenda-legenda-item" style="--cor:#0d6efd">Saídas</span>'
+    + '<span class="agenda-legenda-item" style="--cor:#198754">Atendimentos</span>'
+    + '</div>'
+    + '</div>'
+    + '<div id="perfil-familiares-slot" class="card"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando familiares...</div></div>'
+    + '<div id="perfil-relacoes-slot" class="card">'
+    + '<div class="sec-hdr"><h5><i class="fa-solid fa-table-list"></i> Registros do Socioeducando</h5></div>'
+    + '<div class="segmented segmented-lg" style="margin-bottom:12px">'
+    + '<button type="button" class="seg-btn active" data-perfil-rel-tab="cursos" onclick="alternarAbaPerfilRel(\'cursos\')">Cursos <span id="perfil-tab-count-cursos">(0)</span></button>'
+    + '<button type="button" class="seg-btn" data-perfil-rel-tab="atendimentos" onclick="alternarAbaPerfilRel(\'atendimentos\')">Atendimentos <span id="perfil-tab-count-atendimentos">(0)</span></button>'
+    + '<button type="button" class="seg-btn" data-perfil-rel-tab="trabalhos" onclick="alternarAbaPerfilRel(\'trabalhos\')">Trabalhos <span id="perfil-tab-count-trabalhos">(0)</span></button>'
+    + '<button type="button" class="seg-btn" data-perfil-rel-tab="visitas" onclick="alternarAbaPerfilRel(\'visitas\')">Visitas Territoriais <span id="perfil-tab-count-visitas">(0)</span></button>'
+    + '<button type="button" class="seg-btn" data-perfil-rel-tab="saidas" onclick="alternarAbaPerfilRel(\'saidas\')">Saídas <span id="perfil-tab-count-saidas">(0)</span></button>'
+    + '<button type="button" class="seg-btn" data-perfil-rel-tab="fugas" onclick="alternarAbaPerfilRel(\'fugas\')">Fugas e Evasões <span id="perfil-tab-count-fugas">(0)</span></button>'
+    + '</div>'
+    + '<div id="perfil-pane-cursos"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando cursos...</div></div>'
+    + '<div id="perfil-pane-atendimentos" style="display:none"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando atendimentos...</div></div>'
+    + '<div id="perfil-pane-trabalhos" style="display:none"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando trabalhos...</div></div>'
+    + '<div id="perfil-pane-visitas" style="display:none"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando visitas territoriais...</div></div>'
+    + '<div id="perfil-pane-saidas" style="display:none"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando saídas...</div></div>'
+    + '<div id="perfil-pane-fugas" style="display:none"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando fugas e evasões...</div></div>'
+    + '</div>';
+}
+
+function alternarAbaPerfilRel(aba){
+  var tabs = ['cursos', 'atendimentos', 'trabalhos', 'visitas', 'saidas', 'fugas'];
+  ESTADO.perfilAbaRel = tabs.indexOf(aba) >= 0 ? aba : 'cursos';
+  tabs.forEach(function(nome){
+    var btn = document.querySelector('[data-perfil-rel-tab="'+nome+'"]');
+    var pane = document.getElementById('perfil-pane-' + nome);
+    if(btn) btn.classList.toggle('active', nome === ESTADO.perfilAbaRel);
+    if(pane) pane.style.display = (nome === ESTADO.perfilAbaRel) ? '' : 'none';
+  });
+}
+
+function atualizarContadoresAbasPerfil(){
+  var c = ESTADO.perfilChunks || {};
+  var mapa = {
+    cursos: Array.isArray(c.cursos) ? c.cursos.length : 0,
+    atendimentos: Array.isArray(c.atendimentos) ? c.atendimentos.length : 0,
+    trabalhos: Array.isArray(c.trabalhos) ? c.trabalhos.length : 0,
+    visitas: Array.isArray(c.visitas_territoriais) ? c.visitas_territoriais.length : 0,
+    saidas: Array.isArray(c.saidas) ? c.saidas.length : 0,
+    fugas: Array.isArray(c.fugas) ? c.fugas.length : 0
+  };
+  Object.keys(mapa).forEach(function(nome){
+    var el = document.getElementById('perfil-tab-count-' + nome);
+    if(el) el.textContent = '(' + mapa[nome] + ')';
+  });
+  alternarAbaPerfilRel(ESTADO.perfilAbaRel || 'cursos');
+}
+
+function renderPerfilCabecalhoResumo(resumo){
+  var j = resumo.socioeducando;
+  var status = resumo.status;
+  var internadoAtivo = resumo.internado_ativo;
+  var ausenteAtual = resumo.ausente_atual;
+
+  var idadePerfil = idadeAnos(j.data_nascimento_iso);
+  var nascExib = j.data_nascimento
+    ? 'Nascimento: ' + esc(j.data_nascimento) + (idadePerfil !== null ? ' ('+idadePerfil+' ano'+(idadePerfil === 1 ? '' : 's')+')' : '')
+    : '';
+  var internacaoTempoTopo = (internadoAtivo && internadoAtivo.data_admissao_iso)
+    ? ' (' + diasStr(internadoAtivo.data_admissao_iso) + ')'
+    : '';
+
+  var statusBadge = status==='internado'
+    ? '<span class="badge b-green" style="font-size:13px">Internado</span>'+(internadoAtivo?'<small class="text-muted"> desde '+internadoAtivo.data_admissao+internacaoTempoTopo+'</small>':'')
+    : status==='ausente'
+      ? '<span class="badge b-red" style="font-size:13px">Ausente</span>'+(ausenteAtual?'<small class="text-muted"> '+ausenteAtual.tipo_saida+' em '+ausenteAtual.data_saida+'</small>':'')
+      : '<span class="badge b-grey" style="font-size:13px">Desligado</span>';
+
+  var metaPerfil = [];
+  if(j.escolaridade) metaPerfil.push('Escolaridade: ' + esc(j.escolaridade));
+  if(j.email_profissional){
+    var emailPerfil = esc(j.email_profissional);
+    if(podeGerenciarCredenciaisFrontend()){
+      emailPerfil += ' (<a class="link-btn" onclick="abrirModalCredenciaisSocioeducando(\''+j.id+'\',\''+esc(j.nome)+'\')"><i class="fa-solid fa-key"></i>ver credenciais</a>)';
+    }
+    metaPerfil.push(emailPerfil);
+  }
+
+  var html = ''
+    + '<div class="page-hdr">'
+    + '<div>'
+    + '<h4><i class="fa-solid fa-user"></i> '+esc(j.nome)+'</h4>'
+    + '<small>ID #'+esc(j.id)+(metaPerfil.length ? ' &bull; ' + metaPerfil.join(' &bull; ') : '')+(nascExib ? ' &bull; ' + nascExib : '')+' &bull; Cadastrado em '+esc(j.created_at)+'</small><br>'
+    + '<span style="margin-top:4px;display:inline-block">'+statusBadge+'</span>'
+    + '</div>'
+    + '<div class="d-flex gap-2 flex-wrap">'
+    + '<button class="btn btn-primary" onclick="mostrarFormSocioeducando(\''+j.id+'\')"><i class="fa-solid fa-pen-to-square"></i>Editar</button>'
+    + '</div>'
+    + '</div>';
+
+  var slot = document.getElementById('perfil-topo-slot');
+  if(slot) slot.outerHTML = html;
+}
+
+function carregarSecoesPerfil(reqId, socioeducandoId){
+  alternarAbaPerfilRel(ESTADO.perfilAbaRel || 'cursos');
+
+  google.script.run
+    .withSuccessHandler(function(admissoes){
+      if(!isPerfilRequestAtivo(reqId, socioeducandoId)) return;
+      var ativos = filtrarAtivos(admissoes || []);
+      ESTADO.perfilChunks.admissoes = ativos;
+      renderPerfilSecaoAdmissoes(socioeducandoId, ativos);
+    })
+    .withFailureHandler(function(err){ if(isPerfilRequestAtivo(reqId, socioeducandoId)) renderPerfilSecaoErro('perfil-admissoes-slot', err); })
+    .getAdmissoesBySocioeducando(socioeducandoId, true);
+
+  google.script.run
+    .withSuccessHandler(function(familiares){
+      if(!isPerfilRequestAtivo(reqId, socioeducandoId)) return;
+      var ativos = filtrarAtivos(familiares || []);
+      ESTADO.perfilChunks.familiares = ativos;
+      renderPerfilSecaoFamiliares(socioeducandoId, ativos);
+    })
+    .withFailureHandler(function(err){ if(isPerfilRequestAtivo(reqId, socioeducandoId)) renderPerfilSecaoErro('perfil-familiares-slot', err); })
+    .getFamiliaresBySocioeducando(socioeducandoId, true);
+
+  google.script.run
+    .withSuccessHandler(function(cursos){
+      if(!isPerfilRequestAtivo(reqId, socioeducandoId)) return;
+      var ativos = filtrarAtivos(cursos || []);
+      ESTADO.perfilChunks.cursos = ativos;
+      PERFIL_CURSOS_DATA = ativos;
+      renderPerfilSecaoCursos(socioeducandoId, ativos, ESTADO.perfilChunks.interesses || []);
+      atualizarContadoresAbasPerfil();
+      maybeRenderAgendaPerfilChunks(reqId, socioeducandoId);
+    })
+    .withFailureHandler(function(err){ if(isPerfilRequestAtivo(reqId, socioeducandoId)) renderPerfilSecaoErro('perfil-pane-cursos', err); })
+    .getCursosBySocioeducando(socioeducandoId, true);
+
+  google.script.run
+    .withSuccessHandler(function(trabalhos){
+      if(!isPerfilRequestAtivo(reqId, socioeducandoId)) return;
+      var ativos = filtrarAtivos(trabalhos || []);
+      ESTADO.perfilChunks.trabalhos = ativos;
+      renderPerfilSecaoTrabalhos(socioeducandoId, ativos);
+      atualizarContadoresAbasPerfil();
+      maybeRenderAgendaPerfilChunks(reqId, socioeducandoId);
+    })
+    .withFailureHandler(function(err){ if(isPerfilRequestAtivo(reqId, socioeducandoId)) renderPerfilSecaoErro('perfil-pane-trabalhos', err); })
+    .getTrabalhosBySocioeducando(socioeducandoId, true);
+
+  google.script.run
+    .withSuccessHandler(function(visitas){
+      if(!isPerfilRequestAtivo(reqId, socioeducandoId)) return;
+      var ativos = filtrarAtivos(visitas || []);
+      ESTADO.perfilChunks.visitas_territoriais = ativos;
+      renderPerfilSecaoVisitasTerritoriais(socioeducandoId, ativos);
+      atualizarContadoresAbasPerfil();
+    })
+    .withFailureHandler(function(err){ if(isPerfilRequestAtivo(reqId, socioeducandoId)) renderPerfilSecaoErro('perfil-pane-visitas', err); })
+    .getVisitasTerritoriaisBySocioeducando(socioeducandoId, true);
+
+  google.script.run
+    .withSuccessHandler(function(fugas){
+      if(!isPerfilRequestAtivo(reqId, socioeducandoId)) return;
+      var ativos = filtrarAtivos(fugas || []);
+      ESTADO.perfilChunks.fugas = ativos;
+      renderPerfilSecaoFugas(socioeducandoId, ativos);
+      atualizarContadoresAbasPerfil();
+    })
+    .withFailureHandler(function(err){ if(isPerfilRequestAtivo(reqId, socioeducandoId)) renderPerfilSecaoErro('perfil-pane-fugas', err); })
+    .getFugasBySocioeducando(socioeducandoId, true);
+
+  google.script.run
+    .withSuccessHandler(function(saidas){
+      if(!isPerfilRequestAtivo(reqId, socioeducandoId)) return;
+      var ativos = filtrarAtivos(saidas || []);
+      ESTADO.perfilChunks.saidas = ativos;
+      renderPerfilSecaoSaidas(socioeducandoId, ativos);
+      atualizarContadoresAbasPerfil();
+      maybeRenderAgendaPerfilChunks(reqId, socioeducandoId);
+    })
+    .withFailureHandler(function(err){ if(isPerfilRequestAtivo(reqId, socioeducandoId)) renderPerfilSecaoErro('perfil-pane-saidas', err); })
+    .getSaidasBySocioeducando(socioeducandoId, true);
+
+  google.script.run
+    .withSuccessHandler(function(atendimentos){
+      if(!isPerfilRequestAtivo(reqId, socioeducandoId)) return;
+      var ativos = filtrarAtivos(atendimentos || []);
+      ESTADO.perfilChunks.atendimentos = ativos;
+      renderPerfilSecaoAtendimentos(socioeducandoId, ativos);
+      atualizarContadoresAbasPerfil();
+      maybeRenderAgendaPerfilChunks(reqId, socioeducandoId);
+    })
+    .withFailureHandler(function(err){ if(isPerfilRequestAtivo(reqId, socioeducandoId)) renderPerfilSecaoErro('perfil-pane-atendimentos', err); })
+    .getAtendimentosBySocioeducando(socioeducandoId, true);
+
+  google.script.run
+    .withSuccessHandler(function(interesses){
+      if(!isPerfilRequestAtivo(reqId, socioeducandoId)) return;
+      var ativos = filtrarAtivos(interesses || []);
+      ESTADO.perfilChunks.interesses = ativos;
+      if(Array.isArray(ESTADO.perfilChunks.cursos)) {
+        renderPerfilSecaoCursos(socioeducandoId, ESTADO.perfilChunks.cursos, ativos);
+        atualizarContadoresAbasPerfil();
+      }
+    })
+    .withFailureHandler(function(){})
+    .getInteressesCursoPorSocioeducando(socioeducandoId);
+
+  google.script.run
+    .withSuccessHandler(function(cursoEventos){
+      if(!isPerfilRequestAtivo(reqId, socioeducandoId)) return;
+      ESTADO.perfilChunks.curso_eventos = cursoEventos || [];
+      maybeRenderAgendaPerfilChunks(reqId, socioeducandoId);
+    })
+    .withFailureHandler(function(){
+      if(!isPerfilRequestAtivo(reqId, socioeducandoId)) return;
+      ESTADO.perfilChunks.curso_eventos = [];
+      maybeRenderAgendaPerfilChunks(reqId, socioeducandoId);
+    })
+    .getCursoEventosBySocioeducando(socioeducandoId);
+}
+
+function renderPerfilSecaoErro(slotId, err){
+  var el = document.getElementById(slotId);
+  if(!el) return;
+  el.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err&&err.message?err.message:String(err))+'</div>';
+}
+
+function renderPerfilSecaoAdmissoes(socioeducandoId, admissoes){
+  var resumo = ESTADO.perfilChunks && ESTADO.perfilChunks.resumo ? ESTADO.perfilChunks.resumo : {};
+  var internadoAtivo = resumo.internado_ativo;
+  var diasInternacaoTotal = (admissoes || []).reduce(function(sum, a){
+    return sum + diasEntre(a.data_admissao_iso, a.data_desligamento_iso);
+  }, 0);
+
+  var linhasAdm = !admissoes || admissoes.length === 0
+    ? '<tr><td colspan="5" class="no-records">Nenhuma admissão registrada.</td></tr>'
+    : admissoes.map(function(a){
+        var st = !a.data_desligamento_iso
+          ? '<span class="badge b-green">Ativo</span>'
+          : '<span class="badge b-grey">Desligado</span>';
+        var desl = a.data_desligamento || '<span class="text-success fw-bold">Ativo</span>';
+        var tempoInternacao = a.data_admissao_iso ? duracaoStr(a.data_admissao_iso, a.data_desligamento_iso) : '—';
+        var btnDesl = !a.data_desligamento_iso
+          ? '<button class="btn btn-warning btn-xs" onclick="mostrarFormDesligar(\''+a.id+'\',\''+socioeducandoId+'\')"><i class="fa-solid fa-right-from-bracket"></i> Desligar</button>'
+          : '';
+        var btnEditarAdm = '<button class="btn btn-primary btn-xs" onclick="mostrarFormEditarAdmissao(\''+a.id+'\',\''+socioeducandoId+'\')" title="Editar admissão"><i class="fa-solid fa-pen-to-square"></i> Editar</button>';
+        return '<tr><td>'+a.data_admissao+'</td><td>'+desl+'</td><td>'+tempoInternacao+'</td><td>'+st+'</td><td>'+btnEditarAdm+' '+btnDesl+'</td></tr>';
+      }).join('');
+
+  var html = ''
+    + '<div class="sec-hdr"><h5><i class="fa-solid fa-right-from-bracket"></i> Histórico de Admissões</h5>'
+    + (internadoAtivo ? '' : '<button class="btn btn-success btn-xs" onclick="mostrarFormAdmissao(\''+socioeducandoId+'\')"><i class="fa-solid fa-plus"></i> Nova admissão</button>')
+    + '</div>'
+    + '<div class="text-muted" style="margin-bottom:10px;line-height:1.7">'
+    + (admissoes.length)+' '+(admissoes.length!==1?'admissões registradas':'admissão registrada')+'<br>'
+    + (internadoAtivo && internadoAtivo.data_admissao_iso ? 'Internação atual: '+duracaoStr(internadoAtivo.data_admissao_iso)+'<br>' : '')
+    + 'Total internado (todas as internações): '+diasInternacaoTotal+' dia'+(diasInternacaoTotal!==1?'s':'')
+    + '</div>'
+    + '<div style="overflow-x:auto"><table><thead><tr><th>Admissão</th><th>Desligamento</th><th>Tempo de internação</th><th>Situação</th><th></th></tr></thead><tbody>'+linhasAdm+'</tbody></table></div>';
+
+  var el = document.getElementById('perfil-admissoes-slot');
+  if(el) el.innerHTML = html;
+}
+
+function renderPerfilSecaoFamiliares(socioeducandoId, familiares){
+  var lista = (familiares || []).slice().sort(function(a, b){
+    if(!!a.principal !== !!b.principal) return a.principal ? -1 : 1;
+    return String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
+  });
+
+  var cards = lista.map(function(f){
+    var nome = esc(f.nome || 'Sem nome');
+    var telefone = f.telefone ? esc(f.telefone) : '<span class="text-muted">Não informado</span>';
+    var vinculo = f.tipo_vinculo ? esc(f.tipo_vinculo) : '<span class="text-muted">Não informado</span>';
+    var endereco = f.endereco ? escNl(f.endereco) : '<span class="text-muted">Não informado</span>';
+    var principalTag = f.principal ? '<div class="familiar-principal-tag"><i class="fa-solid fa-star"></i> Principal</div>' : '';
+    return ''
+      + '<div class="familiar-card'+(f.principal ? ' is-principal' : '')+'">'
+      + principalTag
+      + '<div class="familiar-card-head">'
+      + '<div class="familiar-card-nome">'+nome+'</div>'
+      + '<div class="familiar-card-actions">'
+      + '<button class="btn btn-outline btn-xs" onclick="abrirModalFamiliar(\''+esc(socioeducandoId)+'\',\''+esc(f.id)+'\')"><i class="fa-solid fa-pen-to-square"></i> Editar</button>'
+      + '<button class="btn btn-outline btn-xs" style="color:#dc3545;border-color:#dc3545" onclick="excluirFamiliarUI(\''+esc(f.id)+'\',\''+esc(socioeducandoId)+'\')"><i class="fa-solid fa-trash"></i> Excluir</button>'
+      + '</div>'
+      + '</div>'
+      + '<div class="familiar-card-body">'
+      + '<div><span class="text-muted">Telefone:</span> '+telefone+'</div>'
+      + '<div><span class="text-muted">Vínculo:</span> '+vinculo+'</div>'
+      + '<div><span class="text-muted">Endereço:</span> '+endereco+'</div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+
+  var addCard = '<button type="button" class="familiar-add-card" onclick="abrirModalFamiliar(\''+esc(socioeducandoId)+'\')">'
+    + '<i class="fa-solid fa-plus"></i>'
+    + '<span>Adicionar familiar</span>'
+    + '</button>';
+
+  var html = ''
+    + '<div class="sec-hdr"><h5><i class="fa-solid fa-users"></i> Familiares ('+lista.length+')</h5></div>'
+    + '<div class="familiares-grid">'
+    + cards
+    + addCard
+    + '</div>';
+
+  var el = document.getElementById('perfil-familiares-slot');
+  if(el) el.innerHTML = html;
+}
+
+function renderPerfilSecaoCursos(socioeducandoId, cursos, interesses){
+  var resumo = ESTADO.perfilChunks && ESTADO.perfilChunks.resumo ? ESTADO.perfilChunks.resumo : {};
+  var status = resumo.status || 'desligado';
+  var listaCursos = cursos || [];
+
+  var linhasCursos = listaCursos.length === 0
+    ? '<tr><td colspan="10" class="no-records">Nenhum curso registrado.</td></tr>'
+    : listaCursos.map(function(c){
+        var concluido = c.tipo_termino === 'Concluído';
+        var desistente = c.tipo_termino === 'Desistente';
+        var terminado = concluido || desistente;
+        var cert = c.certificado ? ' <span title="Certificado emitido"><i class="fa-solid fa-scroll"></i></span>' : '';
+        var stCell = concluido
+          ? '<span class="badge b-green">'+(c.matricula_data_termino ? esc(c.matricula_data_termino) : 'Concluído')+cert+'</span>'
+          : desistente
+            ? '<span class="badge" style="background:#dc3545;color:#fff">'+(c.matricula_data_termino ? esc(c.matricula_data_termino) : 'Desistente')+'</span>'
+            : '<span class="badge b-orange">Em andamento</span>';
+        var statusVinculo = derivarStatusVinculo(c);
+        var svBadge = statusVinculo === 'Interessado'
+          ? '<span class="badge" style="background:#e67e00;color:#fff">Interessado</span>'
+          : statusVinculo === 'Matriculado'
+            ? '<span class="badge b-blue">Matriculado</span>'
+            : statusVinculo === 'Concluído'
+              ? '<span class="badge b-green">Concluído</span>'
+              : statusVinculo === 'Desistente'
+                ? '<span class="badge" style="background:#dc3545;color:#fff">Desistente</span>'
+                : '<span class="text-muted">—</span>';
+        var btnConcluir = !terminado
+          ? '<button class="btn btn-outline btn-xs" onclick="mostrarFormTermino(\''+c.matricula_id+'\',\''+socioeducandoId+'\',\'\',\'\',false)"><i class="fa-solid fa-flag-checkered"></i> Registrar término</button>'
+          : '<button class="btn btn-outline btn-xs" onclick="mostrarFormTermino(\''+c.matricula_id+'\',\''+socioeducandoId+'\',\''+esc(c.tipo_termino)+'\',\''+esc(c.matricula_data_termino_iso||'')+'\','+(c.certificado?'true':'false')+')"><i class="fa-solid fa-scroll"></i> Editar término</button>';
+        var dias = diasSemanaTextoCurso(c.dias_semana);
+        var dIni = diaSemanaAbrev(c.data_inicio_iso);
+        var dTer = diaSemanaAbrev(c.data_termino_iso);
+        var inicio = esc(c.data_inicio) + (dIni ? '<br><small class="text-muted">'+dIni+'</small>' : '');
+        var termino = esc(c.data_termino) + (dTer ? '<br><small class="text-muted">'+dTer+(terminado?'':' (prev.)')+'</small>' : (terminado?'':' <small class="text-muted">(prev.)</small>'));
+        var localBadge = c.local ? '<span class="badge '+(c.local==='Externo'?'b-orange':'b-grey')+'">'+esc(c.local)+'</span>' : '<span class="text-muted">—</span>';
+        return '<tr>'
+          + '<td><span class="badge b-blue">'+esc(c.tipo_curso)+'</span></td>'
+          + '<td>'+esc(c.nome_curso)+'</td>'
+          + '<td>'+svBadge+'</td>'
+          + '<td>'+localBadge+'</td>'
+          + '<td>'+esc(c.instituicao||'—')+'</td>'
+          + '<td>'+inicio+'</td>'
+          + '<td>'+termino+'</td>'
+          + '<td>'+esc(dias || '—')+'</td>'
+          + '<td>'+stCell+'</td>'
+          + '<td style="white-space:nowrap"><button class="btn btn-outline btn-xs" onclick="abrirEditarVinculoPerfil(\''+c.matricula_id+'\')"><i class="fa-solid fa-pen-to-square"></i> Editar</button> '+btnConcluir+'</td>'
+          + '</tr>';
+      }).join('');
+
+  var html = ''
+    + '<div class="sec-hdr"><h5><i class="fa-solid fa-book-open"></i> Cursos ('+listaCursos.length+')</h5>'
+    + (status==='desligado' ? '' : '<button class="btn btn-success btn-xs" onclick="mostrarFormCurso(\''+socioeducandoId+'\')"><i class="fa-solid fa-plus"></i> Novo curso</button>')
+    + '</div>'
+    + renderInteressesCursoHtml(socioeducandoId, interesses || [])
+    + '<div style="overflow-x:auto"><table><thead><tr><th>Tipo</th><th>Curso</th><th>Vínculo</th><th>Local</th><th>Instituição</th><th>Início</th><th>Término</th><th>Dias</th><th>Conclusão</th><th></th></tr></thead><tbody>'+linhasCursos+'</tbody></table></div>';
+
+  var el = document.getElementById('perfil-pane-cursos');
+  if(el) el.innerHTML = html;
+}
+
+function renderPerfilSecaoTrabalhos(socioeducandoId, trabalhos){
+  var resumo = ESTADO.perfilChunks && ESTADO.perfilChunks.resumo ? ESTADO.perfilChunks.resumo : {};
+  var status = resumo.status || 'desligado';
+  var lista = trabalhos || [];
+
+  var linhas = lista.length === 0
+    ? '<tr><td colspan="8" class="no-records">Nenhuma relação de trabalho registrada.</td></tr>'
+    : lista.map(function(t){
+        var curso = t.curso ? esc(t.curso) : '<span class="text-muted">—</span>';
+        var fim = t.data_fim || '<span class="text-muted">Em andamento</span>';
+        var horario = textoHorarioCurso(t.dias_semana, t.horario_inicio, t.horario_fim);
+        return '<tr>'
+          + '<td><span class="badge b-blue">'+esc(t.tipo || '—')+'</span></td>'
+          + '<td>'+esc(t.empresa || '—')+'</td>'
+          + '<td>'+curso+'</td>'
+          + '<td>'+esc(t.data_contrato || '—')+'</td>'
+          + '<td>'+esc(t.data_inicio || '—')+'</td>'
+          + '<td>'+fim+'</td>'
+          + '<td>'+horario+'</td>'
+          + '<td style="white-space:nowrap"><button class="btn btn-outline btn-xs" onclick="mostrarFormTrabalho(\''+socioeducandoId+'\',\''+t.id+'\')"><i class="fa-solid fa-pen-to-square"></i> Editar</button></td>'
+          + '</tr>';
+      }).join('');
+
+  var html = ''
+    + '<div class="sec-hdr"><h5><i class="fa-solid fa-briefcase"></i> Trabalhos ('+lista.length+')</h5>'
+    + (status==='desligado' ? '' : '<button class="btn btn-success btn-xs" onclick="mostrarFormTrabalho(\''+socioeducandoId+'\')"><i class="fa-solid fa-plus"></i> Novo trabalho</button>')
+    + '</div>'
+    + '<div style="overflow-x:auto"><table><thead><tr><th>Tipo</th><th>Empresa</th><th>Curso</th><th>Contrato</th><th>Início</th><th>Fim</th><th>Horário</th><th></th></tr></thead><tbody>'+linhas+'</tbody></table></div>';
+
+  var el = document.getElementById('perfil-pane-trabalhos');
+  if(el) el.innerHTML = html;
+}
+
+function textoBoolSimNao(v){ return v ? 'Sim' : 'Não'; }
+
+function renderPerfilSecaoVisitasTerritoriais(socioeducandoId, visitas){
+  var resumo = ESTADO.perfilChunks && ESTADO.perfilChunks.resumo ? ESTADO.perfilChunks.resumo : {};
+  var status = resumo.status || 'desligado';
+  var lista = visitas || [];
+
+  var linhas = lista.length === 0
+    ? '<tr><td colspan="9" class="no-records">Nenhuma visita territorial registrada.</td></tr>'
+    : lista.map(function(v){
+        return '<tr>'
+          + '<td>'+esc(v.data || '—')+'</td>'
+          + '<td>'+esc(v.tec_responsavel || '—')+'</td>'
+          + '<td>'+esc(v.atendido_por || '—')+'</td>'
+          + '<td>'+textoBoolSimNao(!!v.creas)+'</td>'
+          + '<td>'+textoBoolSimNao(!!v.caps)+'</td>'
+          + '<td>'+textoBoolSimNao(!!v.ameaca)+'</td>'
+          + '<td>'+esc(v.observacoes || '—')+'</td>'
+          + '<td>'+esc(v.created_at || '—')+'</td>'
+          + '<td style="white-space:nowrap"><button class="btn btn-outline btn-xs" onclick="mostrarFormVisitaTerritorial(\''+socioeducandoId+'\',\''+v.id+'\')"><i class="fa-solid fa-pen-to-square"></i> Editar</button></td>'
+          + '</tr>';
+      }).join('');
+
+  var html = ''
+    + '<div class="sec-hdr"><h5><i class="fa-solid fa-map-location-dot"></i> Visitas Territoriais ('+lista.length+')</h5>'
+    + (status==='desligado' ? '' : '<button class="btn btn-success btn-xs" onclick="mostrarFormVisitaTerritorial(\''+socioeducandoId+'\')"><i class="fa-solid fa-plus"></i> Nova visita</button>')
+    + '</div>'
+    + '<div style="overflow-x:auto"><table><thead><tr><th>Data</th><th>Tec responsável</th><th>Atendido por</th><th>CREAS</th><th>CAPS</th><th>Ameaça</th><th>Observações</th><th>Registro</th><th></th></tr></thead><tbody>'+linhas+'</tbody></table></div>';
+
+  var el = document.getElementById('perfil-pane-visitas');
+  if(el) el.innerHTML = html;
+}
+
+function renderPerfilSecaoAtendimentos(socioeducandoId, atendimentos){
+  var resumo = ESTADO.perfilChunks && ESTADO.perfilChunks.resumo ? ESTADO.perfilChunks.resumo : {};
+  var status = resumo.status || 'desligado';
+  var lista = atendimentos || [];
+
+  var linhas = lista.length === 0
+    ? '<tr><td colspan="8" class="no-records">Nenhum atendimento registrado.</td></tr>'
+    : lista.map(function(a){
+        var naoRealizado = a.realizado === 'Não';
+        var statusBadgeAt = naoRealizado
+          ? '<span class="badge" style="background:#dc3545;color:#fff;font-size:10px">Não realizado</span>'
+          : '<span class="badge" style="background:#198754;color:#fff;font-size:10px">Realizado</span>';
+        var motivoTooltip = naoRealizado && a.motivo_nao_realizado
+          ? '<div style="font-size:10px;color:#888;margin-top:2px">Motivo: '+esc(a.motivo_nao_realizado)+'</div>'
+          : '';
+        var reposicaoInfo = naoRealizado && a.id_atendimento_reposicao
+          ? '<div style="font-size:10px;color:#888">Reposição: #'+esc(a.id_atendimento_reposicao)+'</div>'
+          : '';
+        var btnNaoRealizado = (!naoRealizado)
+          ? '<button class="btn btn-outline btn-xs" style="color:#dc3545;border-color:#dc3545" onclick="abrirModalNaoRealizado(\''+esc(a.id)+'\',\''+esc(socioeducandoId)+'\')" title="Marcar como não realizado"><i class="fa-solid fa-xmark"></i> Não realizado</button>'
+          : '';
+        var btnEditarAt = '<button class="btn btn-outline btn-xs" onclick="mostrarFormEditarAtendimento(\''+esc(a.id)+'\',\''+esc(socioeducandoId)+'\')"><i class="fa-solid fa-pen-to-square"></i> Editar</button>';
+        return '<tr'+(naoRealizado?' style="opacity:0.7"':' ')+'>'
+          + '<td><span class="badge b-cyan">'+esc(a.tipo_atendimento)+'</span></td>'
+          + '<td>'+esc(a.responsavel)+'</td>'
+          + '<td>'+esc(a.data_hora_inicio)+'</td>'
+          + '<td>'+esc(a.data_hora_termino)+'</td>'
+          + '<td>'+esc(a.observacoes || '—')+'</td>'
+          + '<td>'+statusBadgeAt+motivoTooltip+reposicaoInfo+'</td>'
+          + '<td>'+esc(a.created_at || '—')+'</td>'
+          + '<td style="white-space:nowrap">'+btnEditarAt+' '+btnNaoRealizado+'</td>'
+          + '</tr>';
+      }).join('');
+
+  var html = ''
+    + '<div class="sec-hdr"><h5><i class="fa-solid fa-user-group"></i> Atendimentos ('+lista.length+')</h5>'
+    + (status==='desligado' ? '' : '<button class="btn btn-success btn-xs" onclick="mostrarFormAtendimentos(\''+socioeducandoId+'\')"><i class="fa-solid fa-plus"></i> Novo atendimento</button>')
+    + '</div>'
+    + '<div style="overflow-x:auto"><table><thead><tr><th>Tipo</th><th>Responsável</th><th>Início</th><th>Término</th><th>Observações</th><th>Status</th><th>Registro</th><th></th></tr></thead><tbody>'+linhas+'</tbody></table></div>';
+
+  var el = document.getElementById('perfil-pane-atendimentos');
+  if(el) el.innerHTML = html;
+}
+
+function renderPerfilSecaoSaidas(socioeducandoId, saidas){
+  var resumo = ESTADO.perfilChunks && ESTADO.perfilChunks.resumo ? ESTADO.perfilChunks.resumo : {};
+  var status = resumo.status || 'desligado';
+  var lista = saidas || [];
+
+  var tabela = lista.length === 0
+    ? '<p class="no-records">Nenhuma saída registrada.</p>'
+    : '<div style="overflow-x:auto"><table><thead><tr><th>Local</th><th>Tipo</th><th>Ida</th><th>Volta</th><th>Condução</th><th>Acompanhante</th><th>Observações</th><th>Situação</th><th>Status</th><th></th></tr></thead><tbody>'
+      + lista.map(function(s){
+          var volta = s.data_hora_volta || '<span class="text-danger">Não retornou</span>';
+          var st = s.data_hora_volta ? '<span class="badge b-green">Retornou</span>' : '<span class="badge b-orange">Saída</span>';
+          var svBadgeSaida = s.status === 'Prevista'
+            ? '<span class="badge" style="background:#e67e00;color:#fff">Prevista</span>'
+            : s.status === 'Realizada'
+              ? '<span class="badge b-green">Realizada</span>'
+              : s.status === 'Cancelada'
+                ? '<span class="badge" style="background:#dc3545;color:#fff">Cancelada</span>'
+                : '<span class="text-muted">—</span>';
+          var btnVolta = !s.data_hora_volta_iso ? '<button class="btn btn-outline btn-xs" onclick="mostrarFormVolta(\''+s.saida_id+'\')"><i class="fa-solid fa-rotate-left"></i> Volta</button> ' : '';
+          return '<tr>'
+            + '<td>'+esc(s.local)+'</td>'
+            + '<td>'+esc(s.tipo||'—')+'</td>'
+            + '<td>'+s.data_hora_ida+'</td>'
+            + '<td>'+volta+'</td>'
+            + '<td><span class="badge b-blue">'+esc(s.conducao)+'</span></td>'
+            + '<td>'+esc(s.nome_acompanhante||'—')+'</td>'
+            + '<td>'+esc(s.observacoes_saida||'—')+'</td>'
+            + '<td>'+st+'</td>'
+            + '<td>'+svBadgeSaida+'</td>'
+            + '<td>'+btnVolta+'<button class="btn btn-outline btn-xs" onclick="mostrarFormSaida(\''+socioeducandoId+'\',\''+s.matricula_id+'\')"><i class="fa-solid fa-pen-to-square"></i> Editar</button></td>'
+            + '</tr>';
+        }).join('')
+      + '</tbody></table></div>';
+
+  var html = ''
+    + '<div class="sec-hdr"><h5><i class="fa-solid fa-bus"></i> Saídas ('+lista.length+')</h5>'
+    + (status==='desligado' ? '' : '<button class="btn btn-success btn-xs" onclick="mostrarFormSaida(\''+socioeducandoId+'\')"><i class="fa-solid fa-plus"></i> Nova saída</button>')
+    + '</div>'
+    + tabela;
+
+  var el = document.getElementById('perfil-pane-saidas');
+  if(el) el.innerHTML = html;
+}
+
+function renderPerfilSecaoFugas(socioeducandoId, fugas){
+  var resumo = ESTADO.perfilChunks && ESTADO.perfilChunks.resumo ? ESTADO.perfilChunks.resumo : {};
+  var status = resumo.status || 'desligado';
+  var lista = fugas || [];
+
+  var linhas = lista.length === 0
+    ? '<tr><td colspan="6" class="no-records">Nenhuma ocorrência registrada.</td></tr>'
+    : lista.map(function(f){
+        var tb = f.tipo_saida==='Fuga'?'<span class="badge b-red">Fuga</span>':'<span class="badge b-orange">Evasão</span>';
+        var retorno = f.data_retorno || '<span class="text-danger">Não retornou</span>';
+        var stBadge = f.data_retorno ? '<span class="badge b-green">Retornou</span>' : '<span class="badge b-red">Ausente</span>';
+        var btnRet = !f.data_retorno_iso
+          ? '<button class="btn btn-outline btn-xs" onclick="mostrarFormRetorno(\''+f.id+'\')"><i class="fa-solid fa-rotate-left"></i> Retorno</button> '
+          : '';
+        return '<tr>'
+          + '<td>'+tb+'</td><td>'+f.data_saida+'</td><td>'+retorno+'</td><td>'+stBadge+'</td>'
+          + '<td>'+esc(f.observacoes||'—')+'</td>'
+          + '<td>'+btnRet+'<button class="btn btn-outline btn-xs" onclick="mostrarFormFuga(\''+socioeducandoId+'\',\''+f.id+'\')"><i class="fa-solid fa-pen-to-square"></i> Editar</button></td>'
+          + '</tr>';
+      }).join('');
+
+  var html = ''
+    + '<div class="sec-hdr"><h5><i class="fa-solid fa-triangle-exclamation"></i> Fugas e Evasões ('+lista.length+')</h5>'
+    + (status==='desligado' ? '' : '<button class="btn btn-danger btn-xs" onclick="mostrarFormFuga(\''+socioeducandoId+'\')"><i class="fa-solid fa-plus"></i> Nova fuga/evasão</button>')
+    + '</div>'
+    + '<div style="overflow-x:auto"><table><thead><tr><th>Tipo</th><th>Saída</th><th>Retorno</th><th>Situação</th><th>Observações</th><th></th></tr></thead><tbody>'+linhas+'</tbody></table></div>';
+
+  var el = document.getElementById('perfil-pane-fugas');
+  if(el) el.innerHTML = html;
+}
+
+function maybeRenderAgendaPerfilChunks(reqId, socioeducandoId){
+  if(!isPerfilRequestAtivo(reqId, socioeducandoId)) return;
+  var c = ESTADO.perfilChunks || {};
+  if(!Array.isArray(c.cursos) || !Array.isArray(c.trabalhos) || !Array.isArray(c.saidas) || !Array.isArray(c.atendimentos) || !Array.isArray(c.curso_eventos)) return;
+
+  var resumo = c.resumo || {};
+  var d = {
+    socioeducando: resumo.socioeducando || { id: socioeducandoId },
+    status: resumo.status || 'desligado',
+    internado_ativo: resumo.internado_ativo || null,
+    ausente_atual: resumo.ausente_atual || null,
+    cursos: c.cursos,
+    trabalhos: c.trabalhos,
+    saidas: c.saidas,
+    atendimentos: c.atendimentos,
+    curso_eventos: c.curso_eventos,
+    admissoes: c.admissoes || [],
+    fugas: c.fugas || [],
+    interesses: c.interesses || []
+  };
+  renderAgendaPerfil(d);
 }
 
 function renderPerfil(d){
@@ -2570,6 +3779,7 @@ function renderPerfil(d){
   var j = d.socioeducando;
   var admissoes = filtrarAtivos(d.admissoes);
   var cursos = filtrarAtivos(d.cursos);
+  var trabalhos = filtrarAtivos(d.trabalhos);
   var fugas = filtrarAtivos(d.fugas);
   var saidas = filtrarAtivos(d.saidas);
   var atendimentos = filtrarAtivos(d.atendimentos);
@@ -2599,6 +3809,13 @@ function renderPerfil(d){
 
   var metaPerfil = [];
   if(j.escolaridade) metaPerfil.push('Escolaridade: ' + esc(j.escolaridade));
+  if(j.email_profissional){
+    var emailPerfil = esc(j.email_profissional);
+    if(podeGerenciarCredenciaisFrontend()){
+      emailPerfil += ' (<a class="link-btn" onclick="abrirModalCredenciaisSocioeducando(\''+j.id+'\',\''+esc(j.nome)+'\')"><i class="fa-solid fa-key"></i>ver credenciais</a>)';
+    }
+    metaPerfil.push(emailPerfil);
+  }
 
   // ── Cursos ──
   var linhasCursos = cursos.length === 0
@@ -2741,12 +3958,13 @@ function renderPerfil(d){
 
     // Agenda visual
     +'<div class="card agenda-perfil-card">'
-    +'<div class="sec-hdr"><h5><i class="fa-solid fa-calendar-days"></i> Agenda dos últimos e próximos 14 dias</h5><small class="text-muted">Saídas e atendimentos do período</small></div>'
+    +'<div class="sec-hdr"><h5><i class="fa-solid fa-calendar-days"></i> Agenda dos últimos e próximos 14 dias</h5><small class="text-muted">Cursos, trabalhos, saídas e atendimentos do período</small></div>'
     +'<div id="perfil-agenda"></div>'
     +'<div id="perfil-agenda-empty">Sem atividades registradas para este socioeducando.</div>'
     +'<div class="agenda-legenda">'
     +'<span class="agenda-legenda-item" style="--cor:#e67e00">Cursos (em andamento)</span>'
     +'<span class="agenda-legenda-item" style="--cor:#6c757d">Cursos (finalizados)</span>'
+    +'<span class="agenda-legenda-item" style="--cor:#7a4cc2">Trabalhos</span>'
     +'<span class="agenda-legenda-item" style="--cor:#0d6efd">Saídas</span>'
     +'<span class="agenda-legenda-item" style="--cor:#198754">Atendimentos</span>'
     +'</div>'
@@ -2818,6 +4036,7 @@ function renderPerfil(d){
     ausente_atual: ausenteAtual,
     admissoes: admissoes,
     cursos: cursos,
+    trabalhos: trabalhos,
     fugas: fugas,
     saidas: saidas,
     atendimentos: atendimentos,
@@ -2847,6 +4066,7 @@ function renderFormSocioeducando(socioeducando){
   navActive('btn-nav-cad');
   ESTADO.tela = 'form-socioeducando';
   var editando = !!socioeducando;
+  var podeGerenciarCredenciais = podeGerenciarCredenciaisFrontend();
   var html = ''
     +'<div class="card" style="max-width:500px;margin:0 auto">'
     +'<div class="page-hdr"><h4>'+(editando?'<i class="fa-solid fa-pen-to-square"></i> Editar Socioeducando':'<i class="fa-solid fa-user"></i> Novo Socioeducando')+'</h4>'
@@ -2864,6 +4084,10 @@ function renderFormSocioeducando(socioeducando){
         +'<small class="text-muted">Deve corresponder ao ID do socioeducando no Portal SUASE.</small>'
         +'</div>'))
     +'<div class="form-group"><label>Nome completo <span class="req">*</span></label><input type="text" id="f-nome" value="'+(socioeducando?esc(socioeducando.nome):'')+'" placeholder="Nome completo do socioeducando"></div>'
+    +(podeGerenciarCredenciais
+      ? ('<div class="form-group"><label>E-mail profissional</label><input type="email" id="f-email-prof" value="'+(socioeducando&&socioeducando.email_profissional?esc(socioeducando.email_profissional):'')+'" placeholder="email@exemplo.com"></div>'
+        +'<div class="form-group"><label>Senha profissional '+(editando?'<small class="text-muted">(deixe em branco para manter a atual)</small>':'')+'</label><input type="password" id="f-senha-prof" value="" placeholder="Informe a senha profissional"></div>')
+      : '')
     +'<div class="form-group"><label>Data de nascimento</label><input type="date" id="f-nasc" value="'+(socioeducando&&socioeducando.data_nascimento_iso?esc(socioeducando.data_nascimento_iso):'')+'"></div>'
     +'<div class="form-group"><label>Escolaridade</label>'
     +'<select id="f-escol">'
@@ -2882,9 +4106,13 @@ function renderFormSocioeducando(socioeducando){
 }
 
 function submitFormSocioeducando(editando){
+  var elEmail = document.getElementById('f-email-prof');
+  var elSenha = document.getElementById('f-senha-prof');
   var dados = {
     id: document.getElementById('f-id').value.trim(),
     nome: document.getElementById('f-nome').value.trim(),
+    email_profissional: elEmail ? elEmail.value.trim() : '',
+    senha_profissional: elSenha ? elSenha.value : '',
     data_nascimento: document.getElementById('f-nasc').value,
     escolaridade: document.getElementById('f-escol').value,
     data_admissao: (!editando && document.getElementById('f-adm')) ? document.getElementById('f-adm').value : '',
@@ -2913,6 +4141,52 @@ function submitFormSocioeducando(editando){
   }
 
   efetuarSalvamentoSocioeducando(dados);
+}
+
+function abrirModalCredenciaisSocioeducando(socioeducandoId, nomeSocioeducando){
+  if(!podeGerenciarCredenciaisFrontend()) return;
+
+  var modalExistente = document.getElementById('modal-credenciais-socioeducando');
+  if(modalExistente) modalExistente.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'modal-credenciais-socioeducando';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(16,20,35,.55);display:flex;align-items:center;justify-content:center;z-index:10000';
+  overlay.innerHTML = ''
+    + '<div style="background:#fff;border-radius:10px;padding:24px 26px;max-width:520px;width:95%;box-shadow:0 8px 40px rgba(0,0,0,.25)">'
+    + '<h5 style="margin:0 0 12px"><i class="fa-solid fa-key"></i> Credenciais profissionais</h5>'
+    + '<div class="text-muted" style="margin-bottom:10px">Socioeducando: <strong>'+esc(nomeSocioeducando||'')+'</strong> (ID #'+esc(socioeducandoId)+')</div>'
+    + '<div id="credenciais-msg"></div>'
+    + '<div id="credenciais-body" style="min-height:90px;display:flex;align-items:center;justify-content:center"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando...</div></div>'
+    + '<div class="d-flex gap-2" style="margin-top:14px">'
+    + '<button class="btn btn-secondary" onclick="fecharModalCredenciaisSocioeducando()">Fechar</button>'
+    + '</div>'
+    + '</div>';
+
+  overlay.addEventListener('click', function(e){ if(e.target === overlay) fecharModalCredenciaisSocioeducando(); });
+  document.body.appendChild(overlay);
+
+  google.script.run
+    .withSuccessHandler(function(resp){
+      var body = document.getElementById('credenciais-body');
+      if(!body) return;
+      body.style.display = 'block';
+      body.innerHTML = ''
+        + '<div class="credenciais-modal-item"><span class="credenciais-modal-label">E-mail profissional</span><div class="credenciais-modal-value">'+esc((resp&&resp.email_profissional)||'—')+'</div></div>'
+        + '<div class="credenciais-modal-item"><span class="credenciais-modal-label">Senha profissional</span><div class="credenciais-modal-value">'+esc((resp&&resp.senha_profissional)||'—')+'</div></div>';
+    })
+    .withFailureHandler(function(err){
+      var msg = document.getElementById('credenciais-msg');
+      var body = document.getElementById('credenciais-body');
+      if(msg) msg.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err&&err.message?err.message:String(err))+'</div>';
+      if(body){ body.style.display = 'block'; body.innerHTML = ''; }
+    })
+    .obterCredenciaisSocioeducando(socioeducandoId);
+}
+
+function fecharModalCredenciaisSocioeducando(){
+  var m = document.getElementById('modal-credenciais-socioeducando');
+  if(m) m.remove();
 }
 
 function tratarVerificacaoSocioeducando(r, dados){
@@ -3165,11 +4439,325 @@ function submitFormCurso(){
     dias_semana: dias,
     observacoes: document.getElementById('c-obs').value.trim()
   };
-  setBusyState(true, 'Salvando curso...');
+
+  var itensConflito = dados.matriculado
+    ? montarItensConflitoCursoParaSocio({
+        socioeducando_id: dados.socioeducando_id,
+        data_inicio: dados.data_inicio,
+        data_termino: dados.data_termino,
+        horario_inicio: dados.horario_inicio,
+        horario_termino: dados.horario_termino,
+        dias_semana: dados.dias_semana,
+        linha: 1
+      })
+    : [];
+
+  function executarSalvarCurso(){
+    setBusyState(true, 'Salvando curso...');
+    google.script.run
+      .withSuccessHandler(function(){ setBusyState(false); mostrarPerfil(dados.socioeducando_id); })
+      .withFailureHandler(function(err){ setBusyState(false); document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>'; })
+      .salvarCursoComMatricula(dados);
+  }
+
+  if(!itensConflito.length){
+    executarSalvarCurso();
+    return;
+  }
+
+  var ignorados = {};
+  if(dados.matricula_id) ignorados.curso_matricula_id = dados.matricula_id;
+  if(dados.curso_id) ignorados.curso_id = dados.curso_id;
+
+  consultarConflitosAgenda(itensConflito, ignorados, function(conflitos){
+    if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      abrirModalConflitosAgenda({
+        resultado: conflitos,
+        confirmarTexto: 'Salvar curso mesmo assim',
+        onConfirmar: executarSalvarCurso
+      });
+      return;
+    }
+    executarSalvarCurso();
+  });
+}
+
+// ══════════════════════════════════════════════════
+//  FORMULÁRIO — TRABALHO
+// ══════════════════════════════════════════════════
+function mostrarFormTrabalho(socioeducandoId, trabalhoId){
+  navActive('btn-nav-cad');
+  ESTADO.tela = 'form-trabalho';
+  showSpinner(trabalhoId ? 'Carregando trabalho...' : 'Carregando dados...');
+
   google.script.run
-    .withSuccessHandler(function(){ setBusyState(false); mostrarPerfil(dados.socioeducando_id); })
-    .withFailureHandler(function(err){ setBusyState(false); document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>'; })
-    .salvarCursoComMatricula(dados);
+    .withSuccessHandler(function(dados){
+      var listaSocioeducandos = (dados && dados.socioeducandos) ? dados.socioeducandos : [];
+
+      function continuarComTrabalho(trabalho){
+        var idPerfil = socioeducandoId || (trabalho && trabalho.socioeducando_id) || '';
+        if(idPerfil){
+          var j = listaSocioeducandos.find(function(x){ return String(x.id) === String(idPerfil); });
+          if(j){
+            ESTADO.socioeducandoId = String(idPerfil);
+            ESTADO.socioeducandoNome = j.nome || '';
+          }
+        }
+        renderFormTrabalho(idPerfil, trabalho || null, listaSocioeducandos);
+      }
+
+      if(trabalhoId){
+        google.script.run
+          .withSuccessHandler(function(trabalho){
+            if(!trabalho){ showError(new Error('Relação de trabalho não encontrada.')); return; }
+            continuarComTrabalho(trabalho);
+          })
+          .withFailureHandler(showError)
+          .carregarTrabalho(trabalhoId);
+      } else {
+        continuarComTrabalho(null);
+      }
+    })
+    .withFailureHandler(showError)
+    .getDadosFormTrabalho();
+}
+
+function opcoesSocioeducandoTrabalho(lista, selecionadoId){
+  return '<option value="">Selecione...</option>' + (lista || []).map(function(j){
+    var sel = String(j.id) === String(selecionadoId || '') ? ' selected' : '';
+    return '<option value="'+esc(j.id)+'"'+sel+'>'+esc(j.nome)+' (ID '+esc(j.id)+')</option>';
+  }).join('');
+}
+
+function renderFormTrabalho(socioeducandoId, trabalho, listaSocioeducandos){
+  var edit = !!trabalho;
+  var fixoNoPerfil = !!socioeducandoId;
+  var sid = socioeducandoId || (trabalho ? trabalho.socioeducando_id : '');
+  var alunoDestaque = fixoNoPerfil ? renderAlunoDestaqueHtml(sid) : '';
+  var html = ''
+    +'<div class="card" style="max-width:620px;margin:0 auto">'
+    +'<div class="page-hdr"><h4>'+(edit?'<i class="fa-solid fa-pen-to-square"></i> Editar Trabalho':'<i class="fa-solid fa-briefcase"></i> Novo Trabalho')+'</h4></div>'
+    +'<div id="form-msg"></div>'
+    +alunoDestaque
+    +'<input type="hidden" id="t-id" value="'+(trabalho?esc(trabalho.id):'')+'">'
+    +(fixoNoPerfil
+      ? '<input type="hidden" id="t-sid" value="'+esc(sid)+'">'
+      : '<div class="form-group"><label>Socioeducando <span class="req">*</span></label><select id="t-sid">'+opcoesSocioeducandoTrabalho(listaSocioeducandos, sid)+'</select></div>')
+    +'<div class="row2">'
+    +'<div class="form-group"><label>Tipo <span class="req">*</span></label><select id="t-tipo"><option value="">Selecione...</option>'
+    +TIPOS_TRABALHO.map(function(tp){ return '<option value="'+esc(tp)+'"'+(trabalho&&trabalho.tipo===tp?' selected':'')+'>'+esc(tp)+'</option>'; }).join('')
+    +'</select></div>'
+    +'<div class="form-group"><label>Empresa <span class="req">*</span></label><input type="text" id="t-empresa" value="'+(trabalho?esc(trabalho.empresa):'')+'" placeholder="Nome da empresa"></div>'
+    +'</div>'
+    +'<div class="form-group"><label>Curso <small class="text-muted">(opcional)</small></label><input type="text" id="t-curso" value="'+(trabalho?esc(trabalho.curso):'')+'" placeholder="Ex: Aprendiz de logística"></div>'
+    +'<div class="row3">'
+    +'<div class="form-group"><label>Data de contrato <span class="req">*</span></label><input type="date" id="t-contrato" value="'+(trabalho?esc(trabalho.data_contrato_iso):'')+'"></div>'
+    +'<div class="form-group"><label>Início <span class="req">*</span></label><input type="date" id="t-ini" value="'+(trabalho?esc(trabalho.data_inicio_iso):'')+'"></div>'
+    +'<div class="form-group"><label>Fim</label><input type="date" id="t-fim" value="'+(trabalho?esc(trabalho.data_fim_iso):'')+'"></div>'
+    +'</div>'
+    +'<div class="row2">'
+    +'<div class="form-group"><label>Horário de início</label><input type="time" id="t-hi" value="'+(trabalho?esc(trabalho.horario_inicio):'')+'"></div>'
+    +'<div class="form-group"><label>Horário de fim</label><input type="time" id="t-hf" value="'+(trabalho?esc(trabalho.horario_fim):'')+'"></div>'
+    +'</div>'
+    +'<div class="form-group"><label>Dias da semana</label>'+renderDiasSemanaCurso('t', trabalho ? trabalho.dias_semana : '')+'</div>'
+    +'<div class="d-flex gap-2">'
+    +'<button class="btn btn-primary" onclick="submitFormTrabalho()"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>'
+    +'<button class="btn btn-secondary" onclick="'+(socioeducandoId?('mostrarPerfil(\''+esc(socioeducandoId)+'\')'):'mostrarOverview()')+'">Cancelar</button>'
+    +'</div>'
+    +'</div>';
+
+  setContent(html);
+}
+
+function submitFormTrabalho(){
+  var id = document.getElementById('t-id').value;
+  var sid = document.getElementById('t-sid').value;
+  var ini = document.getElementById('t-ini').value;
+  var fim = document.getElementById('t-fim').value;
+  var hi = document.getElementById('t-hi').value;
+  var hf = document.getElementById('t-hf').value;
+  var dias = lerDiasSemanaCurso('t');
+
+  var dados = {
+    id: id,
+    socioeducando_id: sid,
+    tipo: document.getElementById('t-tipo').value,
+    empresa: document.getElementById('t-empresa').value.trim(),
+    curso: document.getElementById('t-curso').value.trim(),
+    data_contrato: document.getElementById('t-contrato').value,
+    data_inicio: ini,
+    data_fim: fim,
+    horario_inicio: hi,
+    horario_fim: hf,
+    dias_semana: dias
+  };
+
+  if(!dados.socioeducando_id || !dados.tipo || !dados.empresa || !dados.data_contrato || !dados.data_inicio){
+    document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Preencha todos os campos obrigatórios.</div>';
+    return;
+  }
+  if((hi && !hf) || (!hi && hf)){
+    document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o horário de início e fim juntos, ou deixe ambos em branco.</div>';
+    return;
+  }
+  if((hi || hf) && !dias){
+    document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Se informar horário, selecione também os dias da semana.</div>';
+    return;
+  }
+  if(dias && (!hi || !hf)){
+    document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Se informar os dias da semana, preencha também horário de início e fim.</div>';
+    return;
+  }
+  if(cursoPeriodoInvalidoLocal(ini, hi || '00:00', fim, hf || '00:00')){
+    document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> A data de fim não pode ser anterior ao início.</div>';
+    return;
+  }
+
+  var trabalhoSemDataFim = !String(dados.data_fim || '').trim();
+  var itensConflito = trabalhoSemDataFim
+    ? [{
+        linha: 1,
+        socioeducando_id: dados.socioeducando_id,
+        recorrencia_tipo: 'trabalho',
+        data_inicio: dados.data_inicio,
+        data_termino: dados.data_fim || '',
+        horario_inicio: dados.horario_inicio,
+        horario_termino: dados.horario_fim,
+        dias_semana: dados.dias_semana
+      }]
+    : montarItensConflitoTrabalhoParaSocio({
+        socioeducando_id: dados.socioeducando_id,
+        data_inicio: dados.data_inicio,
+        data_termino: dados.data_fim,
+        horario_inicio: dados.horario_inicio,
+        horario_termino: dados.horario_fim,
+        dias_semana: dados.dias_semana,
+        linha: 1
+      });
+
+  function executarSalvarTrabalho(){
+    setBusyState(true, 'Salvando trabalho...');
+    google.script.run
+      .withSuccessHandler(function(){
+        setBusyState(false);
+        mostrarPerfil(dados.socioeducando_id);
+      })
+      .withFailureHandler(function(err){
+        setBusyState(false);
+        document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
+      })
+      .salvarTrabalho(dados);
+  }
+
+  if(!itensConflito.length){
+    executarSalvarTrabalho();
+    return;
+  }
+
+  var ignorados = {};
+  if(dados.id) ignorados.trabalho_id = dados.id;
+
+  consultarConflitosAgenda(itensConflito, ignorados, function(conflitos){
+    if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      abrirModalConflitosAgenda({
+        resultado: conflitos,
+        confirmarTexto: 'Salvar trabalho mesmo assim',
+        onConfirmar: executarSalvarTrabalho
+      });
+      return;
+    }
+    executarSalvarTrabalho();
+  });
+}
+
+// ══════════════════════════════════════════════════
+//  FORMULÁRIO — VISITA TERRITORIAL
+// ══════════════════════════════════════════════════
+function mostrarFormVisitaTerritorial(socioeducandoId, visitaId){
+  navActive('btn-nav-cad');
+  ESTADO.tela = 'form-visita-territorial';
+  showSpinner(visitaId ? 'Carregando visita territorial...' : 'Carregando dados...');
+
+  function renderComDados(visita){
+    var sid = socioeducandoId || (visita && visita.socioeducando_id) || '';
+    var html = ''
+      + '<div class="card" style="max-width:680px;margin:0 auto">'
+      + '<div class="page-hdr"><h4>'+(visitaId?'<i class="fa-solid fa-pen-to-square"></i> Editar Visita Territorial':'<i class="fa-solid fa-map-location-dot"></i> Nova Visita Territorial')+'</h4></div>'
+      + '<div id="form-msg"></div>'
+      + renderAlunoDestaqueHtml(sid)
+      + '<input type="hidden" id="vt-id" value="'+(visita ? esc(visita.id) : '')+'">'
+      + '<input type="hidden" id="vt-sid" value="'+esc(sid)+'">'
+      + '<div class="row2">'
+      + '<div class="form-group"><label>Data <span class="req">*</span></label><input type="date" id="vt-data" value="'+(visita ? esc(visita.data_iso) : today())+'" max="'+today()+'"></div>'
+      + '<div class="form-group"><label>Tec responsável <span class="req">*</span></label><input type="text" id="vt-tec" value="'+(visita ? esc(visita.tec_responsavel) : '')+'" placeholder="Nome do técnico responsável"></div>'
+      + '</div>'
+      + '<div class="form-group"><label>Atendido por</label><input type="text" id="vt-atendido" value="'+(visita ? esc(visita.atendido_por) : '')+'" placeholder="Nome de quem realizou o atendimento"></div>'
+      + '<div class="row3">'
+      + '<label class="form-check"><input type="checkbox" id="vt-creas"'+(visita&&visita.creas?' checked':'')+'> CREAS</label>'
+      + '<label class="form-check"><input type="checkbox" id="vt-caps"'+(visita&&visita.caps?' checked':'')+'> CAPS</label>'
+      + '<label class="form-check"><input type="checkbox" id="vt-ameaca"'+(visita&&visita.ameaca?' checked':'')+'> Ameaça</label>'
+      + '</div>'
+      + '<div class="form-group"><label>Observações</label><textarea id="vt-obs" rows="4" style="resize:vertical">'+(visita ? esc(visita.observacoes) : '')+'</textarea></div>'
+      + '<div class="d-flex gap-2">'
+      + '<button class="btn btn-primary" onclick="submitFormVisitaTerritorial()"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>'
+      + '<button class="btn btn-secondary" onclick="mostrarPerfil(\''+esc(sid)+'\')">Cancelar</button>'
+      + '</div>'
+      + '</div>';
+
+    setContent(html);
+  }
+
+  if(visitaId){
+    google.script.run
+      .withSuccessHandler(function(visita){
+        if(!visita){ showError(new Error('Visita territorial não encontrada.')); return; }
+        renderComDados(visita);
+      })
+      .withFailureHandler(showError)
+      .carregarVisitaTerritorial(visitaId);
+    return;
+  }
+
+  renderComDados(null);
+}
+
+function submitFormVisitaTerritorial(){
+  var dados = {
+    id: document.getElementById('vt-id').value,
+    socioeducando_id: document.getElementById('vt-sid').value,
+    data: document.getElementById('vt-data').value,
+    tec_responsavel: document.getElementById('vt-tec').value.trim(),
+    atendido_por: document.getElementById('vt-atendido').value.trim(),
+    creas: document.getElementById('vt-creas').checked,
+    caps: document.getElementById('vt-caps').checked,
+    ameaca: document.getElementById('vt-ameaca').checked,
+    observacoes: document.getElementById('vt-obs').value.trim()
+  };
+
+  if(!dados.data){
+    document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe a data da visita.</div>';
+    return;
+  }
+  if(dados.data > today()){
+    document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> A data da visita não pode ser futura.</div>';
+    return;
+  }
+  if(!dados.tec_responsavel){
+    document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o técnico responsável.</div>';
+    return;
+  }
+
+  setBusyState(true, 'Salvando visita territorial...');
+  google.script.run
+    .withSuccessHandler(function(){
+      setBusyState(false);
+      mostrarPerfil(dados.socioeducando_id);
+    })
+    .withFailureHandler(function(err){
+      setBusyState(false);
+      document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
+    })
+    .salvarVisitaTerritorial(dados);
 }
 
 // ══════════════════════════════════════════════════
@@ -3944,34 +5532,46 @@ function submitFormAtendimentos(socioeducandoPadraoId){
   }
 
   verificarConflitosAtendimentoFormulario(function(conflitos){
-    if(conflitos && conflitos.conflitos && conflitos.conflitos.length && !modalConfirmarConflitos(conflitos)){
-      if(btnSalvar){ btnSalvar.disabled = false; btnSalvar.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>Salvar informações'; }
+    function executarSalvarAtendimentos(){
+      // Freeze screen immediately before the async GAS call
+      setBusyState(true, 'Salvando '+linhas.length+' atendimento(s)...');
+      google.script.run
+        .withSuccessHandler(function(r){
+          setBusyState(false);
+          if(socioeducandoPadraoId){
+            mostrarPerfil(socioeducandoPadraoId);
+          } else {
+            setContent('<div class="card" style="max-width:520px;margin:0 auto">'
+              +'<div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> <strong>'+r.inseridos+'</strong> atendimento(s) registrado(s) com sucesso.</div>'
+              +'<div class="d-flex gap-2"><button class="btn btn-primary" onclick="mostrarOverview()">Ver Painel</button>'
+              +'<button class="btn btn-outline" onclick="mostrarFormAtendimentos()">Novo Registro</button></div></div>');
+          }
+        })
+        .withFailureHandler(function(err){
+          setBusyState(false);
+          document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
+          if(btnSalvar){ btnSalvar.disabled = false; btnSalvar.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>Salvar informações'; }
+        })
+        .salvarAtendimentos({
+          tipo_atendimento: tipo,
+          responsavel: responsavel,
+          linhas: linhas
+        });
+    }
+
+    if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      abrirModalConflitosAgenda({
+        resultado: conflitos,
+        confirmarTexto: 'Salvar atendimentos mesmo assim',
+        onConfirmar: executarSalvarAtendimentos,
+        onRevisar: function(){
+          if(btnSalvar){ btnSalvar.disabled = false; btnSalvar.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>Salvar informações'; }
+        }
+      });
       return;
     }
 
-    // Freeze screen immediately before the async GAS call
-    setBusyState(true, 'Salvando '+linhas.length+' atendimento(s)...');
-    google.script.run
-      .withSuccessHandler(function(r){
-        setBusyState(false);
-        if(socioeducandoPadraoId){
-          mostrarPerfil(socioeducandoPadraoId);
-        } else {
-          setContent('<div class="card" style="max-width:520px;margin:0 auto">'
-            +'<div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> <strong>'+r.inseridos+'</strong> atendimento(s) registrado(s) com sucesso.</div>'
-            +'<div class="d-flex gap-2"><button class="btn btn-primary" onclick="mostrarOverview()">Ver Painel</button>'
-            +'<button class="btn btn-outline" onclick="mostrarFormAtendimentos()">Novo Registro</button></div></div>');
-        }
-      })
-      .withFailureHandler(function(err){
-        setBusyState(false);
-        document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
-      })
-      .salvarAtendimentos({
-        tipo_atendimento: tipo,
-        responsavel: responsavel,
-        linhas: linhas
-      });
+    executarSalvarAtendimentos();
     });
 }
 
@@ -4053,11 +5653,34 @@ function submitFormEditarAtendimento(){
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">A data/hora de término não pode ser anterior ao início.</div>';
     return;
   }
-  setBusyState(true, 'Salvando atendimento...');
-  google.script.run
-    .withSuccessHandler(function(){ setBusyState(false); mostrarPerfil(ESTADO.socioeducandoId); })
-    .withFailureHandler(function(err){ setBusyState(false); document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>'; })
-    .salvarEdicaoAtendimento(dados);
+
+  consultarConflitosAgenda([
+    {
+      linha: 1,
+      socioeducando_id: ESTADO.socioeducandoId,
+      data_hora_inicio: ini,
+      data_hora_termino: ter
+    }
+  ], { atendimento_id: dados.id }, function(conflitos){
+    function executarSalvarEdicaoAtendimento(){
+      setBusyState(true, 'Salvando atendimento...');
+      google.script.run
+        .withSuccessHandler(function(){ setBusyState(false); mostrarPerfil(ESTADO.socioeducandoId); })
+        .withFailureHandler(function(err){ setBusyState(false); document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>'; })
+        .salvarEdicaoAtendimento(dados);
+    }
+
+    if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      abrirModalConflitosAgenda({
+        resultado: conflitos,
+        confirmarTexto: 'Salvar atendimento mesmo assim',
+        onConfirmar: executarSalvarEdicaoAtendimento
+      });
+      return;
+    }
+
+    executarSalvarEdicaoAtendimento();
+  });
 }
 
 // ══════════════════════════════════════════════════
@@ -4936,18 +6559,52 @@ function submitCursoLote(){
     observacoes: document.getElementById('cl-obs').value.trim()
   };
 
-  setBusyState(true, 'Salvando'+(vinculos.length ? ' para '+vinculos.length+' socioeducando(s)' : '')+'...');
-  google.script.run
-    .withSuccessHandler(function(r){
-      setBusyState(false);
-      var msgVinculo = r.inseridos ? ' adicionado para <strong>'+r.inseridos+'</strong> socioeducando(s).' : ' cadastrado sem socioeducandos vinculados.';
-      setContent('<div class="card" style="max-width:480px;margin:0 auto">'
-        +'<div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> Curso <strong>"'+esc(dados.nome_curso)+'"</strong>'+msgVinculo+'</div>'
-        +'<div class="d-flex gap-2"><button class="btn btn-primary" onclick="mostrarOverview()">Ver Painel</button>'
-        +'<button class="btn btn-outline" onclick="mostrarFormCursoLote()">Novo Lote</button></div></div>');
-    })
-    .withFailureHandler(function(err){ setBusyState(false); document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>'; })
-    .salvarCursoLote(vinculos, dados);
+  var itensConflito = [];
+  vinculos.forEach(function(v, idx){
+    if(!v.matriculado) return;
+    var itens = montarItensConflitoCursoParaSocio({
+      socioeducando_id: v.id,
+      data_inicio: dados.data_inicio,
+      data_termino: dados.data_termino,
+      horario_inicio: dados.horario_inicio,
+      horario_termino: dados.horario_termino,
+      dias_semana: dados.dias_semana,
+      linha: idx + 1
+    });
+    itensConflito = itensConflito.concat(itens);
+  });
+
+  function executarSalvarCursoLote(){
+    setBusyState(true, 'Salvando'+(vinculos.length ? ' para '+vinculos.length+' socioeducando(s)' : '')+'...');
+    google.script.run
+      .withSuccessHandler(function(r){
+        setBusyState(false);
+        var msgVinculo = r.inseridos ? ' adicionado para <strong>'+r.inseridos+'</strong> socioeducando(s).' : ' cadastrado sem socioeducandos vinculados.';
+        setContent('<div class="card" style="max-width:480px;margin:0 auto">'
+          +'<div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> Curso <strong>"'+esc(dados.nome_curso)+'"</strong>'+msgVinculo+'</div>'
+          +'<div class="d-flex gap-2"><button class="btn btn-primary" onclick="mostrarOverview()">Ver Painel</button>'
+          +'<button class="btn btn-outline" onclick="mostrarFormCursoLote()">Novo Lote</button></div></div>');
+      })
+      .withFailureHandler(function(err){ setBusyState(false); document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>'; })
+      .salvarCursoLote(vinculos, dados);
+  }
+
+  if(!itensConflito.length){
+    executarSalvarCursoLote();
+    return;
+  }
+
+  consultarConflitosAgenda(itensConflito, {}, function(conflitos){
+    if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      abrirModalConflitosAgenda({
+        resultado: conflitos,
+        confirmarTexto: 'Salvar curso em lote mesmo assim',
+        onConfirmar: executarSalvarCursoLote
+      });
+      return;
+    }
+    executarSalvarCursoLote();
+  });
 }
 
 // ══════════════════════════════════════════════════

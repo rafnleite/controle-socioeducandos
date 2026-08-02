@@ -8,6 +8,9 @@ var SHEETS = {
   CURSOS:           'Cursos',
   CURSO_MATRICULAS: 'CursoMatriculas',
   CURSO_EVENTOS:    'CursoEventos',
+  TRABALHOS:        'Trabalhos',
+  VISITAS_TERRITORIAIS: 'VisitasTerritoriais',
+  FAMILIARES:       'Familiares',
   ADMISSOES: 'Admissoes',
   FUGAS:     'Fugas',
   SAIDAS:    'Saidas',
@@ -27,6 +30,7 @@ var TIPOS_ATENDIMENTO_PADRAO = [
 ];
 
 var TIPOS_SAIDA_PADRAO = ['Cultural', 'Familiar', 'Lazer', 'Esportiva', 'Descida para casa', 'Outros'];
+var EMAIL_ADMIN_CREDENCIAIS = 'luizasoarespedagoga@gmail.com';
 
 var _SHEET_CACHE = {};
 var _HEADER_CACHE = {};
@@ -99,8 +103,8 @@ function inicializarPlanilha() {
   var configs = [
     {
       nome: SHEETS.SOCIOEDUCANDOS,
-      headers: ['ID (SUASE)', 'Nome', 'Data de Nascimento', 'Escolaridade', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
-      widths:  [100, 280, 130, 200, 130, 180, 130, 180, 130, 180]
+      headers: ['ID (SUASE)', 'Nome', 'Data de Nascimento', 'Escolaridade', 'E-mail Profissional', 'Senha Profissional (Criptografada)', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
+      widths:  [100, 280, 130, 200, 220, 260, 130, 180, 130, 180, 130, 180]
     },
     {
       nome: SHEETS.CURSOS,
@@ -143,6 +147,21 @@ function inicializarPlanilha() {
       widths:  [50, 70, 180, 200, 150, 150, 250, 130, 180, 130, 180, 80, 250, 90, 130, 180]
     },
     {
+      nome: SHEETS.TRABALHOS,
+      headers: ['ID', 'ID Socioeducando', 'Tipo', 'Empresa', 'Curso', 'Data de Contrato', 'Data Início', 'Data Fim', 'Horário Início', 'Horário Fim', 'Dias da Semana', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
+      widths:  [50, 70, 130, 220, 200, 120, 110, 110, 95, 95, 180, 130, 180, 130, 180, 130, 180]
+    },
+    {
+      nome: SHEETS.VISITAS_TERRITORIAIS,
+      headers: ['ID', 'ID Socioeducando', 'Data', 'Tec Responsável', 'Atendido por', 'CREAS', 'CAPS', 'Ameaça', 'Observações', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
+      widths:  [50, 70, 110, 190, 190, 80, 80, 85, 260, 130, 180, 130, 180, 130, 180]
+    },
+    {
+      nome: SHEETS.FAMILIARES,
+      headers: ['ID', 'ID Socioeducando', 'Nome', 'Telefone', 'Tipo de Vínculo', 'Endereço', 'Principal', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
+      widths:  [50, 70, 220, 160, 170, 260, 90, 130, 180, 130, 180, 130, 180]
+    },
+    {
       nome: SHEETS.TIPOS_ATENDIMENTO,
       headers: ['Tipo de Atendimento', 'Duração Padrão (minutos)', 'Registrado em', 'Criado por'],
       widths:  [240, 180, 130, 180]
@@ -163,11 +182,15 @@ function inicializarPlanilha() {
       hdr.setFontWeight('bold').setBackground('#3c3c7a').setFontColor('white');
       sheet.setFrozenRows(1);
       cfg.widths.forEach(function(w, i) { sheet.setColumnWidth(i + 1, w); });
+    } else {
+      ensureSheetEstruturaByConfig(sheet, cfg.headers, cfg.widths);
     }
   });
 
   // Garante coluna de nascimento mesmo em planilhas antigas.
   ensureSocioeducandosNascimentoColumn();
+  // Garante colunas de credenciais profissionais em socioeducandos.
+  ensureSocioeducandosCredenciaisColumns();
   // Garante colunas de horário e dias da semana para cursos em planilhas antigas.
   ensureCursosEstrutura();
   // Garante colunas de Vagas/Data Limite Inscrição em Cursos em planilhas antigas.
@@ -213,10 +236,116 @@ function inicializarPlanilha() {
   getSaidasCols();
   getSaidaMatriculasCols();
   getAtendimentosCols();
+  getTrabalhosCols();
+  getVisitasTerritoriaisCols();
+  getFamiliaresCols();
   getTiposAtendimentoCols();
   getInteressesCursoCols();
 
   Logger.log('Planilha inicializada com sucesso.');
+}
+
+/**
+ * Garante estrutura de uma aba já existente:
+ * - adiciona colunas faltantes do schema atual;
+ * - reordena as colunas para a posição esperada;
+ * - aplica largura padrão para as colunas conhecidas.
+ */
+function ensureSheetEstruturaByConfig(sheet, headersEsperados, largurasEsperadas) {
+  if (!sheet || sheet.getLastRow() === 0) return;
+
+  function norm(v) { return String(v || '').trim().toLowerCase(); }
+
+  var alterou = false;
+  var headersAtuais = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(norm);
+
+  // Adiciona colunas faltantes (inicialmente ao final).
+  headersEsperados.forEach(function(nomeColuna) {
+    if (headersAtuais.indexOf(norm(nomeColuna)) >= 0) return;
+    var pos = sheet.getLastColumn() + 1;
+    sheet.getRange(1, pos).setValue(nomeColuna);
+    sheet.getRange(1, pos).setFontWeight('bold').setBackground('#3c3c7a').setFontColor('white');
+    alterou = true;
+    headersAtuais.push(norm(nomeColuna));
+  });
+
+  // Coloca as colunas oficiais na ordem esperada.
+  ensureOrdemColunas(sheet.getName(), headersEsperados);
+
+  // Reaplica formatação e larguras nas posições oficiais.
+  headersEsperados.forEach(function(nomeColuna, i) {
+    var col = i + 1;
+    var cel = sheet.getRange(1, col);
+    if (norm(cel.getValue()) === norm(nomeColuna)) {
+      cel.setFontWeight('bold').setBackground('#3c3c7a').setFontColor('white');
+      if (largurasEsperadas && largurasEsperadas[i]) sheet.setColumnWidth(col, largurasEsperadas[i]);
+    }
+  });
+
+  sheet.setFrozenRows(1);
+  if (alterou) clearSheetCaches(sheet.getName());
+}
+
+function ensureFamiliaresSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var nome = SHEETS.FAMILIARES;
+  var headers = ['ID', 'ID Socioeducando', 'Nome', 'Telefone', 'Tipo de Vínculo', 'Endereço', 'Principal', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'];
+  var widths = [50, 70, 220, 160, 170, 260, 90, 130, 180, 130, 180, 130, 180];
+
+  var sheet = ss.getSheetByName(nome);
+  if (!sheet) {
+    sheet = ss.insertSheet(nome);
+    sheet.appendRow(headers);
+    var hdr = sheet.getRange(1, 1, 1, headers.length);
+    hdr.setFontWeight('bold').setBackground('#3c3c7a').setFontColor('white');
+    sheet.setFrozenRows(1);
+    widths.forEach(function(w, i) { sheet.setColumnWidth(i + 1, w); });
+    clearSheetCaches(nome);
+    return;
+  }
+
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(headers);
+    var hdrVazio = sheet.getRange(1, 1, 1, headers.length);
+    hdrVazio.setFontWeight('bold').setBackground('#3c3c7a').setFontColor('white');
+    sheet.setFrozenRows(1);
+    widths.forEach(function(w, i) { sheet.setColumnWidth(i + 1, w); });
+    clearSheetCaches(nome);
+    return;
+  }
+
+  ensureSheetEstruturaByConfig(sheet, headers, widths);
+}
+
+function ensureVisitasTerritoriaisSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var nome = SHEETS.VISITAS_TERRITORIAIS;
+  var headers = ['ID', 'ID Socioeducando', 'Data', 'Tec Responsável', 'Atendido por', 'CREAS', 'CAPS', 'Ameaça', 'Observações', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'];
+  var widths = [50, 70, 110, 190, 190, 80, 80, 85, 260, 130, 180, 130, 180, 130, 180];
+
+  var sheet = ss.getSheetByName(nome);
+  if (!sheet) {
+    sheet = ss.insertSheet(nome);
+    sheet.appendRow(headers);
+    var hdr = sheet.getRange(1, 1, 1, headers.length);
+    hdr.setFontWeight('bold').setBackground('#3c3c7a').setFontColor('white');
+    sheet.setFrozenRows(1);
+    widths.forEach(function(w, i) { sheet.setColumnWidth(i + 1, w); });
+    clearSheetCaches(nome);
+    return;
+  }
+
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(headers);
+    var hdrVazio = sheet.getRange(1, 1, 1, headers.length);
+    hdrVazio.setFontWeight('bold').setBackground('#3c3c7a').setFontColor('white');
+    sheet.setFrozenRows(1);
+    widths.forEach(function(w, i) { sheet.setColumnWidth(i + 1, w); });
+    clearSheetCaches(nome);
+    return;
+  }
+
+  ensureSheetEstruturaByConfig(sheet, headers, widths);
 }
 
 // ── Helpers internos ──────────────────────────────────────────
@@ -387,6 +516,117 @@ function removerAcentos(str) {
   return String(str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
+function usuarioPodeGerenciarCredenciais(emailUsuario) {
+  var email = String(emailUsuario || usuarioAtual() || '').trim().toLowerCase();
+  return email === String(EMAIL_ADMIN_CREDENCIAIS).trim().toLowerCase();
+}
+
+function _bytesUnsigned(arr) {
+  return (arr || []).map(function(b) { return (b + 256) % 256; });
+}
+
+function _bytesSigned(arr) {
+  return (arr || []).map(function(b) { return b > 127 ? b - 256 : b; });
+}
+
+function _utf8ToBytes(str) {
+  return _bytesUnsigned(Utilities.newBlob(String(str || ''), 'text/plain').getBytes());
+}
+
+function _bytesToUtf8(bytes) {
+  return Utilities.newBlob(_bytesSigned(bytes || [])).getDataAsString('UTF-8');
+}
+
+function _b64EncodeBytes(bytesUnsigned) {
+  return Utilities.base64Encode(_bytesSigned(bytesUnsigned || []));
+}
+
+function _b64DecodeBytes(str) {
+  return _bytesUnsigned(Utilities.base64Decode(String(str || '')));
+}
+
+function _hmacSha256Bytes(texto, chave) {
+  return _bytesUnsigned(Utilities.computeHmacSha256Signature(String(texto || ''), String(chave || '')));
+}
+
+function _chaveCriptografiaSenha(emailUsuario) {
+  return removerAcentos(String(emailUsuario || '')).trim().toLowerCase();
+}
+
+function _keystreamBytes(chave, nonce, tamanho) {
+  var out = [];
+  var counter = 0;
+  while (out.length < tamanho) {
+    var bloco = _hmacSha256Bytes(String(nonce) + '|' + String(counter), chave);
+    out = out.concat(bloco);
+    counter++;
+  }
+  return out.slice(0, tamanho);
+}
+
+function _xorBytes(a, b) {
+  var out = [];
+  for (var i = 0; i < a.length; i++) out.push(a[i] ^ b[i]);
+  return out;
+}
+
+function _criptoTagPayload(versao, nonceB64, cipherB64, chave) {
+  return _hmacSha256Bytes(versao + '|' + nonceB64 + '|' + cipherB64, chave).slice(0, 16);
+}
+
+function criptografarSenhaProfissional(senha, emailUsuario) {
+  var texto = String(senha || '');
+  if (!texto) return '';
+  var chave = _chaveCriptografiaSenha(emailUsuario);
+  if (!chave) return '';
+
+  var versao = 'v1';
+  var nonce = Utilities.getUuid() + '|' + String(new Date().getTime());
+  var nonceB64 = Utilities.base64EncodeWebSafe(nonce);
+
+  var plainBytes = _utf8ToBytes(texto);
+  var stream = _keystreamBytes(chave, nonce, plainBytes.length);
+  var cipherBytes = _xorBytes(plainBytes, stream);
+  var cipherB64 = _b64EncodeBytes(cipherBytes);
+
+  var tagBytes = _criptoTagPayload(versao, nonceB64, cipherB64, chave);
+  var tagB64 = _b64EncodeBytes(tagBytes);
+
+  return [versao, nonceB64, cipherB64, tagB64].join('.');
+}
+
+function descriptografarSenhaProfissional(payload, emailUsuario) {
+  var raw = String(payload || '').trim();
+  if (!raw) return '';
+
+  var partes = raw.split('.');
+  if (partes.length !== 4 || partes[0] !== 'v1') return '';
+
+  var versao = partes[0];
+  var nonceB64 = partes[1];
+  var cipherB64 = partes[2];
+  var tagB64 = partes[3];
+  var chave = _chaveCriptografiaSenha(emailUsuario);
+  if (!chave) return '';
+
+  try {
+    var tagEsperada = _criptoTagPayload(versao, nonceB64, cipherB64, chave);
+    var tagAtual = _b64DecodeBytes(tagB64);
+    if (tagEsperada.length !== tagAtual.length) return '';
+    for (var i = 0; i < tagEsperada.length; i++) {
+      if (tagEsperada[i] !== tagAtual[i]) return '';
+    }
+
+    var nonce = Utilities.newBlob(Utilities.base64DecodeWebSafe(nonceB64)).getDataAsString();
+    var cipherBytes = _b64DecodeBytes(cipherB64);
+    var stream = _keystreamBytes(chave, nonce, cipherBytes.length);
+    var plainBytes = _xorBytes(cipherBytes, stream);
+    return _bytesToUtf8(plainBytes);
+  } catch (e) {
+    return '';
+  }
+}
+
 /**
  * Garante que TODA aba possua, ao final, o bloco padrão de colunas de
  * auditoria — "Registrado em", "Criado por", "Atualizado em", "Atualizado
@@ -503,6 +743,34 @@ function ensureSocioeducandosNascimentoColumn() {
     sh.getRange(1, sh.getLastColumn()).setValue('Data de Nascimento');
     sh.setColumnWidth(sh.getLastColumn(), 130);
   }
+}
+
+function ensureSocioeducandosCredenciaisColumns() {
+  var sh = getSheet(SHEETS.SOCIOEDUCANDOS);
+  if (sh.getLastRow() === 0) return;
+  var alterou = false;
+
+  var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var temEmail = headers.some(function(h) { return String(h || '').trim().toLowerCase() === 'e-mail profissional'; });
+  var temSenha = headers.some(function(h) { return String(h || '').trim().toLowerCase() === 'senha profissional (criptografada)'; });
+
+  if (!temEmail) {
+    sh.insertColumnAfter(sh.getLastColumn());
+    sh.getRange(1, sh.getLastColumn()).setValue('E-mail Profissional');
+    sh.getRange(1, sh.getLastColumn()).setFontWeight('bold').setBackground('#3c3c7a').setFontColor('white');
+    sh.setColumnWidth(sh.getLastColumn(), 220);
+    alterou = true;
+  }
+
+  if (!temSenha) {
+    sh.insertColumnAfter(sh.getLastColumn());
+    sh.getRange(1, sh.getLastColumn()).setValue('Senha Profissional (Criptografada)');
+    sh.getRange(1, sh.getLastColumn()).setFontWeight('bold').setBackground('#3c3c7a').setFontColor('white');
+    sh.setColumnWidth(sh.getLastColumn(), 260);
+    alterou = true;
+  }
+
+  if (alterou) clearSheetCaches(SHEETS.SOCIOEDUCANDOS);
 }
 
 function ensureAtendimentosObservacoesColumn() {
@@ -664,6 +932,12 @@ function getDadosFormAtendimentos() {
   return {
     socioeducandos: getSocioeducandosAtivos(),
     tipos_atendimento: getTiposAtendimento()
+  };
+}
+
+function getDadosFormTrabalho() {
+  return {
+    socioeducandos: getSocioeducandosAtivos()
   };
 }
 
@@ -879,6 +1153,110 @@ function getAtendimentosCols() {
   return cols;
 }
 
+function getTrabalhosCols() {
+  if (_COLS_CACHE[SHEETS.TRABALHOS]) return _COLS_CACHE[SHEETS.TRABALHOS];
+  maybeEnsureOnRead(function() {
+    ensureColunasPadraoAuditoria(SHEETS.TRABALHOS);
+    ensureOrdemColunas(SHEETS.TRABALHOS, ['ID', 'ID Socioeducando', 'Tipo', 'Empresa', 'Curso', 'Data de Contrato', 'Data Início', 'Data Fim', 'Horário Início', 'Horário Fim', 'Dias da Semana', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por']);
+  });
+  var headers = getHeadersLower(SHEETS.TRABALHOS);
+
+  function idx(nome, fallback) {
+    var i = headers.indexOf(nome);
+    return i >= 0 ? i : fallback;
+  }
+
+  var cols = {
+    id: idx('id', 0),
+    socioeducando_id: idx('id socioeducando', 1),
+    tipo: idx('tipo', 2),
+    empresa: idx('empresa', 3),
+    curso: idx('curso', 4),
+    data_contrato: idx('data de contrato', 5),
+    data_inicio: idx('data início', 6),
+    data_fim: idx('data fim', 7),
+    horario_inicio: idx('horário início', 8),
+    horario_fim: idx('horário fim', 9),
+    dias_semana: idx('dias da semana', 10),
+    registrado_em: idx('registrado em', 11),
+    criadoPor: idx('criado por', 12),
+    atualizadoEm: idx('atualizado em', 13),
+    atualizadoPor: idx('atualizado por', 14),
+    deletado_em: idx('deletado em', -1),
+    deletado_por: idx('deletado por', -1)
+  };
+  _COLS_CACHE[SHEETS.TRABALHOS] = cols;
+  return cols;
+}
+
+function getVisitasTerritoriaisCols() {
+  ensureVisitasTerritoriaisSheet();
+  if (_COLS_CACHE[SHEETS.VISITAS_TERRITORIAIS]) return _COLS_CACHE[SHEETS.VISITAS_TERRITORIAIS];
+  maybeEnsureOnRead(function() {
+    ensureColunasPadraoAuditoria(SHEETS.VISITAS_TERRITORIAIS);
+    ensureOrdemColunas(SHEETS.VISITAS_TERRITORIAIS, ['ID', 'ID Socioeducando', 'Data', 'Tec Responsável', 'Atendido por', 'CREAS', 'CAPS', 'Ameaça', 'Observações', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por']);
+  });
+  var headers = getHeadersLower(SHEETS.VISITAS_TERRITORIAIS);
+
+  function idx(nome, fallback) {
+    var i = headers.indexOf(nome);
+    return i >= 0 ? i : fallback;
+  }
+
+  var cols = {
+    id: idx('id', 0),
+    socioeducando_id: idx('id socioeducando', 1),
+    data: idx('data', 2),
+    tec_responsavel: idx('tec responsável', 3),
+    atendido_por: idx('atendido por', 4),
+    creas: idx('creas', 5),
+    caps: idx('caps', 6),
+    ameaca: idx('ameaça', 7),
+    observacoes: idx('observações', 8),
+    registrado_em: idx('registrado em', 9),
+    criadoPor: idx('criado por', 10),
+    atualizadoEm: idx('atualizado em', 11),
+    atualizadoPor: idx('atualizado por', 12),
+    deletado_em: idx('deletado em', -1),
+    deletado_por: idx('deletado por', -1)
+  };
+  _COLS_CACHE[SHEETS.VISITAS_TERRITORIAIS] = cols;
+  return cols;
+}
+
+function getFamiliaresCols() {
+  ensureFamiliaresSheet();
+  if (_COLS_CACHE[SHEETS.FAMILIARES]) return _COLS_CACHE[SHEETS.FAMILIARES];
+  maybeEnsureOnRead(function() {
+    ensureColunasPadraoAuditoria(SHEETS.FAMILIARES);
+    ensureOrdemColunas(SHEETS.FAMILIARES, ['ID', 'ID Socioeducando', 'Nome', 'Telefone', 'Tipo de Vínculo', 'Endereço', 'Principal', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por']);
+  });
+  var headers = getHeadersLower(SHEETS.FAMILIARES);
+
+  function idx(nome, fallback) {
+    var i = headers.indexOf(nome);
+    return i >= 0 ? i : fallback;
+  }
+
+  var cols = {
+    id: idx('id', 0),
+    socioeducando_id: idx('id socioeducando', 1),
+    nome: idx('nome', 2),
+    telefone: idx('telefone', 3),
+    tipo_vinculo: idx('tipo de vínculo', 4),
+    endereco: idx('endereço', 5),
+    principal: idx('principal', 6),
+    registrado_em: idx('registrado em', 7),
+    criadoPor: idx('criado por', 8),
+    atualizadoEm: idx('atualizado em', 9),
+    atualizadoPor: idx('atualizado por', 10),
+    deletado_em: idx('deletado em', -1),
+    deletado_por: idx('deletado por', -1)
+  };
+  _COLS_CACHE[SHEETS.FAMILIARES] = cols;
+  return cols;
+}
+
 function getInteressesCursoPorSocioeducando(socioeducandoId) {
   var ci = getInteressesCursoCols();
   return getRowsAtivas(SHEETS.INTERESSES_CURSO)
@@ -1016,10 +1394,13 @@ function salvarInteressesLote(socioeducandoIds, interesse) {
 
 function getSocioeducandosCols() {
   if (_COLS_CACHE[SHEETS.SOCIOEDUCANDOS]) return _COLS_CACHE[SHEETS.SOCIOEDUCANDOS];
+  ensureSocioeducandosNascimentoColumn();
+  ensureSocioeducandosCredenciaisColumns();
   maybeEnsureOnRead(function() {
     ensureSocioeducandosNascimentoColumn();
+    ensureSocioeducandosCredenciaisColumns();
     ensureColunasPadraoAuditoria(SHEETS.SOCIOEDUCANDOS);
-    ensureOrdemColunas(SHEETS.SOCIOEDUCANDOS, ['ID (SUASE)', 'Nome', 'Data de Nascimento', 'Escolaridade', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por']);
+    ensureOrdemColunas(SHEETS.SOCIOEDUCANDOS, ['ID (SUASE)', 'Nome', 'Data de Nascimento', 'Escolaridade', 'E-mail Profissional', 'Senha Profissional (Criptografada)', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por']);
   });
   var headers = getHeadersLower(SHEETS.SOCIOEDUCANDOS);
 
@@ -1031,6 +1412,8 @@ function getSocioeducandosCols() {
   var cols = {
     id: idx('id (suase)', 0),
     nome: idx('nome', 1),
+    email_profissional: idx('e-mail profissional', -1),
+    senha_profissional_cripto: idx('senha profissional (criptografada)', -1),
     nascimento: idx('data de nascimento', -1),
     escolaridade: idx('escolaridade', 2),
     registrado_em: idx('registrado em', 3),
@@ -1442,6 +1825,28 @@ function validarHorarioCurso(dados) {
   }
 }
 
+function trabalhoPeriodoInvalido(dados) {
+  var inicio = cursoDataHoraLocal(dados.data_inicio, dados.horario_inicio || '00:00');
+  var termino = cursoDataHoraLocal(dados.data_fim, dados.horario_fim || '00:00');
+  if (!inicio || !termino) return false;
+  return termino < inicio;
+}
+
+function validarHorarioTrabalho(dados) {
+  var hi = String(dados.horario_inicio || '').trim();
+  var ht = String(dados.horario_fim || '').trim();
+  var dias = String(dados.dias_semana || '').trim();
+  if ((hi && !ht) || (!hi && ht)) {
+    throw new Error('Informe o horário de início e término juntos, ou deixe ambos em branco.');
+  }
+  if ((hi || ht) && !dias) {
+    throw new Error('Selecione os dias da semana do trabalho.');
+  }
+  if (dias && (!hi || !ht)) {
+    throw new Error('Ao informar os dias da semana, preencha também horário de início e fim.');
+  }
+}
+
 // ── Leitura de dados ──────────────────────────────────────────
 
 function getSaidasCols() {
@@ -1588,6 +1993,94 @@ function getAtendimentosBySocioeducando(socioeducandoId, incluirDeletados) {
       };
     })
     .sort(function(a, b) { return b.data_hora_inicio_iso.localeCompare(a.data_hora_inicio_iso); });
+}
+
+function getTrabalhosBySocioeducando(socioeducandoId, incluirDeletados) {
+  var ct = getTrabalhosCols();
+  var rows = incluirDeletados ? getRows(SHEETS.TRABALHOS) : getRowsAtivas(SHEETS.TRABALHOS);
+  return rows
+    .filter(function(r) { return String(r[ct.socioeducando_id]) === String(socioeducandoId); })
+    .map(function(r) {
+      var deletadoEm = ct.deletado_em >= 0 ? toIso(r[ct.deletado_em]) : '';
+      return {
+        id: String(r[ct.id]),
+        socioeducando_id: String(r[ct.socioeducando_id]),
+        tipo: String(r[ct.tipo] || ''),
+        empresa: String(r[ct.empresa] || ''),
+        curso: String(r[ct.curso] || ''),
+        data_contrato_iso: toIso(r[ct.data_contrato]),
+        data_contrato: fmtDate(r[ct.data_contrato]),
+        data_inicio_iso: toIso(r[ct.data_inicio]),
+        data_inicio: fmtDate(r[ct.data_inicio]),
+        data_fim_iso: toIso(r[ct.data_fim]),
+        data_fim: fmtDate(r[ct.data_fim]),
+        horario_inicio: fmtTime(r[ct.horario_inicio]),
+        horario_fim: fmtTime(r[ct.horario_fim]),
+        dias_semana: String(r[ct.dias_semana] || ''),
+        created_at: fmtDate(r[ct.registrado_em]),
+        deletado_em: deletadoEm,
+        ativo: !deletadoEm
+      };
+    })
+    .sort(function(a, b) {
+      var ai = a.data_inicio_iso || '';
+      var bi = b.data_inicio_iso || '';
+      return bi.localeCompare(ai);
+    });
+}
+
+function getVisitasTerritoriaisBySocioeducando(socioeducandoId, incluirDeletados) {
+  var cv = getVisitasTerritoriaisCols();
+  var rows = incluirDeletados ? getRows(SHEETS.VISITAS_TERRITORIAIS) : getRowsAtivas(SHEETS.VISITAS_TERRITORIAIS);
+  return rows
+    .filter(function(r) { return String(r[cv.socioeducando_id]) === String(socioeducandoId); })
+    .map(function(r) {
+      var deletadoEm = cv.deletado_em >= 0 ? toIso(r[cv.deletado_em]) : '';
+      return {
+        id: String(r[cv.id]),
+        socioeducando_id: String(r[cv.socioeducando_id]),
+        data_iso: toIso(r[cv.data]),
+        data: fmtDate(r[cv.data]),
+        tec_responsavel: String(r[cv.tec_responsavel] || ''),
+        atendido_por: String(r[cv.atendido_por] || ''),
+        creas: boolVal(r[cv.creas]),
+        caps: boolVal(r[cv.caps]),
+        ameaca: boolVal(r[cv.ameaca]),
+        observacoes: String(r[cv.observacoes] || ''),
+        created_at: fmtDate(r[cv.registrado_em]),
+        deletado_em: deletadoEm,
+        ativo: !deletadoEm
+      };
+    })
+    .sort(function(a, b) {
+      return String(b.data_iso || '').localeCompare(String(a.data_iso || ''));
+    });
+}
+
+function getFamiliaresBySocioeducando(socioeducandoId, incluirDeletados) {
+  var cf = getFamiliaresCols();
+  var rows = incluirDeletados ? getRows(SHEETS.FAMILIARES) : getRowsAtivas(SHEETS.FAMILIARES);
+  return rows
+    .filter(function(r) { return String(r[cf.socioeducando_id]) === String(socioeducandoId); })
+    .map(function(r) {
+      var deletadoEm = cf.deletado_em >= 0 ? toIso(r[cf.deletado_em]) : '';
+      return {
+        id: String(r[cf.id]),
+        socioeducando_id: String(r[cf.socioeducando_id]),
+        nome: String(r[cf.nome] || ''),
+        telefone: String(r[cf.telefone] || ''),
+        tipo_vinculo: String(r[cf.tipo_vinculo] || ''),
+        endereco: String(r[cf.endereco] || ''),
+        principal: boolVal(r[cf.principal]),
+        created_at: fmtDate(r[cf.registrado_em]),
+        deletado_em: deletadoEm,
+        ativo: !deletadoEm
+      };
+    })
+    .sort(function(a, b) {
+      if (a.principal !== b.principal) return a.principal ? -1 : 1;
+      return a.nome.localeCompare(b.nome, 'pt-BR');
+    });
 }
 
 function carregarSaidaMatricula(matriculaId) {
@@ -1760,6 +2253,7 @@ function getSocioeducandos(incluirDeletados) {
       return {
         id: String(r[cols.id]),
         nome: String(r[cols.nome] || ''),
+        email_profissional: cols.email_profissional >= 0 ? String(r[cols.email_profissional] || '') : '',
         data_nascimento_iso: toIso(nascimentoRaw),
         data_nascimento: fmtDate(nascimentoRaw),
         escolaridade: String(r[cols.escolaridade] || ''),
@@ -1902,6 +2396,10 @@ function carregarOverview() {
   var socioeducandos = getSocioeducandos(true);
   var allAdm = getRowsAtivas(SHEETS.ADMISSOES);
   var allFugas = getRowsAtivas(SHEETS.FUGAS);
+  var allTrabalhos = getRowsAtivas(SHEETS.TRABALHOS);
+  var allVisitasTerritoriais = getRowsAtivas(SHEETS.VISITAS_TERRITORIAIS);
+  var allSaidas = getRowsAtivas(SHEETS.SAIDAS);
+  var allSaidaMatriculas = getRowsAtivas(SHEETS.SAIDA_MATRICULAS);
   perf.leitura_abas_ms = Date.now() - tLeitura;
 
   var hoje = new Date();
@@ -1912,6 +2410,10 @@ function carregarOverview() {
   var tMapeamentos = Date.now();
   var ca = getAdmissoesCols();
   var cf = getFugasCols();
+  var ct = getTrabalhosCols();
+  var cv = getVisitasTerritoriaisCols();
+  var cs = getSaidasCols();
+  var csm = getSaidaMatriculasCols();
   var internadosAtivos = allAdm.filter(function(r) { return !toIso(r[3]); }).length;
   var cMat = getCursoMatriculasCols();
   var cc   = getCursosCols();
@@ -1958,6 +2460,95 @@ function carregarOverview() {
     if (!matriculasPorSocioeducando[sid]) matriculasPorSocioeducando[sid] = [];
     matriculasPorSocioeducando[sid].push(r);
   });
+
+  function normalizarTexto(v) {
+    return String(v || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim();
+  }
+
+  function trabalhoAtivoHoje(row) {
+    var inicioIso = toIso(row[ct.data_inicio]);
+    var fimIso = toIso(row[ct.data_fim]);
+    if (inicioIso && inicioIso > hojeIso) return false;
+    if (fimIso && fimIso < hojeIso) return false;
+    return true;
+  }
+
+  var trabalhosPorSocioeducando = {};
+  var trabalhosDetalhesPorSocioeducando = {};
+  var visitasTerritoriaisPorSocioeducando = {};
+  allTrabalhos.forEach(function(r) {
+    if (!trabalhoAtivoHoje(r)) return;
+    var sid = String(r[ct.socioeducando_id]);
+    if (!trabalhosPorSocioeducando[sid]) trabalhosPorSocioeducando[sid] = [];
+    if (!trabalhosDetalhesPorSocioeducando[sid]) trabalhosDetalhesPorSocioeducando[sid] = [];
+    var empresa = String(r[ct.empresa] || '').trim();
+    if (empresa) trabalhosPorSocioeducando[sid].push(empresa);
+    trabalhosDetalhesPorSocioeducando[sid].push({
+      id: String(r[ct.id]),
+      tipo: String(r[ct.tipo] || ''),
+      empresa: empresa,
+      curso: String(r[ct.curso] || ''),
+      data_contrato: fmtDate(r[ct.data_contrato]),
+      data_inicio: fmtDate(r[ct.data_inicio]),
+      data_fim: fmtDate(r[ct.data_fim]),
+      horario_inicio: fmtTime(r[ct.horario_inicio]),
+      horario_fim: fmtTime(r[ct.horario_fim]),
+      dias_semana: String(r[ct.dias_semana] || '')
+    });
+  });
+
+  allVisitasTerritoriais.forEach(function(r) {
+    var sid = String(r[cv.socioeducando_id] || '');
+    if (!sid) return;
+    visitasTerritoriaisPorSocioeducando[sid] = (visitasTerritoriaisPorSocioeducando[sid] || 0) + 1;
+  });
+
+  Object.keys(trabalhosPorSocioeducando).forEach(function(sid) {
+    var unicos = {};
+    trabalhosPorSocioeducando[sid].forEach(function(emp) { unicos[emp] = true; });
+    trabalhosPorSocioeducando[sid] = Object.keys(unicos).sort(function(a, b) {
+      return a.localeCompare(b, 'pt-BR');
+    });
+  });
+
+  Object.keys(trabalhosDetalhesPorSocioeducando).forEach(function(sid) {
+    trabalhosDetalhesPorSocioeducando[sid].sort(function(a, b) {
+      var ai = String(a.data_inicio || '');
+      var bi = String(b.data_inicio || '');
+      return bi.localeCompare(ai);
+    });
+  });
+
+  var saidasMap = {};
+  allSaidas.forEach(function(r) {
+    saidasMap[String(r[cs.id])] = r;
+  });
+
+  var fezSaidaCulturalPorSocioeducando = {};
+  allSaidaMatriculas.forEach(function(m) {
+    var sid = String(m[csm.socioeducando_id] || '');
+    if (!sid) return;
+
+    var s = saidasMap[String(m[csm.saida_id])] || null;
+    if (!s) return;
+
+    var tipo = normalizarTexto(s[cs.tipo]);
+    if (tipo !== 'cultural') return;
+
+    var status = normalizarTexto(m[csm.status]);
+    if (status === 'cancelada') return;
+
+    var houveVolta = !!toIsoDateTime(s[cs.data_hora_volta]);
+    var realizada = status === 'realizada' || houveVolta;
+    if (realizada) {
+      fezSaidaCulturalPorSocioeducando[sid] = true;
+    }
+  });
+
   perf.preparacao_indices_ms = Date.now() - tMapeamentos;
 
   var tResumo = Date.now();
@@ -1974,6 +2565,33 @@ function carregarOverview() {
     var admAtiva     = admSocioeducando.find(function(r) { return !toIso(r[3]); });
     var ausenteAtual = fugasSocioeducando.find(function(r) { return !toIso(r[4]); });
     var cursosAtivos = matriculasSocioeducando.filter(matriculaAtiva).length;
+    var cursosAtivosDetalhes = matriculasSocioeducando
+      .filter(matriculaAtiva)
+      .map(function(m) {
+        var c = cursosMap[String(m[cMat.curso_id])] || [];
+        return {
+          matricula_id: String(m[cMat.id]),
+          curso_id: String(m[cMat.curso_id]),
+          tipo_curso: String(c[cc.tipo_curso] || ''),
+          nome_curso: String(c[cc.nome_curso] || ''),
+          instituicao: String(c[cc.instituicao] || ''),
+          local: String(c[cc.local] || ''),
+          data_inicio: fmtDate(c[cc.data_inicio]),
+          data_termino: fmtDate(c[cc.data_termino]),
+          horario_inicio: fmtTime(c[cc.horario_inicio]),
+          horario_termino: fmtTime(c[cc.horario_termino]),
+          dias_semana: String(c[cc.dias_semana] || '')
+        };
+      })
+      .sort(function(a, b) {
+        var an = String(a.nome_curso || '');
+        var bn = String(b.nome_curso || '');
+        return an.localeCompare(bn, 'pt-BR');
+      });
+    var trabalhosAtivos = trabalhosPorSocioeducando[j.id] || [];
+    var trabalhosAtivosDetalhes = trabalhosDetalhesPorSocioeducando[j.id] || [];
+    var visitasTerritoriaisQtd = Number(visitasTerritoriaisPorSocioeducando[j.id] || 0);
+    var fezSaidaCultural = !!fezSaidaCulturalPorSocioeducando[j.id];
 
     var status = 'desligado';
     if (ausenteAtual) status = 'ausente';
@@ -1982,13 +2600,22 @@ function carregarOverview() {
     return {
       id: j.id,
       nome: j.nome,
+      email_profissional: j.email_profissional || '',
       data_nascimento_iso: j.data_nascimento_iso,
       escolaridade: j.escolaridade,
       status: status,
       internado_desde: admAtiva ? fmtDate(admAtiva[2]) : '',
       internado_desde_iso: admAtiva ? toIso(admAtiva[2]) : '',
       admissao_ativa_id: admAtiva ? String(admAtiva[0]) : '',
-      cursos_ativos: cursosAtivos
+      cursos_ativos: cursosAtivos,
+      cursos_ativos_detalhes: cursosAtivosDetalhes,
+      trabalhos_empresas_ativas: trabalhosAtivos,
+      trabalhos_ativos_detalhes: trabalhosAtivosDetalhes,
+      visitas_territoriais_qtd: visitasTerritoriaisQtd,
+      nao_possui_visita_territorial: visitasTerritoriaisQtd === 0,
+      trabalhando: trabalhosAtivos.length > 0,
+      fez_saida_cultural: fezSaidaCultural,
+      nao_fez_saida_cultural: !fezSaidaCultural
     };
   });
   perf.resumo_socioeducandos_ms = Date.now() - tResumo;
@@ -2143,6 +2770,9 @@ function carregarPerfil(socioeducandoId) {
   var fugas     = getFugasBySocioeducando(socioeducandoId, true);
   var saidas    = getSaidasBySocioeducando(socioeducandoId, true);
   var atendimentos = getAtendimentosBySocioeducando(socioeducandoId, true);
+  var trabalhos = getTrabalhosBySocioeducando(socioeducandoId, true);
+  var visitasTerritoriais = getVisitasTerritoriaisBySocioeducando(socioeducandoId, true);
+  var familiares = getFamiliaresBySocioeducando(socioeducandoId, true);
   var interesses = getInteressesCursoPorSocioeducando(socioeducandoId);
   var cursoEventos = getCursoEventosBySocioeducando(socioeducandoId);
 
@@ -2164,7 +2794,37 @@ function carregarPerfil(socioeducandoId) {
     fugas:           fugas,
     saidas:          saidas,
     atendimentos:    atendimentos,
+    trabalhos:       trabalhos,
+    visitas_territoriais: visitasTerritoriais,
+    familiares:      familiares,
     interesses:      interesses
+  };
+}
+
+/**
+ * Retorna apenas os dados essenciais do topo do perfil para permitir
+ * renderização inicial rápida; seções pesadas são carregadas separadamente.
+ */
+function carregarPerfilResumo(socioeducandoId) {
+  var socioeducandos = getSocioeducandos(true);
+  var socioeducando = socioeducandos.find(function(j) { return j.id === String(socioeducandoId); });
+  if (!socioeducando) return null;
+
+  var admissoes = getAdmissoesBySocioeducando(socioeducandoId, true);
+  var fugas = getFugasBySocioeducando(socioeducandoId, true);
+
+  var internadoAtivo = admissoes.find(function(a) { return !a.data_desligamento_iso; }) || null;
+  var ausenteAtual = fugas.find(function(f) { return !f.data_retorno_iso; }) || null;
+
+  var status = 'desligado';
+  if (ausenteAtual) status = 'ausente';
+  else if (internadoAtivo) status = 'internado';
+
+  return {
+    socioeducando: socioeducando,
+    status: status,
+    internado_ativo: internadoAtivo,
+    ausente_atual: ausenteAtual
   };
 }
 
@@ -2368,6 +3028,253 @@ function carregarAtendimento(atendimentoId) {
   };
 }
 
+function carregarTrabalho(trabalhoId) {
+  var ct = getTrabalhosCols();
+  var rows = getRowsAtivas(SHEETS.TRABALHOS);
+  var r = rows.find(function(x) { return String(x[ct.id]) === String(trabalhoId); });
+  if (!r) return null;
+
+  return {
+    id: String(r[ct.id]),
+    socioeducando_id: String(r[ct.socioeducando_id]),
+    tipo: String(r[ct.tipo] || ''),
+    empresa: String(r[ct.empresa] || ''),
+    curso: String(r[ct.curso] || ''),
+    data_contrato_iso: toIso(r[ct.data_contrato]),
+    data_inicio_iso: toIso(r[ct.data_inicio]),
+    data_fim_iso: toIso(r[ct.data_fim]),
+    horario_inicio: fmtTime(r[ct.horario_inicio]),
+    horario_fim: fmtTime(r[ct.horario_fim]),
+    dias_semana: String(r[ct.dias_semana] || '')
+  };
+}
+
+function carregarVisitaTerritorial(visitaId) {
+  var cv = getVisitasTerritoriaisCols();
+  var rows = getRowsAtivas(SHEETS.VISITAS_TERRITORIAIS);
+  var r = rows.find(function(x) { return String(x[cv.id]) === String(visitaId); });
+  if (!r) return null;
+
+  return {
+    id: String(r[cv.id]),
+    socioeducando_id: String(r[cv.socioeducando_id]),
+    data_iso: toIso(r[cv.data]),
+    tec_responsavel: String(r[cv.tec_responsavel] || ''),
+    atendido_por: String(r[cv.atendido_por] || ''),
+    creas: boolVal(r[cv.creas]),
+    caps: boolVal(r[cv.caps]),
+    ameaca: boolVal(r[cv.ameaca]),
+    observacoes: String(r[cv.observacoes] || '')
+  };
+}
+
+function carregarFamiliar(familiarId) {
+  if (!familiarId) throw new Error('Familiar não identificado.');
+  var cf = getFamiliaresCols();
+  var rows = getRowsAtivas(SHEETS.FAMILIARES);
+  var r = rows.find(function(x) { return String(x[cf.id]) === String(familiarId); });
+  if (!r) return null;
+
+  return {
+    id: String(r[cf.id]),
+    socioeducando_id: String(r[cf.socioeducando_id]),
+    nome: String(r[cf.nome] || ''),
+    telefone: String(r[cf.telefone] || ''),
+    tipo_vinculo: String(r[cf.tipo_vinculo] || ''),
+    endereco: String(r[cf.endereco] || ''),
+    principal: boolVal(r[cf.principal])
+  };
+}
+
+function salvarTrabalho(dados) {
+  if (!dados || !dados.socioeducando_id) throw new Error('Socioeducando não identificado.');
+  validarSocioeducandoExiste(dados.socioeducando_id);
+
+  var tipo = String(dados.tipo || '').trim();
+  if (!tipo) throw new Error('Tipo é obrigatório.');
+  if (tipo !== 'Trabalho' && tipo !== 'Aprendizagem') throw new Error('Tipo de trabalho inválido.');
+
+  var empresa = String(dados.empresa || '').trim();
+  if (!empresa) throw new Error('Empresa é obrigatória.');
+  if (!dados.data_contrato) throw new Error('Data de contrato é obrigatória.');
+  if (!dados.data_inicio) throw new Error('Data de início é obrigatória.');
+
+  validarHorarioTrabalho(dados);
+  if (dados.data_fim && trabalhoPeriodoInvalido(dados)) {
+    throw new Error('A data de fim não pode ser anterior à data de início.');
+  }
+
+  var ct = getTrabalhosCols();
+  var sh = getSheet(SHEETS.TRABALHOS);
+  var rows = getRows(SHEETS.TRABALHOS);
+  var totalCols = sh.getLastColumn();
+  var user = usuarioAtual();
+
+  var linha = new Array(totalCols).fill('');
+  linha[ct.socioeducando_id] = Number(dados.socioeducando_id);
+  linha[ct.tipo] = tipo;
+  linha[ct.empresa] = empresa.toUpperCase();
+  linha[ct.curso] = String(dados.curso || '').trim().toUpperCase();
+  linha[ct.data_contrato] = dados.data_contrato;
+  linha[ct.data_inicio] = dados.data_inicio;
+  linha[ct.data_fim] = dados.data_fim || '';
+  linha[ct.horario_inicio] = String(dados.horario_inicio || '').trim();
+  linha[ct.horario_fim] = String(dados.horario_fim || '').trim();
+  linha[ct.dias_semana] = String(dados.dias_semana || '').trim();
+
+  if (dados.id) {
+    var idx = rows.findIndex(function(r) { return String(r[ct.id]) === String(dados.id); });
+    if (idx < 0) throw new Error('Relação de trabalho não encontrada para edição.');
+    linha[ct.id] = Number(dados.id);
+    linha[ct.registrado_em] = rows[idx][ct.registrado_em] || new Date();
+    linha[ct.criadoPor] = rows[idx][ct.criadoPor] || user;
+    linha[ct.atualizadoEm] = new Date();
+    linha[ct.atualizadoPor] = user;
+    sh.getRange(idx + 2, 1, 1, totalCols).setValues([linha]);
+    return { ok: true, trabalho_id: linha[ct.id] };
+  }
+
+  linha[ct.id] = nextId(SHEETS.TRABALHOS);
+  linha[ct.registrado_em] = new Date();
+  linha[ct.criadoPor] = user;
+  linha[ct.atualizadoEm] = '';
+  linha[ct.atualizadoPor] = '';
+  sh.getRange(sh.getLastRow() + 1, 1, 1, totalCols).setValues([linha]);
+  return { ok: true, trabalho_id: linha[ct.id] };
+}
+
+function salvarVisitaTerritorial(dados) {
+  if (!dados || !dados.socioeducando_id) throw new Error('Socioeducando não identificado.');
+  validarSocioeducandoExiste(dados.socioeducando_id);
+  if (!dados.data) throw new Error('Data é obrigatória.');
+
+  var tecResponsavel = String(dados.tec_responsavel || '').trim();
+  if (!tecResponsavel) throw new Error('Tec responsável é obrigatório.');
+
+  var cv = getVisitasTerritoriaisCols();
+  var sh = getSheet(SHEETS.VISITAS_TERRITORIAIS);
+  var rows = getRows(SHEETS.VISITAS_TERRITORIAIS);
+  var totalCols = sh.getLastColumn();
+  var user = usuarioAtual();
+
+  var linha = new Array(totalCols).fill('');
+  linha[cv.socioeducando_id] = Number(dados.socioeducando_id);
+  linha[cv.data] = dados.data;
+  linha[cv.tec_responsavel] = tecResponsavel.toUpperCase();
+  linha[cv.atendido_por] = String(dados.atendido_por || '').trim().toUpperCase();
+  linha[cv.creas] = !!dados.creas;
+  linha[cv.caps] = !!dados.caps;
+  linha[cv.ameaca] = !!dados.ameaca;
+  linha[cv.observacoes] = String(dados.observacoes || '').trim();
+
+  if (dados.id) {
+    var idx = rows.findIndex(function(r) { return String(r[cv.id]) === String(dados.id); });
+    if (idx < 0) throw new Error('Visita territorial não encontrada para edição.');
+    linha[cv.id] = Number(dados.id);
+    linha[cv.registrado_em] = rows[idx][cv.registrado_em] || new Date();
+    linha[cv.criadoPor] = rows[idx][cv.criadoPor] || user;
+    linha[cv.atualizadoEm] = new Date();
+    linha[cv.atualizadoPor] = user;
+    sh.getRange(idx + 2, 1, 1, totalCols).setValues([linha]);
+    return { ok: true, visita_territorial_id: linha[cv.id] };
+  }
+
+  linha[cv.id] = nextId(SHEETS.VISITAS_TERRITORIAIS);
+  linha[cv.registrado_em] = new Date();
+  linha[cv.criadoPor] = user;
+  linha[cv.atualizadoEm] = '';
+  linha[cv.atualizadoPor] = '';
+  sh.getRange(sh.getLastRow() + 1, 1, 1, totalCols).setValues([linha]);
+  return { ok: true, visita_territorial_id: linha[cv.id] };
+}
+
+function salvarFamiliar(dados) {
+  if (!dados || !dados.socioeducando_id) throw new Error('Socioeducando não identificado.');
+  validarSocioeducandoExiste(dados.socioeducando_id);
+
+  var nome = String(dados.nome || '').trim();
+  if (!nome) throw new Error('Nome do familiar é obrigatório.');
+
+  var cf = getFamiliaresCols();
+  var sh = getSheet(SHEETS.FAMILIARES);
+  var rows = getRows(SHEETS.FAMILIARES);
+  var totalCols = sh.getLastColumn();
+  var user = usuarioAtual();
+  var principal = !!dados.principal;
+  var socioeducandoId = String(dados.socioeducando_id);
+
+  var idx = -1;
+  if (dados.id) {
+    idx = rows.findIndex(function(r) { return String(r[cf.id]) === String(dados.id); });
+    if (idx < 0) throw new Error('Familiar não encontrado para edição.');
+  }
+
+  var linha = new Array(totalCols).fill('');
+  linha[cf.socioeducando_id] = Number(dados.socioeducando_id);
+  linha[cf.nome] = nome.toUpperCase();
+  linha[cf.telefone] = String(dados.telefone || '').trim();
+  linha[cf.tipo_vinculo] = String(dados.tipo_vinculo || '').trim();
+  linha[cf.endereco] = String(dados.endereco || '').trim().toUpperCase();
+  linha[cf.principal] = principal;
+
+  if (dados.id) {
+    linha[cf.id] = Number(dados.id);
+    linha[cf.registrado_em] = rows[idx][cf.registrado_em] || new Date();
+    linha[cf.criadoPor] = rows[idx][cf.criadoPor] || user;
+    linha[cf.atualizadoEm] = new Date();
+    linha[cf.atualizadoPor] = user;
+    if (cf.deletado_em >= 0) linha[cf.deletado_em] = rows[idx][cf.deletado_em] || '';
+    if (cf.deletado_por >= 0) linha[cf.deletado_por] = rows[idx][cf.deletado_por] || '';
+    sh.getRange(idx + 2, 1, 1, totalCols).setValues([linha]);
+  } else {
+    linha[cf.id] = nextId(SHEETS.FAMILIARES);
+    linha[cf.registrado_em] = new Date();
+    linha[cf.criadoPor] = user;
+    linha[cf.atualizadoEm] = '';
+    linha[cf.atualizadoPor] = '';
+    if (cf.deletado_em >= 0) linha[cf.deletado_em] = '';
+    if (cf.deletado_por >= 0) linha[cf.deletado_por] = '';
+    sh.getRange(sh.getLastRow() + 1, 1, 1, totalCols).setValues([linha]);
+  }
+
+  // Regra de unicidade: apenas um familiar pode permanecer como principal.
+  if (principal) {
+    var idAtual = dados.id ? String(dados.id) : String(linha[cf.id]);
+    rows = getRows(SHEETS.FAMILIARES);
+    rows.forEach(function(r, i) {
+      if (String(r[cf.id]) === idAtual) return;
+      if (String(r[cf.socioeducando_id]) !== socioeducandoId) return;
+      if (cf.deletado_em >= 0 && toIso(r[cf.deletado_em])) return;
+      if (!boolVal(r[cf.principal])) return;
+      sh.getRange(i + 2, cf.principal + 1).setValue(false);
+      if (cf.atualizadoEm >= 0) sh.getRange(i + 2, cf.atualizadoEm + 1).setValue(new Date());
+      if (cf.atualizadoPor >= 0) sh.getRange(i + 2, cf.atualizadoPor + 1).setValue(user);
+    });
+  }
+
+  return { ok: true, familiar_id: String(linha[cf.id]) };
+}
+
+function excluirFamiliar(familiarId) {
+  if (!familiarId) throw new Error('Familiar não identificado.');
+  var cf = getFamiliaresCols();
+  var sh = getSheet(SHEETS.FAMILIARES);
+  var rows = getRows(SHEETS.FAMILIARES);
+  var idx = rows.findIndex(function(r) { return String(r[cf.id]) === String(familiarId); });
+  if (idx < 0) throw new Error('Familiar não encontrado.');
+  if (cf.deletado_em >= 0 && toIso(rows[idx][cf.deletado_em])) {
+    throw new Error('Familiar já está excluído.');
+  }
+
+  var agora = new Date();
+  var user = usuarioAtual();
+  if (cf.deletado_em >= 0) sh.getRange(idx + 2, cf.deletado_em + 1).setValue(agora);
+  if (cf.deletado_por >= 0) sh.getRange(idx + 2, cf.deletado_por + 1).setValue(user);
+  if (cf.atualizadoEm >= 0) sh.getRange(idx + 2, cf.atualizadoEm + 1).setValue(agora);
+  if (cf.atualizadoPor >= 0) sh.getRange(idx + 2, cf.atualizadoPor + 1).setValue(user);
+  return { ok: true };
+}
+
 // ── Salvar dados ──────────────────────────────────────────────
 
 function verificarSocioeducandoExistente(id) {
@@ -2380,6 +3287,7 @@ function verificarSocioeducandoExistente(id) {
 
 function salvarSocioeducando(dados) {
   ensureSocioeducandosNascimentoColumn();
+  ensureSocioeducandosCredenciaisColumns();
   var sh = getSheet(SHEETS.SOCIOEDUCANDOS);
   var rows = getRows(SHEETS.SOCIOEDUCANDOS);
   var cols = getSocioeducandosCols();
@@ -2407,12 +3315,25 @@ function salvarSocioeducando(dados) {
   var idx = rows.findIndex(function(r) { return String(r[cols.id]) === String(dados.id); });
 
   var user = usuarioAtual();
+  var podeGerenciarCredenciais = usuarioPodeGerenciarCredenciais(user);
+  var emailProfissional = String(dados.email_profissional || '').trim();
+  var senhaProfissional = String(dados.senha_profissional || '');
+  if (!podeGerenciarCredenciais && (emailProfissional || senhaProfissional)) {
+    throw new Error('Sem permissão para alterar credenciais profissionais.');
+  }
+
   if (dados.editando) {
     if (idx < 0) throw new Error('Socioeducando não encontrado para edição.');
     var linhaEdicao = rows[idx].slice();
     while (linhaEdicao.length < totalCols) linhaEdicao.push('');
     linhaEdicao[cols.id] = Number(dados.id);
     linhaEdicao[cols.nome] = dados.nome.trim().toUpperCase();
+    if (podeGerenciarCredenciais && cols.email_profissional >= 0) {
+      linhaEdicao[cols.email_profissional] = emailProfissional;
+    }
+    if (podeGerenciarCredenciais && cols.senha_profissional_cripto >= 0 && senhaProfissional.trim() !== '') {
+      linhaEdicao[cols.senha_profissional_cripto] = criptografarSenhaProfissional(senhaProfissional, user);
+    }
     if (cols.nascimento >= 0) linhaEdicao[cols.nascimento] = dados.data_nascimento || '';
     linhaEdicao[cols.escolaridade] = dados.escolaridade || '';
     linhaEdicao[cols.registrado_em] = rows[idx][cols.registrado_em] || new Date();
@@ -2426,6 +3347,12 @@ function salvarSocioeducando(dados) {
     var linhaNova = new Array(totalCols).fill('');
     linhaNova[cols.id] = Number(dados.id);
     linhaNova[cols.nome] = dados.nome.trim().toUpperCase();
+    if (podeGerenciarCredenciais && cols.email_profissional >= 0) {
+      linhaNova[cols.email_profissional] = emailProfissional;
+    }
+    if (podeGerenciarCredenciais && cols.senha_profissional_cripto >= 0 && senhaProfissional.trim() !== '') {
+      linhaNova[cols.senha_profissional_cripto] = criptografarSenhaProfissional(senhaProfissional, user);
+    }
     if (cols.nascimento >= 0) linhaNova[cols.nascimento] = dados.data_nascimento || '';
     linhaNova[cols.escolaridade] = dados.escolaridade || '';
     linhaNova[cols.registrado_em] = new Date();
@@ -2451,6 +3378,29 @@ function salvarSocioeducando(dados) {
     }
   }
   return { ok: true };
+}
+
+function obterCredenciaisSocioeducando(socioeducandoId) {
+  var user = usuarioAtual();
+  if (!usuarioPodeGerenciarCredenciais(user)) {
+    throw new Error('Sem permissão para visualizar credenciais profissionais.');
+  }
+  if (!socioeducandoId) throw new Error('Socioeducando não identificado.');
+
+  var cols = getSocioeducandosCols();
+  var rows = getRowsAtivas(SHEETS.SOCIOEDUCANDOS);
+  var row = rows.find(function(r) { return String(r[cols.id]) === String(socioeducandoId); });
+  if (!row) throw new Error('Socioeducando não encontrado.');
+
+  var email = cols.email_profissional >= 0 ? String(row[cols.email_profissional] || '') : '';
+  var senhaCripto = cols.senha_profissional_cripto >= 0 ? String(row[cols.senha_profissional_cripto] || '') : '';
+  var senha = descriptografarSenhaProfissional(senhaCripto, user);
+
+  return {
+    socioeducando_id: String(socioeducandoId),
+    email_profissional: email,
+    senha_profissional: senha
+  };
 }
 
 /**
@@ -3136,12 +4086,211 @@ function _encontrarConflitoCurso(curso, inicio, termino, deveIgnorarOcorrencia) 
   return null;
 }
 
+function _sobreposicaoDatasRecorrentes(c1, c2) {
+  var ini1 = _parseIsoDateLocal(c1.data_inicio);
+  var ini2 = _parseIsoDateLocal(c2.data_inicio);
+  if (!ini1 || !ini2) return null;
+
+  var fim1 = c1.data_termino ? _parseIsoDateLocal(c1.data_termino) : null;
+  var fim2 = c2.data_termino ? _parseIsoDateLocal(c2.data_termino) : null;
+
+  var ini = _maxDate(_inicioDia(ini1), _inicioDia(ini2));
+  var fim = null;
+  if (fim1 && fim2) fim = _minDate(_fimDia(fim1), _fimDia(fim2));
+  else if (fim1) fim = _fimDia(fim1);
+  else if (fim2) fim = _fimDia(fim2);
+
+  if (fim && ini.getTime() > fim.getTime()) return null;
+  return { inicio: ini, fim: fim };
+}
+
+function _conflitoEntreRecorrencias(c1, c2) {
+  var faixa = _sobreposicaoDatasRecorrentes(c1, c2);
+  if (!faixa) return null;
+
+  var limite = new Date(faixa.inicio.getFullYear(), faixa.inicio.getMonth(), faixa.inicio.getDate() + 13, 23, 59, 59, 999);
+  if (faixa.fim && limite.getTime() > faixa.fim.getTime()) limite = faixa.fim;
+
+  for (var cursor = _inicioDia(faixa.inicio); cursor.getTime() <= limite.getTime(); cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1)) {
+    var o1 = _cursoFaixaOcorrenciaNoDia(c1, cursor);
+    if (!o1) continue;
+    var o2 = _cursoFaixaOcorrenciaNoDia(c2, cursor);
+    if (!o2) continue;
+    if (_intervalosConflitam(o1.inicio, o1.termino, o2.inicio, o2.termino)) {
+      return {
+        inicioIso: toIsoDateTime(o1.inicio),
+        terminoIso: toIsoDateTime(o1.termino)
+      };
+    }
+  }
+
+  return null;
+}
+
+function _conflitosItemTrabalhoRecorrente(item, contexto, ignorados) {
+  var conflitos = [];
+  var sid = String(item.socioeducando_id || '');
+  if (!sid) return conflitos;
+
+  var dataInicio = String(item.data_inicio || '');
+  if (!dataInicio) return conflitos;
+
+  var trabalhoNovo = {
+    tipo: 'Trabalho',
+    empresa: '',
+    curso: '',
+    data_inicio: dataInicio,
+    data_termino: item.data_termino ? String(item.data_termino) : '',
+    horario_inicio: fmtTime(item.horario_inicio),
+    horario_termino: fmtTime(item.horario_termino),
+    diasSet: String(item.dias_semana || '').split(/[;,]/).map(_normalizarDiaSemanaCurso).filter(function(v) { return !!v; })
+  };
+
+  if (!trabalhoNovo.horario_inicio || !trabalhoNovo.horario_termino || !trabalhoNovo.diasSet.length) {
+    return conflitos;
+  }
+
+  var ignorarAtendimentoId = ignorados.atendimento_id || '';
+  contexto.atendimentos.forEach(function(r) {
+    var atendimentoId = String(r[0]);
+    if (ignorarAtendimentoId && atendimentoId === ignorarAtendimentoId) return;
+    if (String(r[1]) !== sid) return;
+    var aIni = _toDateSafe(r[4]);
+    var aFim = _toDateSafe(r[5]) || aIni;
+    if (!aIni || !aFim) return;
+
+    var ocorr = _encontrarConflitoCurso(trabalhoNovo, aIni, aFim);
+    if (!ocorr) return;
+
+    conflitos.push({
+      tipo: 'Atendimento',
+      id: atendimentoId,
+      descricao: String(r[2] || '') + (r[3] ? ' - ' + String(r[3]) : ''),
+      inicio: toIsoDateTime(r[4]),
+      termino: toIsoDateTime(r[5]) || toIsoDateTime(r[4])
+    });
+  });
+
+  var cms = contexto.saidas.matriculaCols;
+  var cs = contexto.saidas.cols;
+  var ignorarSaidaMatriculaId = ignorados.saida_matricula_id || '';
+  contexto.saidas.matriculas.forEach(function(r) {
+    var matriculaId = String(r[cms.id]);
+    if (ignorarSaidaMatriculaId && matriculaId === ignorarSaidaMatriculaId) return;
+    if (String(r[cms.socioeducando_id]) !== sid) return;
+    if (_statusSaidaEhCancelada(r[cms.status])) return;
+
+    var evento = contexto.saidas.saidasMap[String(r[cms.saida_id])];
+    if (!evento) return;
+
+    var sIni = _toDateSafe(evento[cs.data_hora_ida]);
+    var sFim = _toDateSafe(evento[cs.data_hora_volta]) || sIni;
+    if (!sIni || !sFim) return;
+
+    var ocorr = _encontrarConflitoCurso(trabalhoNovo, sIni, sFim);
+    if (!ocorr) return;
+
+    conflitos.push({
+      tipo: 'Saída',
+      id: matriculaId,
+      descricao: String(evento[cs.local] || '') + (evento[cs.tipo] ? ' - ' + String(evento[cs.tipo]) : ''),
+      inicio: toIsoDateTime(evento[cs.data_hora_ida]),
+      termino: toIsoDateTime(evento[cs.data_hora_volta]) || toIsoDateTime(evento[cs.data_hora_ida])
+    });
+  });
+
+  var cm = contexto.cursos.matriculaCols;
+  var cc = contexto.cursos.cols;
+  var ignorarMatriculaId = ignorados.curso_matricula_id || '';
+  var ignorarCursoId = ignorados.curso_id || '';
+  contexto.cursos.matriculas.forEach(function(r) {
+    var matriculaId = String(r[cm.id]);
+    if (ignorarMatriculaId && matriculaId === ignorarMatriculaId) return;
+    if (String(r[cm.socioeducando_id]) !== sid) return;
+    if (cm.matriculado >= 0 && !r[cm.matriculado]) return;
+
+    var cursoId = String(r[cm.curso_id]);
+    if (ignorarCursoId && cursoId === ignorarCursoId) return;
+    var cursoRow = contexto.cursos.cursosMap[cursoId];
+    if (!cursoRow) return;
+
+    var cursoExistente = {
+      nome: String(cursoRow[cc.nome_curso] || ''),
+      instituicao: String(cursoRow[cc.instituicao] || ''),
+      data_inicio: toIso(cursoRow[cc.data_inicio]),
+      data_termino: toIso(cursoRow[cc.data_termino]),
+      horario_inicio: fmtTime(cursoRow[cc.horario_inicio]),
+      horario_termino: fmtTime(cursoRow[cc.horario_termino]),
+      diasSet: String(cursoRow[cc.dias_semana] || '').split(/[;,]/).map(_normalizarDiaSemanaCurso).filter(function(v) { return !!v; })
+    };
+    if (cm.tipo_termino >= 0 && String(r[cm.tipo_termino] || '').trim()) {
+      var dataTerminoVinculo = toIso(r[cm.data_termino]);
+      if (dataTerminoVinculo && (!cursoExistente.data_termino || dataTerminoVinculo < cursoExistente.data_termino)) {
+        cursoExistente.data_termino = dataTerminoVinculo;
+      }
+    }
+
+    var ocorr = _conflitoEntreRecorrencias(trabalhoNovo, cursoExistente);
+    if (!ocorr) return;
+
+    var descricao = cursoExistente.nome || 'Curso';
+    if (cursoExistente.instituicao) descricao += ' - ' + cursoExistente.instituicao;
+
+    conflitos.push({
+      tipo: 'Curso',
+      id: matriculaId,
+      descricao: descricao,
+      inicio: ocorr.inicioIso,
+      termino: ocorr.terminoIso
+    });
+  });
+
+  var ct = contexto.trabalhos.cols;
+  var ignorarTrabalhoId = ignorados.trabalho_id || '';
+  contexto.trabalhos.rows.forEach(function(r) {
+    var trabalhoId = String(r[ct.id]);
+    if (ignorarTrabalhoId && trabalhoId === ignorarTrabalhoId) return;
+    if (String(r[ct.socioeducando_id]) !== sid) return;
+
+    var trabalhoExistente = {
+      tipo: String(r[ct.tipo] || ''),
+      empresa: String(r[ct.empresa] || ''),
+      curso: String(r[ct.curso] || ''),
+      data_inicio: toIso(r[ct.data_inicio]),
+      data_termino: toIso(r[ct.data_fim]) || '',
+      horario_inicio: fmtTime(r[ct.horario_inicio]),
+      horario_termino: fmtTime(r[ct.horario_fim]),
+      diasSet: String(r[ct.dias_semana] || '').split(/[;,]/).map(_normalizarDiaSemanaCurso).filter(function(v) { return !!v; })
+    };
+
+    if (!trabalhoExistente.data_inicio || !trabalhoExistente.horario_inicio || !trabalhoExistente.horario_termino || !trabalhoExistente.diasSet.length) return;
+
+    var ocorr = _conflitoEntreRecorrencias(trabalhoNovo, trabalhoExistente);
+    if (!ocorr) return;
+
+    var descricao = trabalhoExistente.tipo || 'Trabalho';
+    if (trabalhoExistente.empresa) descricao += ' - ' + trabalhoExistente.empresa;
+    if (trabalhoExistente.curso) descricao += ' (' + trabalhoExistente.curso + ')';
+
+    conflitos.push({
+      tipo: 'Trabalho',
+      id: trabalhoId,
+      descricao: descricao,
+      inicio: ocorr.inicioIso,
+      termino: ocorr.terminoIso
+    });
+  });
+
+  return conflitos;
+}
+
 function _coletarContextoConflitosAgenda(socioIds) {
   var cs = getSaidasCols();
   var cmSaida = getSaidaMatriculasCols();
   var cc = getCursosCols();
   var cmCurso = getCursoMatriculasCols();
   var ceCurso = getCursoEventosCols();
+  var ct = getTrabalhosCols();
   var nomes = {};
   var saidasMap = {};
   var cursosMap = {};
@@ -3185,6 +4334,12 @@ function _coletarContextoConflitosAgenda(socioIds) {
       cursosMap: cursosMap,
       matriculas: getRowsAtivas(SHEETS.CURSO_MATRICULAS).filter(function(r) {
         return socioIds.indexOf(String(r[cmCurso.socioeducando_id])) >= 0;
+      })
+    },
+    trabalhos: {
+      cols: ct,
+      rows: getRowsAtivas(SHEETS.TRABALHOS).filter(function(r) {
+        return socioIds.indexOf(String(r[ct.socioeducando_id])) >= 0;
       })
     }
   };
@@ -3309,6 +4464,49 @@ function _conflitosCursosParaItem(sid, inicio, termino, contexto, ignorados) {
   return conflitos;
 }
 
+function _conflitosTrabalhosParaItem(sid, inicio, termino, contexto) {
+  var conflitos = [];
+  var ct = contexto.trabalhos.cols;
+  var ignorarTrabalhoId = (contexto.ignorados && contexto.ignorados.trabalho_id) || '';
+
+  contexto.trabalhos.rows.forEach(function(r) {
+    var trabalhoId = String(r[ct.id]);
+    if (ignorarTrabalhoId && trabalhoId === ignorarTrabalhoId) return;
+    if (String(r[ct.socioeducando_id]) !== sid) return;
+
+    var dataInicio = toIso(r[ct.data_inicio]);
+    if (!dataInicio) return;
+
+    var trabalho = {
+      tipo: String(r[ct.tipo] || ''),
+      empresa: String(r[ct.empresa] || ''),
+      curso: String(r[ct.curso] || ''),
+      data_inicio: dataInicio,
+      data_termino: toIso(r[ct.data_fim]) || '9999-12-31',
+      horario_inicio: fmtTime(r[ct.horario_inicio]),
+      horario_termino: fmtTime(r[ct.horario_fim]),
+      diasSet: String(r[ct.dias_semana] || '').split(/[;,]/).map(_normalizarDiaSemanaCurso).filter(function(v) { return !!v; })
+    };
+
+    var ocorrencia = _encontrarConflitoCurso(trabalho, inicio, termino);
+    if (!ocorrencia) return;
+
+    var descricao = trabalho.tipo || 'Trabalho';
+    if (trabalho.empresa) descricao += ' - ' + trabalho.empresa;
+    if (trabalho.curso) descricao += ' (' + trabalho.curso + ')';
+
+    conflitos.push({
+      tipo: 'Trabalho',
+      id: trabalhoId,
+      descricao: descricao,
+      inicio: ocorrencia.inicioIso,
+      termino: ocorrencia.terminoIso
+    });
+  });
+
+  return conflitos;
+}
+
 function _listarConflitosAgendaParaItem(item, contexto, ignorados) {
   var sid = String(item.socioeducando_id || '');
   var inicio = _toDateSafe(item.data_hora_inicio);
@@ -3318,7 +4516,11 @@ function _listarConflitosAgendaParaItem(item, contexto, ignorados) {
   return []
     .concat(_conflitosSaidasParaItem(sid, inicio, termino, contexto, ignorados))
     .concat(_conflitosAtendimentosParaItem(sid, inicio, termino, contexto, ignorados))
-    .concat(_conflitosCursosParaItem(sid, inicio, termino, contexto, ignorados));
+    .concat(_conflitosCursosParaItem(sid, inicio, termino, contexto, ignorados))
+    .concat(_conflitosTrabalhosParaItem(sid, inicio, termino, {
+      trabalhos: contexto.trabalhos,
+      ignorados: ignorados
+    }));
 }
 
 function verificarConflitosAgenda(payload) {
@@ -3330,13 +4532,15 @@ function verificarConflitosAgenda(payload) {
     saida_matricula_id: payload.ignorar_matricula_id ? String(payload.ignorar_matricula_id) : '',
     atendimento_id: payload.ignorar_atendimento_id ? String(payload.ignorar_atendimento_id) : '',
     curso_matricula_id: payload.ignorar_curso_matricula_id ? String(payload.ignorar_curso_matricula_id) : '',
-    curso_id: payload.ignorar_curso_id ? String(payload.ignorar_curso_id) : ''
+    curso_id: payload.ignorar_curso_id ? String(payload.ignorar_curso_id) : '',
+    trabalho_id: payload.ignorar_trabalho_id ? String(payload.ignorar_trabalho_id) : ''
   };
   if (payload.ignorados) {
     if (payload.ignorados.saida_matricula_id) ignorados.saida_matricula_id = String(payload.ignorados.saida_matricula_id);
     if (payload.ignorados.atendimento_id) ignorados.atendimento_id = String(payload.ignorados.atendimento_id);
     if (payload.ignorados.curso_matricula_id) ignorados.curso_matricula_id = String(payload.ignorados.curso_matricula_id);
     if (payload.ignorados.curso_id) ignorados.curso_id = String(payload.ignorados.curso_id);
+    if (payload.ignorados.trabalho_id) ignorados.trabalho_id = String(payload.ignorados.trabalho_id);
   }
   var itens = payload.itens;
 
@@ -3353,7 +4557,9 @@ function verificarConflitosAgenda(payload) {
   var total = 0;
 
   itens.forEach(function(it) {
-    var conflitos = _listarConflitosAgendaParaItem(it, contexto, ignorados);
+    var conflitos = (it && it.recorrencia_tipo === 'trabalho')
+      ? _conflitosItemTrabalhoRecorrente(it, contexto, ignorados)
+      : _listarConflitosAgendaParaItem(it, contexto, ignorados);
 
     if (conflitos.length) {
       total += conflitos.length;
