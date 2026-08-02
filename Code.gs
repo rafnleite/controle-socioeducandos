@@ -1499,6 +1499,7 @@ function salvarSaidaComMatricula(dados) {
     throw new Error('A data/hora de volta não pode ser anterior à data/hora de ida.');
   }
   if (!dados.conducao) throw new Error('Condução é obrigatória.');
+  if (!dados.nome_acompanhante || String(dados.nome_acompanhante).trim() === '') throw new Error('Nome do(a) acompanhante é obrigatório.');
   if (!dados.status) throw new Error('Status é obrigatório.');
 
   var shSaidas = getSheet(SHEETS.SAIDAS);
@@ -1585,6 +1586,7 @@ function salvarSaidaLote(vinculosSocioeducandos, dados) {
     throw new Error('A data/hora de volta não pode ser anterior à data/hora de ida.');
   }
   if (!dados.conducao) throw new Error('Condução é obrigatória.');
+  if (!dados.nome_acompanhante || String(dados.nome_acompanhante).trim() === '') throw new Error('Nome do(a) acompanhante é obrigatório.');
 
   var vinculos = (vinculosSocioeducandos || []).filter(function(v) { return v && v.id && v.status; });
   if (!vinculos.length) throw new Error('Defina o status de ao menos um socioeducando.');

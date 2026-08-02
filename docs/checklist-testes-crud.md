@@ -109,7 +109,7 @@
 ## 5. Saídas / Vínculos de Saída
 
 ### 5.1 Cadastro individual (Saída + Vínculo, a partir do perfil)
-- [ ] Criar nova saída vinculando um socioeducando (Local, Data/Hora Ida, Condução, Status) → cria linha em `Saidas` e `SaidaMatriculas`.
+- [ ] Criar nova saída vinculando um socioeducando (Local, Data/Hora Ida, Condução, **Nome do acompanhante**, Status) → cria linha em `Saidas` e `SaidaMatriculas`.
 - [ ] Data/Hora de volta anterior à ida → erro de validação.
 - [ ] Campos obrigatórios (Local, Data/Hora Ida, Condução, Status) → erro se algum faltar.
 - [ ] Editar uma saída existente → atualiza sem duplicar; `Atualizado por` preenchido.
@@ -120,8 +120,10 @@
 ### 5.2 Cadastro em lote (vários socioeducandos na mesma saída)
 - [ ] Selecionar vários socioeducandos com status individual (Prevista/Realizada/Cancelada) → 1 `Saida` + N `SaidaMatriculas`.
 - [ ] Nenhum vínculo com status definido → erro bloqueando.
+- [ ] Nome do(a) acompanhante vazio → erro de validação (campo obrigatório).
 - [ ] O formulário não oferece “observação individual padrão para todos”; observações de vínculo seguem sendo lançadas individualmente depois.
 - [ ] **Verificação de conflito de agenda**: socioeducando já tem curso/saída/atendimento no mesmo horário → alerta de conflito (não bloqueia, apenas avisa).
+- [ ] Ao clicar em **Cadastrar saídas** com conflitos, abrir modal detalhado com os conflitos e botões **Revisar horários** e **Cadastrar saídas mesmo assim**.
 - [ ] Vínculo com `Status = "Cancelada"` → não conta como conflito de agenda em novas verificações.
 
 ---

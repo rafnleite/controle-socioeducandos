@@ -147,7 +147,8 @@ o primeiro paint da tela.
 ### Saídas
 
 - Cadastro individual vinculado a um socioeducando (`mostrarFormSaida`), com status
-  (Prevista/Realizada/Cancelada), local, ida/volta, condução, acompanhante,
+  (Prevista/Realizada/Cancelada), local, ida/volta, condução, **nome do(a)
+  acompanhante obrigatório**,
   observações do evento (geral, compartilhada por todos os vinculados) e observações
   do vínculo (específica daquele socioeducando).
 - Cadastro **em lote** (`mostrarFormSaidaLote`): mesmo padrão do lote de Cursos — cria
@@ -159,7 +160,9 @@ o primeiro paint da tela.
 - **Verificação de conflitos de agenda** (`verificarConflitosAgenda`): ao preencher
   datas em formulários de saída (individual ou lote), o sistema consulta em tempo real
   se o(s) socioeducando(s) já tem curso, outra saída ou atendimento no mesmo intervalo,
-  e exibe um alerta com os conflitos antes de salvar (com confirmação explícita do usuário).
+  e exibe um alerta com os conflitos antes de salvar. No lote, ao clicar em
+  "Cadastrar saídas", o sistema abre um **modal de confirmação detalhado** com
+  os conflitos e as ações "Revisar horários" ou "Cadastrar saídas mesmo assim".
 
 ### Atendimentos
 
