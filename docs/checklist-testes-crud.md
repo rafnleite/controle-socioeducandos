@@ -13,7 +13,7 @@
 - [ ] Tabela do painel exibe colunas na ordem: ID, Nome, Status, Internado desde, Idade, Escolaridade, E-mail, Resumo.
 - [ ] Coluna **Resumo** mostra pill de cursos com ícone + quantidade de cursos ativos.
 - [ ] Ao clicar na pill de cursos, abre modal com os cursos ativos do socioeducando (tipo, curso, local, período e horário).
-- [ ] No modal de cursos, a ação **Ver vínculo** abre o vínculo de matrícula correspondente para edição.
+- [ ] No modal de cursos do overview, não existe ação de edição (modal somente leitura/consulta).
 - [ ] Quando houver vínculos de trabalho ativos, a coluna **Resumo** mostra uma pill por empresa empregadora.
 - [ ] Ao clicar em uma pill de trabalho, abre modal com os detalhes do vínculo selecionado (tipo, empresa, curso, contrato, início/fim e horário).
 - [ ] No modal de trabalho, a ação **Abrir vínculo** abre a edição do trabalho correto (mesmo ID do pill clicado).
@@ -22,6 +22,9 @@
 - [ ] Quando o socioeducando não tiver saída cultural realizada, aparece a pill `NÃO FEZ SAÍDA CULTURAL`.
 - [ ] Linhas de socioeducandos sem saída cultural realizada aparecem destacadas visualmente.
 - [ ] Ao registrar uma saída cultural como realizada (ou com retorno), o alerta de saída cultural deixa de aparecer no overview após atualizar o painel.
+- [ ] Filtro **Sem visita territorial** (Todos/Sim/Não) aplica corretamente na tabela de socioeducandos.
+- [ ] Filtro **Sem saída cultural** (Todos/Sim/Não) aplica corretamente na tabela de socioeducandos.
+- [ ] **Resumo do dia** exibe card/lista de **Aniversariantes** quando houver socioeducandos que façam aniversário na data selecionada.
 
 ### 1.1 Importar Socioeducandos (CSV — "Documentos Pessoais" do SUASE)
 - [ ] Selecionar CSV válido → pré-visualização mostra corretamente novos vs. já existentes.

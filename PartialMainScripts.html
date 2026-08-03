@@ -9,6 +9,8 @@ var ESTADO = {
   overviewFiltroStatus: ['internado'],
   overviewFiltroCursos: 'todos',
   overviewFiltroTrabalho: 'todos',
+  overviewFiltroSemVisita: 'todos',
+  overviewFiltroSemSaidaCultural: 'todos',
   overviewBusca: '',
   cursosEncFiltroTipo: null,
   cursosEncFiltroLocal: null,
@@ -37,6 +39,8 @@ var DIAS_SEMANA_CURSO = [
   { value: '5', label: 'Sex' },
   { value: '6', label: 'Sáb' }
 ];
+var CSD_SOCIO_PLACEHOLDER = 'Selecione o socioeducando';
+var CSD_SOCIO_SEARCH_PLACEHOLDER = 'Buscar nome ou ID...';
 
 function deslogarConta() {
   var destino = APP_URL || 'https://myaccount.google.com/';
@@ -63,6 +67,7 @@ var CONFLITO_TIMERS = {};
 var IL_INTERESSE_TODOS = [];
 var IL_INTERESSE_ITENS = [];
 var IL_INTERESSE_ATIVO_IDX = -1;
+var VINCULO_CURSO_OVERVIEW_PENDENTE = null;
 
 // ══════════════════════════════════════════════════
 //  Utilitários
@@ -615,11 +620,35 @@ function htmlConflitosAgenda(resultado){
     return out;
   }
 
+  function fmtListaDias(dias){
+    var arr = Array.isArray(dias) ? dias.filter(function(d){ return !!String(d || '').trim(); }) : [];
+    if(!arr.length) return '';
+    if(arr.length === 1) return arr[0];
+    if(arr.length === 2) return arr[0] + ' e ' + arr[1];
+    return arr.slice(0, -1).join(', ') + ' e ' + arr[arr.length - 1];
+  }
+
+  function fmtDetalheConflito(c){
+    var rec = c && c.conflito_recorrente;
+    if(rec && rec.tipo === 'recorrente'){
+      var ini = fmtDataExibicao(rec.data_inicio || '');
+      var fim = rec.data_fim ? fmtDataExibicao(rec.data_fim) : 'sem data fim';
+      var dias = fmtListaDias(rec.dias_semana || []);
+      var hi = String(rec.horario_inicio || '').trim();
+      var hf = String(rec.horario_termino || '').trim();
+      var txt = 'Conflito recorrente entre ' + ini + ' e ' + fim;
+      if(dias) txt += ', em ' + dias;
+      if(hi && hf) txt += ', entre ' + hi + ' e ' + hf;
+      return txt;
+    }
+    return fmtDataExibicao(c.inicio || '') + ' a ' + fmtDataExibicao(c.termino || '');
+  }
+
   var linhas = resultado.conflitos.map(function(item){
     var nome = item.socioeducando_nome ? item.socioeducando_nome + ' (ID ' + item.socioeducando_id + ')' : 'ID ' + item.socioeducando_id;
     var prefixo = item.linha ? 'Linha ' + item.linha + ' - ' : '';
     var det = item.conflitos.map(function(c){
-      return c.tipo + ': ' + esc(c.descricao || 'Sem descrição') + ' (' + esc(fmtDataExibicao(c.inicio || '')) + ' a ' + esc(fmtDataExibicao(c.termino || '')) + ')';
+      return c.tipo + ': ' + esc(c.descricao || 'Sem descrição') + ' (' + esc(fmtDetalheConflito(c)) + ')';
     }).join('<br>');
     return '<li><strong>'+esc(prefixo+nome)+'</strong><br><small>'+det+'</small></li>';
   }).join('');
@@ -657,6 +686,30 @@ function abrirModalConflitosAgenda(opts){
     return out;
   }
 
+  function fmtListaDias(dias){
+    var arr = Array.isArray(dias) ? dias.filter(function(d){ return !!String(d || '').trim(); }) : [];
+    if(!arr.length) return '';
+    if(arr.length === 1) return arr[0];
+    if(arr.length === 2) return arr[0] + ' e ' + arr[1];
+    return arr.slice(0, -1).join(', ') + ' e ' + arr[arr.length - 1];
+  }
+
+  function fmtDetalheConflito(c){
+    var rec = c && c.conflito_recorrente;
+    if(rec && rec.tipo === 'recorrente'){
+      var ini = fmtDataExibicao(rec.data_inicio || '');
+      var fim = rec.data_fim ? fmtDataExibicao(rec.data_fim) : 'sem data fim';
+      var dias = fmtListaDias(rec.dias_semana || []);
+      var hi = String(rec.horario_inicio || '').trim();
+      var hf = String(rec.horario_termino || '').trim();
+      var txt = 'Conflito recorrente entre ' + ini + ' e ' + fim;
+      if(dias) txt += ', em ' + dias;
+      if(hi && hf) txt += ', entre ' + hi + ' e ' + hf;
+      return txt;
+    }
+    return fmtDataExibicao(c.inicio || '') + ' a ' + fmtDataExibicao(c.termino || '');
+  }
+
   var linhas = resultado.conflitos.map(function(item){
     var nome = item.socioeducando_nome
       ? item.socioeducando_nome + ' (ID ' + item.socioeducando_id + ')'
@@ -664,7 +717,7 @@ function abrirModalConflitosAgenda(opts){
     var detalhes = item.conflitos.map(function(c){
       return '<li style="margin-bottom:4px"><strong>'+esc(c.tipo || 'Conflito')+':</strong> '
         + esc(c.descricao || 'Sem descrição')
-        + ' <span class="text-muted">(' + esc(fmtDataExibicao(c.inicio || '')) + ' a ' + esc(fmtDataExibicao(c.termino || '')) + ')</span></li>';
+        + ' <span class="text-muted">(' + esc(fmtDetalheConflito(c)) + ')</span></li>';
     }).join('');
     return '<div style="padding:10px 12px;border:1px solid #f3ddb1;background:#fffdf7;border-radius:8px;margin-bottom:8px">'
       + '<div style="font-weight:700;color:#664d03;margin-bottom:6px">'+esc(nome)+'</div>'
@@ -776,36 +829,45 @@ function gerarItensConflitoRecorrenciaSemanal(cfg){
 }
 
 function montarItensConflitoCursoParaSocio(cfg){
-  return gerarItensConflitoRecorrenciaSemanal({
-    socioeducando_id: cfg && cfg.socioeducando_id,
-    data_inicio: cfg && cfg.data_inicio,
-    data_termino: cfg && cfg.data_termino,
-    horario_inicio: cfg && cfg.horario_inicio,
-    horario_termino: cfg && cfg.horario_termino,
-    dias_semana: cfg && cfg.dias_semana,
-    linha: cfg && cfg.linha,
-    max_ocorrencias: cfg && cfg.max_ocorrencias
-  });
+  var sid = cfg && cfg.socioeducando_id ? String(cfg.socioeducando_id) : '';
+  var dataInicio = cfg && cfg.data_inicio ? String(cfg.data_inicio).trim() : '';
+  var hi = cfg && cfg.horario_inicio ? String(cfg.horario_inicio).trim() : '';
+  var hf = cfg && cfg.horario_termino ? String(cfg.horario_termino).trim() : '';
+  var dias = cfg && cfg.dias_semana ? String(cfg.dias_semana).trim() : '';
+
+  if(!sid || !dataInicio || !hi || !hf || !dias) return [];
+
+  return [{
+    linha: Number((cfg && cfg.linha) || 1),
+    socioeducando_id: sid,
+    recorrencia_tipo: 'curso',
+    data_inicio: dataInicio,
+    data_termino: cfg && cfg.data_termino ? String(cfg.data_termino).trim() : '',
+    horario_inicio: hi,
+    horario_termino: hf,
+    dias_semana: dias
+  }];
 }
 
 function montarItensConflitoTrabalhoParaSocio(cfg){
-  var dataInicio = cfg && cfg.data_inicio ? String(cfg.data_inicio) : '';
-  var dataTermino = cfg && cfg.data_termino ? String(cfg.data_termino) : '';
+  var sid = cfg && cfg.socioeducando_id ? String(cfg.socioeducando_id) : '';
+  var dataInicio = cfg && cfg.data_inicio ? String(cfg.data_inicio).trim() : '';
+  var hi = cfg && cfg.horario_inicio ? String(cfg.horario_inicio).trim() : '';
+  var hf = cfg && cfg.horario_termino ? String(cfg.horario_termino).trim() : '';
+  var dias = cfg && cfg.dias_semana ? String(cfg.dias_semana).trim() : '';
 
-  // Sem data de término o trabalho é tratado por uma checagem recorrente no backend
-  // (janela aberta/infinita), então não geramos ocorrências locais aqui.
-  if(!dataTermino) return [];
+  if(!sid || !dataInicio || !hi || !hf || !dias) return [];
 
-  return gerarItensConflitoRecorrenciaSemanal({
-    socioeducando_id: cfg && cfg.socioeducando_id,
+  return [{
+    linha: Number((cfg && cfg.linha) || 1),
+    socioeducando_id: sid,
+    recorrencia_tipo: 'trabalho',
     data_inicio: dataInicio,
-    data_termino: dataTermino,
-    horario_inicio: cfg && cfg.horario_inicio,
-    horario_termino: cfg && cfg.horario_termino,
-    dias_semana: cfg && cfg.dias_semana,
-    linha: cfg && cfg.linha,
-    max_ocorrencias: cfg && cfg.max_ocorrencias
-  });
+    data_termino: cfg && cfg.data_termino ? String(cfg.data_termino).trim() : '',
+    horario_inicio: hi,
+    horario_termino: hf,
+    dias_semana: dias
+  }];
 }
 
 function abrirModalConfirmacao(opts){
@@ -1508,10 +1570,12 @@ function toggleEvTermino(sel) {
 
 function submitEditarVinculoCurso(cursoId) {
   var msgEl = document.getElementById('ev-msg');
+  setBusyState(true, 'Validando vínculo...');
   var matriculado = document.getElementById('ev-status').value === 'Matriculado';
   var tipoTermino = matriculado ? document.getElementById('ev-tipo-termino').value : '';
   var dataTermino = tipoTermino ? document.getElementById('ev-data-termino').value : '';
   if (tipoTermino && !dataTermino) {
+    setBusyState(false);
     msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe a data de término.</div>';
     return;
   }
@@ -1568,8 +1632,10 @@ function submitEditarVinculoCurso(cursoId) {
     return;
   }
 
+  setBusyState(true, 'Verificando conflitos de agenda...');
   consultarConflitosAgenda(itensConflito, { curso_matricula_id: dados.matricula_id }, function(conflitos){
     if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      setBusyState(false);
       abrirModalConflitosAgenda({
         resultado: conflitos,
         confirmarTexto: 'Salvar vínculo mesmo assim',
@@ -1626,10 +1692,12 @@ function abrirEditarVinculoPerfil(matriculaId) {
 
 function submitEditarVinculoPerfil() {
   var msgEl = document.getElementById('ev-msg');
+  setBusyState(true, 'Validando vínculo...');
   var matriculado = document.getElementById('ev-status').value === 'Matriculado';
   var tipoTermino = matriculado ? document.getElementById('ev-tipo-termino').value : '';
   var dataTermino = tipoTermino ? document.getElementById('ev-data-termino').value : '';
   if (tipoTermino && !dataTermino) {
+    setBusyState(false);
     msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe a data de término.</div>';
     return;
   }
@@ -1676,8 +1744,10 @@ function submitEditarVinculoPerfil() {
     return;
   }
 
+  setBusyState(true, 'Verificando conflitos de agenda...');
   consultarConflitosAgenda(itensConflito, { curso_matricula_id: dados.matricula_id }, function(conflitos){
     if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      setBusyState(false);
       abrirModalConflitosAgenda({
         resultado: conflitos,
         confirmarTexto: 'Salvar vínculo mesmo assim',
@@ -1769,12 +1839,12 @@ function linhaEmlNovoHtml() {
     return '<li class="csd-opt" data-value="'+esc(s.id)+'">'+esc(s.nome)+' (ID '+esc(s.id)+')</li>';
   }).join('');
   return '<tr class="eml-row-novo">'
-    +'<td><div class="csd" data-placeholder="Selecione o socioeducando">'
+    +'<td><div class="csd" data-placeholder="'+esc(CSD_SOCIO_PLACEHOLDER)+'">'
     +'<button type="button" class="csd-btn">'
-    +'<span class="csd-label ph">Selecione o socioeducando</span>'
+    +'<span class="csd-label ph">'+esc(CSD_SOCIO_PLACEHOLDER)+'</span>'
     +'<span class="csd-arrow">&#9660;</span>'
     +'</button>'
-    +'<div class="csd-panel"><input type="text" class="csd-search" placeholder="Buscar nome ou ID..."><ul class="csd-list">'+opts+'</ul></div>'
+    +'<div class="csd-panel"><input type="text" class="csd-search" placeholder="'+esc(CSD_SOCIO_SEARCH_PLACEHOLDER)+'"><ul class="csd-list">'+opts+'</ul></div>'
     +'<input type="hidden" class="eml-novo-socio" value="">'
     +'</div></td>'
     +'<td><select class="eml-status status-vinculo-select" onchange="atualizarCorStatusSelect(this);toggleEmlTermino(this)" data-status="Interessado">'
@@ -1847,6 +1917,7 @@ function renderModalEditarMatriculasLote(c) {
 
 function submitEditarMatriculasLote(cursoId) {
   var msgEl = document.getElementById('eml-msg');
+  setBusyState(true, 'Validando matrículas...');
 
   var terminoSemData = false;
 
@@ -1882,6 +1953,7 @@ function submitEditarMatriculasLote(cursoId) {
   }).filter(function(n) { return n.socioeducando_id; });
 
   if (terminoSemData) {
+    setBusyState(false);
     msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe a data de término para os vínculos marcados como Concluído ou Desistente.</div>';
     return;
   }
@@ -1949,8 +2021,10 @@ function submitEditarMatriculasLote(cursoId) {
     return;
   }
 
+  setBusyState(true, 'Verificando conflitos de agenda...');
   consultarConflitosAgenda(itensConflito, { curso_id: cursoId }, function(conflitos){
     if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      setBusyState(false);
       abrirModalConflitosAgenda({
         resultado: conflitos,
         confirmarTexto: 'Salvar matrículas mesmo assim',
@@ -2035,13 +2109,14 @@ function abrirEditarCursoEncerramento(cursoId) {
 
 function submitEditarCurso() {
   var msgEl = document.getElementById('ec-msg');
+  setBusyState(true, 'Validando curso...');
   var ini = document.getElementById('ec-ini').value;
   var ter = document.getElementById('ec-ter').value;
   var hi  = document.getElementById('ec-hi').value;
   var ht  = document.getElementById('ec-ht').value;
   var dias = lerDiasSemanaCurso('ec');
-  if ((hi && !ht) || (!hi && ht)) { msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o horário de início e término juntos, ou deixe ambos em branco.</div>'; return; }
-  if (cursoPeriodoInvalidoLocal(ini, hi, ter, ht)) { msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> O término não pode ser anterior ao início.</div>'; return; }
+  if ((hi && !ht) || (!hi && ht)) { setBusyState(false); msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o horário de início e término juntos, ou deixe ambos em branco.</div>'; return; }
+  if (cursoPeriodoInvalidoLocal(ini, hi, ter, ht)) { setBusyState(false); msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> O término não pode ser anterior ao início.</div>'; return; }
 
   var dados = {
     curso_id: document.getElementById('ec-cursoid').value,
@@ -2097,8 +2172,10 @@ function submitEditarCurso() {
     return;
   }
 
+  setBusyState(true, 'Verificando conflitos de agenda...');
   consultarConflitosAgenda(itensConflito, { curso_id: dados.curso_id }, function(conflitos){
     if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      setBusyState(false);
       abrirModalConflitosAgenda({
         resultado: conflitos,
         confirmarTexto: 'Salvar edição do curso mesmo assim',
@@ -2154,6 +2231,8 @@ function renderOverview(d){
   var filtStatus = ESTADO.overviewFiltroStatus;
   var filtCursos = ESTADO.overviewFiltroCursos;
   var filtTrabalho = ESTADO.overviewFiltroTrabalho || 'todos';
+  var filtSemVisita = ESTADO.overviewFiltroSemVisita || 'todos';
+  var filtSemSaidaCultural = ESTADO.overviewFiltroSemSaidaCultural || 'todos';
   var busca = ESTADO.overviewBusca.toLowerCase();
   var sortKey = ESTADO.overviewSortKey || 'id';
   var sortDir = ESTADO.overviewSortDir || 'asc';
@@ -2164,6 +2243,10 @@ function renderOverview(d){
     if(filtCursos === 'nao' && j.cursos_ativos > 0) return false;
     if(filtTrabalho === 'sim' && !j.trabalhando) return false;
     if(filtTrabalho === 'nao' && j.trabalhando) return false;
+    if(filtSemVisita === 'sim' && !j.nao_possui_visita_territorial) return false;
+    if(filtSemVisita === 'nao' && j.nao_possui_visita_territorial) return false;
+    if(filtSemSaidaCultural === 'sim' && !j.nao_fez_saida_cultural) return false;
+    if(filtSemSaidaCultural === 'nao' && j.nao_fez_saida_cultural) return false;
     if(busca && j.nome.toLowerCase().indexOf(busca) < 0 && String(j.id).indexOf(busca) < 0) return false;
     return true;
   });
@@ -2228,6 +2311,18 @@ function renderOverview(d){
     return '<button class="seg-btn'+ativo+'" onclick="setFiltrosTrabalho(\''+v+'\')" data-tv="'+v+'">'+label+'</button>';
   }).join('');
 
+  var semVisitaBtns = ['todos','sim','nao'].map(function(v){
+    var label = {todos:'Todos',sim:'Sim',nao:'Não'}[v];
+    var ativo = filtSemVisita === v ? ' active' : '';
+    return '<button class="seg-btn'+ativo+'" onclick="setFiltrosSemVisita(\''+v+'\')" data-vt="'+v+'">'+label+'</button>';
+  }).join('');
+
+  var semSaidaCulturalBtns = ['todos','sim','nao'].map(function(v){
+    var label = {todos:'Todos',sim:'Sim',nao:'Não'}[v];
+    var ativo = filtSemSaidaCultural === v ? ' active' : '';
+    return '<button class="seg-btn'+ativo+'" onclick="setFiltrosSemSaidaCultural(\''+v+'\')" data-sc="'+v+'">'+label+'</button>';
+  }).join('');
+
   function headOrdenavel(key, label){
     var ativo = sortKey === key;
     var seta = ativo ? (sortDir === 'asc' ? '▲' : '▼') : '↕';
@@ -2249,12 +2344,18 @@ function renderOverview(d){
 
     var idade = idadeAnos(j.data_nascimento_iso);
     var trabalhosDetalhes = Array.isArray(j.trabalhos_ativos_detalhes) ? j.trabalhos_ativos_detalhes : [];
+    var trabalhosAIniciar = Array.isArray(j.trabalhos_a_iniciar_detalhes) ? j.trabalhos_a_iniciar_detalhes : [];
     var pillsResumo = [];
 
     pillsResumo.push('<button type="button" class="overview-pill overview-pill-cursos overview-pill-btn" onclick="abrirDetalhesCursosOverview(\''+esc(j.id)+'\')" title="Ver cursos ativos"><i class="fa-solid fa-book-open"></i> '+Number(j.cursos_ativos || 0)+'</button>');
 
     trabalhosDetalhes.forEach(function(t){
       pillsResumo.push('<button type="button" class="overview-pill overview-pill-trabalho overview-pill-btn" onclick="abrirDetalhesTrabalhoOverview(\''+esc(j.id)+'\',\''+esc(t.id)+'\')" title="Ver detalhes do trabalho"><i class="fa-solid fa-briefcase"></i> '+esc(t.empresa || 'Sem empresa')+'</button>');
+    });
+
+    trabalhosAIniciar.forEach(function(t){
+      var nomeEmpresa = (t.empresa || 'Sem empresa') + ' (a iniciar)';
+      pillsResumo.push('<button type="button" class="overview-pill overview-pill-trabalho overview-pill-btn" onclick="abrirDetalhesTrabalhoOverview(\''+esc(j.id)+'\',\''+esc(t.id)+'\')" title="Ver detalhes do trabalho"><i class="fa-solid fa-briefcase"></i> '+esc(nomeEmpresa)+'</button>');
     });
 
     if(j.nao_possui_visita_territorial){
@@ -2309,6 +2410,8 @@ function renderOverview(d){
     +'<div><span class="fw-bold">Status:</span> <div class="segmented">'+statusBtns+'</div></div>'
     +'<div><span class="fw-bold">Em cursos:</span> <div class="segmented">'+cursosBtns+'</div></div>'
     +'<div><span class="fw-bold">Trabalhando:</span> <div class="segmented">'+trabalhoBtns+'</div></div>'
+    +'<div><span class="fw-bold">Sem visita territorial:</span> <div class="segmented">'+semVisitaBtns+'</div></div>'
+    +'<div><span class="fw-bold">Sem saída cultural:</span> <div class="segmented">'+semSaidaCulturalBtns+'</div></div>'
     +'</div>'
     // Tabela
     +(filtrados.length === 0
@@ -2339,6 +2442,8 @@ function toggleFiltroStatus(s){
 }
 function setFiltrosCursos(v){ ESTADO.overviewFiltroCursos = v; filtrarOverview(); }
 function setFiltrosTrabalho(v){ ESTADO.overviewFiltroTrabalho = v; filtrarOverview(); }
+function setFiltrosSemVisita(v){ ESTADO.overviewFiltroSemVisita = v; filtrarOverview(); }
+function setFiltrosSemSaidaCultural(v){ ESTADO.overviewFiltroSemSaidaCultural = v; filtrarOverview(); }
 
 function obterSocioeducandoOverviewPorId(socioeducandoId){
   if(!OVERVIEW_DATA || !Array.isArray(OVERVIEW_DATA.socioeducandos)) return null;
@@ -2373,7 +2478,27 @@ function abrirVinculoCursoDoOverview(socioeducandoId, matriculaId, nomeSocioeduc
   fecharModalDetalhesOverview();
   ESTADO.socioeducandoId = String(socioeducandoId || '');
   ESTADO.socioeducandoNome = String(nomeSocioeducando || '');
-  mostrarFormCurso(socioeducandoId, matriculaId);
+  VINCULO_CURSO_OVERVIEW_PENDENTE = {
+    socioeducando_id: String(socioeducandoId || ''),
+    matricula_id: String(matriculaId || '')
+  };
+  mostrarPerfil(socioeducandoId);
+}
+
+function consumirPendenciaVinculoCursoOverview(socioeducandoId){
+  var pendente = VINCULO_CURSO_OVERVIEW_PENDENTE;
+  if(!pendente) return;
+  if(String(pendente.socioeducando_id) !== String(socioeducandoId || '')) return;
+
+  VINCULO_CURSO_OVERVIEW_PENDENTE = null;
+  if(!pendente.matricula_id) return;
+
+  var existe = (PERFIL_CURSOS_DATA || []).some(function(c){
+    return String(c.matricula_id) === String(pendente.matricula_id);
+  });
+  if(!existe) return;
+
+  abrirEditarVinculoPerfil(pendente.matricula_id);
 }
 
 function abrirDetalhesCursosOverview(socioeducandoId){
@@ -2382,7 +2507,7 @@ function abrirDetalhesCursosOverview(socioeducandoId){
   var cursos = Array.isArray(j.cursos_ativos_detalhes) ? j.cursos_ativos_detalhes : [];
 
   var linhas = cursos.length === 0
-    ? '<tr><td colspan="6" class="no-records">Nenhum curso ativo.</td></tr>'
+    ? '<tr><td colspan="5" class="no-records">Nenhum curso ativo.</td></tr>'
     : cursos.map(function(c){
         var cursoNome = '<strong>'+esc(c.nome_curso || '—')+'</strong>'
           + (c.instituicao ? '<br><small class="text-muted">'+esc(c.instituicao)+'</small>' : '');
@@ -2395,13 +2520,12 @@ function abrirDetalhesCursosOverview(socioeducandoId){
           + '<td>'+local+'</td>'
           + '<td>'+periodo+'</td>'
           + '<td>'+horario+'</td>'
-          + '<td><button class="btn btn-outline btn-xs" onclick="abrirVinculoCursoDoOverview(\''+esc(j.id)+'\',\''+esc(c.matricula_id)+'\',\''+esc(j.nome)+'\')"><i class="fa-solid fa-pen-to-square"></i> Ver vínculo</button></td>'
           + '</tr>';
       }).join('');
 
   var corpo = ''
     + '<div class="text-muted" style="margin-bottom:10px">Socioeducando: <strong>'+esc(j.nome)+'</strong> (ID '+esc(j.id)+')</div>'
-    + '<div style="overflow-x:auto"><table><thead><tr><th>Tipo</th><th>Curso</th><th>Local</th><th>Período</th><th>Horário</th><th></th></tr></thead><tbody>'+linhas+'</tbody></table></div>';
+    + '<div style="overflow-x:auto"><table><thead><tr><th>Tipo</th><th>Curso</th><th>Local</th><th>Período</th><th>Horário</th></tr></thead><tbody>'+linhas+'</tbody></table></div>';
 
   abrirModalDetalhesOverview('<i class="fa-solid fa-book-open"></i> Cursos ativos', corpo);
 }
@@ -2409,7 +2533,9 @@ function abrirDetalhesCursosOverview(socioeducandoId){
 function abrirDetalhesTrabalhoOverview(socioeducandoId, trabalhoId){
   var j = obterSocioeducandoOverviewPorId(socioeducandoId);
   if(!j) return;
-  var trabalhos = Array.isArray(j.trabalhos_ativos_detalhes) ? j.trabalhos_ativos_detalhes : [];
+  var trabalhosAtivos = Array.isArray(j.trabalhos_ativos_detalhes) ? j.trabalhos_ativos_detalhes : [];
+  var trabalhosAIniciar = Array.isArray(j.trabalhos_a_iniciar_detalhes) ? j.trabalhos_a_iniciar_detalhes : [];
+  var trabalhos = trabalhosAtivos.concat(trabalhosAIniciar);
   var t = trabalhos.find(function(x){ return String(x.id) === String(trabalhoId); });
   if(!t) return;
 
@@ -2546,6 +2672,16 @@ function parseDateTimeLocal(iso){
   if(!iso) return null;
   var s = String(iso).trim().replace(/\s+/g, ' ');
   if(!s) return null;
+
+  // ISO date only (YYYY-MM-DD): parse as local date to avoid UTC day shift.
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)){
+    var p = s.split('-');
+    var y = Number(p[0]);
+    var m0 = Number(p[1]) - 1;
+    var d0 = Number(p[2]);
+    var dOnly = new Date(y, m0, d0, 0, 0, 0, 0);
+    return isNaN(dOnly.getTime()) ? null : dOnly;
+  }
 
   // ISO local (YYYY-MM-DDTHH:mm) or with seconds.
   if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(s)){
@@ -2733,8 +2869,25 @@ function corCursoAusente(corBase){
   return coresMenosSaturadas[String(corBase || '').toLowerCase()] || '#a6adb4';
 }
 
-function eventosAgendaPerfil(d){
+function _limiteInicioDia(d){
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+}
+
+function _limiteFimFaixa(d){
+  return new Date(d.getTime() - 1);
+}
+
+function _intervalosSobrepostos(aIni, aFim, bIni, bFim){
+  if(!aIni || !bIni) return false;
+  var fimA = aFim || aIni;
+  var fimB = bFim || bIni;
+  return aIni <= fimB && bIni <= fimA;
+}
+
+function eventosAgendaPerfil(d, rangeStart, rangeEnd){
   var eventos = [];
+  var limiteInicio = rangeStart ? _limiteInicioDia(rangeStart) : null;
+  var limiteFim = rangeEnd ? _limiteFimFaixa(rangeEnd) : null;
   var eventosCursoPorMatriculaEDia = {};
   (d.curso_eventos || []).forEach(function(evento){
     eventosCursoPorMatriculaEDia[String(evento.curso_matricula_id) + '|' + String(evento.data_iso)] = evento;
@@ -2745,6 +2898,7 @@ function eventosAgendaPerfil(d){
     var ini = parseDateTimeLocal(s.data_hora_ida_iso) || parseDateTimeLocal(s.data_hora_ida);
     if(!ini) return;
     var fim = parseDateTimeLocal(s.data_hora_volta_iso) || parseDateTimeLocal(s.data_hora_volta);
+    if(limiteInicio && limiteFim && !_intervalosSobrepostos(ini, fim, limiteInicio, limiteFim)) return;
     eventos.push({
       title: 'Saída: ' + (s.local || 'Local não informado'),
       start: toCalendarIsoLocal(ini),
@@ -2759,6 +2913,7 @@ function eventosAgendaPerfil(d){
     var ini = parseDateTimeLocal(a.data_hora_inicio_iso) || parseDateTimeLocal(a.data_hora_inicio);
     if(!ini) return;
     var fim = parseDateTimeLocal(a.data_hora_termino_iso) || parseDateTimeLocal(a.data_hora_termino);
+    if(limiteInicio && limiteFim && !_intervalosSobrepostos(ini, fim, limiteInicio, limiteFim)) return;
     eventos.push({
       title: 'Atendimento: ' + (a.tipo_atendimento || 'Atendimento'),
       start: toCalendarIsoLocal(ini),
@@ -2771,9 +2926,9 @@ function eventosAgendaPerfil(d){
   // Trabalhos — gerar ocorrências semanais para cada dia da semana cadastrado
   // Mapa: '0'=Dom … '6'=Sáb  →  getDay() do JS
   (d.trabalhos || []).forEach(function(t){
-    if(!t.data_inicio_iso || !t.data_termino_iso) return;
+    if(!t.data_inicio_iso) return;
     var hi = String(t.horario_inicio || '').trim();
-    var ht = String(t.horario_termino || '').trim();
+    var ht = String(t.horario_fim || t.horario_termino || '').trim();
     if(!hi || !ht) return;
 
     var diasSemana = String(t.dias_semana || '').split(/[;,]/)
@@ -2786,14 +2941,24 @@ function eventosAgendaPerfil(d){
     var hIni = parseInt(hiParts[0], 10), mIni = parseInt(hiParts[1] || '0', 10);
     var hFim = parseInt(htParts[0], 10), mFim = parseInt(htParts[1] || '0', 10);
 
-    var cursor = new Date(t.data_inicio_iso + 'T00:00:00');
-    var fim    = new Date(t.data_termino_iso + 'T23:59:59');
-    var cor    = '#7a4cc2';
-    var titulo = 'Trabalho: ' + (t.nome_trabalho || 'Trabalho');
-    var MAX_OCORRENCIAS = 500;
-    var count = 0;
+    var inicioTrabalho = new Date(t.data_inicio_iso + 'T00:00:00');
+    var fimTrabalho = t.data_fim_iso
+      ? new Date(t.data_fim_iso + 'T23:59:59')
+      : null;
 
-    while(cursor <= fim && count < MAX_OCORRENCIAS) {
+    var cursorBase = limiteInicio || inicioTrabalho;
+    var cursor = inicioTrabalho < cursorBase ? new Date(cursorBase) : new Date(inicioTrabalho);
+    var fim = fimTrabalho;
+    if(limiteFim) fim = fim ? (fim < limiteFim ? fim : limiteFim) : limiteFim;
+    if(!fim) return;
+
+    if(cursor > fim) return;
+
+    var cor    = '#7a4cc2';
+    var tituloBase = t.empresa || t.tipo || 'Trabalho';
+    var titulo = 'Trabalho: ' + tituloBase;
+
+    while(cursor <= fim) {
       if(diasSemana.indexOf(cursor.getDay()) >= 0) {
         var dtIni = new Date(cursor);
         dtIni.setHours(hIni, mIni, 0, 0);
@@ -2809,10 +2974,9 @@ function eventosAgendaPerfil(d){
           extendedProps: {
             tipo: 'trabalho',
             trabalho_id: t.id,
-            nome_trabalho: t.nome_trabalho || 'Trabalho'
+            nome_trabalho: tituloBase
           }
         });
-        count++;
       }
       cursor.setDate(cursor.getDate() + 1);
     }
@@ -2836,14 +3000,17 @@ function eventosAgendaPerfil(d){
     var hIni = parseInt(hiParts[0], 10), mIni = parseInt(hiParts[1] || '0', 10);
     var hFim = parseInt(htParts[0], 10), mFim = parseInt(htParts[1] || '0', 10);
 
-    var cursor = new Date(c.data_inicio_iso + 'T00:00:00');
-    var fim    = new Date(c.data_termino_iso + 'T23:59:59');
+    var inicioCurso = new Date(c.data_inicio_iso + 'T00:00:00');
+    var fimCurso = new Date(c.data_termino_iso + 'T23:59:59');
+    var cursorBase = limiteInicio || inicioCurso;
+    var cursor = inicioCurso < cursorBase ? new Date(cursorBase) : new Date(inicioCurso);
+    var fim = limiteFim ? (fimCurso < limiteFim ? fimCurso : limiteFim) : fimCurso;
+    if(cursor > fim) return;
+
     var cor    = c.matricula_data_termino ? '#6c757d' : '#e67e00';
     var titulo = 'Curso: ' + (c.nome_curso || 'Curso');
-    var MAX_OCORRENCIAS = 500; // segurança
-    var count = 0;
 
-    while(cursor <= fim && count < MAX_OCORRENCIAS) {
+    while(cursor <= fim) {
       if(diasSemana.indexOf(cursor.getDay()) >= 0) {
         var dtIni = new Date(cursor);
         dtIni.setHours(hIni, mIni, 0, 0);
@@ -2874,7 +3041,6 @@ function eventosAgendaPerfil(d){
             observacoes: observacoes
           }
         });
-        count++;
       }
       cursor.setDate(cursor.getDate() + 1);
     }
@@ -2893,8 +3059,7 @@ function renderAgendaPerfil(d){
     CALENDARIO_PERFIL.destroy();
     CALENDARIO_PERFIL = null;
   }
-  var eventos = eventosAgendaPerfil(d);
-  if(empty) empty.style.display = eventos.length ? 'none' : 'block';
+  if(empty) empty.style.display = 'none';
 
   CALENDARIO_PERFIL = new FullCalendar.Calendar(el, {
     locale: 'pt-br',
@@ -2916,7 +3081,13 @@ function renderAgendaPerfil(d){
       week: 'Semana',
       month: 'Mês'
     },
-    events: eventos,
+    events: function(fetchInfo, successCallback){
+      var eventos = eventosAgendaPerfil(d, fetchInfo.start, fetchInfo.end);
+      successCallback(eventos);
+    },
+    eventsSet: function(eventos){
+      if(empty) empty.style.display = eventos.length ? 'none' : 'block';
+    },
     eventDidMount: function(info){
       var props = info.event.extendedProps || {};
       if(props.tipo === 'curso') {
@@ -3072,6 +3243,7 @@ function fecharModalFamiliar(){
 }
 
 function submitModalFamiliar(){
+  setBusyState(true, 'Validando familiar...');
   var dados = {
     id: (document.getElementById('mf-id').value || '').trim(),
     socioeducando_id: (document.getElementById('mf-sid').value || '').trim(),
@@ -3084,6 +3256,7 @@ function submitModalFamiliar(){
 
   var msgEl = document.getElementById('mf-msg');
   if(!dados.nome){
+    setBusyState(false);
     if(msgEl) msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o nome do familiar.</div>';
     return;
   }
@@ -3188,7 +3361,7 @@ function renderPerfilSkeleton(){
     + '<div id="perfil-topo-slot" class="card"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando cabeçalho do perfil...</div></div>'
     + '<div id="perfil-admissoes-slot" class="card"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando admissões...</div></div>'
     + '<div class="card agenda-perfil-card">'
-    + '<div class="sec-hdr"><h5><i class="fa-solid fa-calendar-days"></i> Agenda dos últimos e próximos 14 dias</h5><small class="text-muted">Cursos, trabalhos, saídas e atendimentos do período</small></div>'
+    + '<div class="sec-hdr"><h5><i class="fa-solid fa-calendar-days"></i> Agenda</h5><small class="text-muted">Cursos, trabalhos, saídas e atendimentos</small></div>'
     + '<div id="perfil-agenda"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando agenda...</div></div>'
     + '<div id="perfil-agenda-empty" style="display:none">Sem atividades registradas para este socioeducando.</div>'
     + '<div class="agenda-legenda">'
@@ -3323,6 +3496,7 @@ function carregarSecoesPerfil(reqId, socioeducandoId){
       ESTADO.perfilChunks.cursos = ativos;
       PERFIL_CURSOS_DATA = ativos;
       renderPerfilSecaoCursos(socioeducandoId, ativos, ESTADO.perfilChunks.interesses || []);
+      consumirPendenciaVinculoCursoOverview(socioeducandoId);
       atualizarContadoresAbasPerfil();
       maybeRenderAgendaPerfilChunks(reqId, socioeducandoId);
     })
@@ -3958,7 +4132,7 @@ function renderPerfil(d){
 
     // Agenda visual
     +'<div class="card agenda-perfil-card">'
-    +'<div class="sec-hdr"><h5><i class="fa-solid fa-calendar-days"></i> Agenda dos últimos e próximos 14 dias</h5><small class="text-muted">Cursos, trabalhos, saídas e atendimentos do período</small></div>'
+    +'<div class="sec-hdr"><h5><i class="fa-solid fa-calendar-days"></i> Agenda</h5><small class="text-muted">Cursos, trabalhos, saídas e atendimentos</small></div>'
     +'<div id="perfil-agenda"></div>'
     +'<div id="perfil-agenda-empty">Sem atividades registradas para este socioeducando.</div>'
     +'<div class="agenda-legenda">'
@@ -4106,6 +4280,7 @@ function renderFormSocioeducando(socioeducando){
 }
 
 function submitFormSocioeducando(editando){
+  setBusyState(true, 'Validando cadastro...');
   var elEmail = document.getElementById('f-email-prof');
   var elSenha = document.getElementById('f-senha-prof');
   var dados = {
@@ -4119,14 +4294,17 @@ function submitFormSocioeducando(editando){
     editando: editando
   };
   if(!dados.nome){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger">Informe o nome completo.</div>';
     return;
   }
   if(!editando && !dados.data_admissao){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger">Informe a data de admissão.</div>';
     return;
   }
   if(!editando && dados.data_admissao > today()){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger">Data de admissão não pode ser futura.</div>';
     return;
   }
@@ -4326,14 +4504,17 @@ function mostrarFormTermino(matriculaId, socioeducandoId, tipoTerminoAtual, data
 }
 
 function submitFormTermino(matriculaId, socioeducandoId, desfazer) {
+  setBusyState(true, 'Validando término...');
   var tipo = desfazer ? '' : document.getElementById('fc-tipo').value;
   var data = desfazer ? '' : document.getElementById('fc-data').value;
   var cert = desfazer ? false : document.getElementById('fc-cert').checked;
   if (!desfazer && !tipo) {
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o tipo de término.</div>';
     return;
   }
   if (!desfazer && !data) {
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe a data de término.</div>';
     return;
   }
@@ -4416,13 +4597,14 @@ function renderFormCurso(socioeducandoId, curso){
 }
 
 function submitFormCurso(){
+  setBusyState(true, 'Validando curso...');
   var ini = document.getElementById('c-ini').value;
   var ter = document.getElementById('c-ter').value;
   var hi  = document.getElementById('c-hi').value;
   var ht  = document.getElementById('c-ht').value;
   var dias = lerDiasSemanaCurso('c');
-  if((hi && !ht) || (!hi && ht)){ document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o horário de início e término juntos, ou deixe ambos em branco.</div>'; return; }
-  if(cursoPeriodoInvalidoLocal(ini, hi, ter, ht)){ document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> O término não pode ser anterior ao início.</div>'; return; }
+  if((hi && !ht) || (!hi && ht)){ setBusyState(false); document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o horário de início e término juntos, ou deixe ambos em branco.</div>'; return; }
+  if(cursoPeriodoInvalidoLocal(ini, hi, ter, ht)){ setBusyState(false); document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> O término não pode ser anterior ao início.</div>'; return; }
   var dados = {
     matricula_id: document.getElementById('c-matid').value,
     curso_id:     document.getElementById('c-cursoid').value,
@@ -4469,8 +4651,10 @@ function submitFormCurso(){
   if(dados.matricula_id) ignorados.curso_matricula_id = dados.matricula_id;
   if(dados.curso_id) ignorados.curso_id = dados.curso_id;
 
+  setBusyState(true, 'Verificando conflitos de agenda...');
   consultarConflitosAgenda(itensConflito, ignorados, function(conflitos){
     if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      setBusyState(false);
       abrirModalConflitosAgenda({
         resultado: conflitos,
         confirmarTexto: 'Salvar curso mesmo assim',
@@ -4522,11 +4706,28 @@ function mostrarFormTrabalho(socioeducandoId, trabalhoId){
     .getDadosFormTrabalho();
 }
 
-function opcoesSocioeducandoTrabalho(lista, selecionadoId){
-  return '<option value="">Selecione...</option>' + (lista || []).map(function(j){
-    var sel = String(j.id) === String(selecionadoId || '') ? ' selected' : '';
-    return '<option value="'+esc(j.id)+'"'+sel+'>'+esc(j.nome)+' (ID '+esc(j.id)+')</option>';
+function campoSocioeducandoTrabalhoHtml(lista, selecionadoId){
+  var sid = String(selecionadoId || '');
+  var labelSel = CSD_SOCIO_PLACEHOLDER;
+  var temSel = false;
+  var selecionado = (lista || []).find(function(j){ return String(j.id) === sid; });
+  if(selecionado){
+    labelSel = selecionado.nome + ' (ID ' + selecionado.id + ')';
+    temSel = true;
+  }
+
+  var opts = (lista || []).map(function(j){
+    return '<li class="csd-opt" data-value="'+esc(j.id)+'">'+esc(j.nome)+' (ID '+esc(j.id)+')</li>';
   }).join('');
+
+  return '<div class="csd" data-placeholder="'+esc(CSD_SOCIO_PLACEHOLDER)+'">'
+    +'<button type="button" class="csd-btn">'
+    +'<span class="csd-label'+(temSel?'':' ph')+'">'+esc(labelSel)+'</span>'
+    +'<span class="csd-arrow">&#9660;</span>'
+    +'</button>'
+    +'<div class="csd-panel"><input type="text" class="csd-search" placeholder="'+esc(CSD_SOCIO_SEARCH_PLACEHOLDER)+'"><ul class="csd-list">'+opts+'</ul></div>'
+    +'<input type="hidden" id="t-sid" value="'+esc(sid)+'">'
+    +'</div>';
 }
 
 function renderFormTrabalho(socioeducandoId, trabalho, listaSocioeducandos){
@@ -4542,7 +4743,7 @@ function renderFormTrabalho(socioeducandoId, trabalho, listaSocioeducandos){
     +'<input type="hidden" id="t-id" value="'+(trabalho?esc(trabalho.id):'')+'">'
     +(fixoNoPerfil
       ? '<input type="hidden" id="t-sid" value="'+esc(sid)+'">'
-      : '<div class="form-group"><label>Socioeducando <span class="req">*</span></label><select id="t-sid">'+opcoesSocioeducandoTrabalho(listaSocioeducandos, sid)+'</select></div>')
+      : '<div class="form-group"><label>Socioeducando <span class="req">*</span></label>'+campoSocioeducandoTrabalhoHtml(listaSocioeducandos, sid)+'</div>')
     +'<div class="row2">'
     +'<div class="form-group"><label>Tipo <span class="req">*</span></label><select id="t-tipo"><option value="">Selecione...</option>'
     +TIPOS_TRABALHO.map(function(tp){ return '<option value="'+esc(tp)+'"'+(trabalho&&trabalho.tipo===tp?' selected':'')+'>'+esc(tp)+'</option>'; }).join('')
@@ -4570,6 +4771,7 @@ function renderFormTrabalho(socioeducandoId, trabalho, listaSocioeducandos){
 }
 
 function submitFormTrabalho(){
+  setBusyState(true, 'Validando trabalho...');
   var id = document.getElementById('t-id').value;
   var sid = document.getElementById('t-sid').value;
   var ini = document.getElementById('t-ini').value;
@@ -4593,47 +4795,40 @@ function submitFormTrabalho(){
   };
 
   if(!dados.socioeducando_id || !dados.tipo || !dados.empresa || !dados.data_contrato || !dados.data_inicio){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Preencha todos os campos obrigatórios.</div>';
     return;
   }
   if((hi && !hf) || (!hi && hf)){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o horário de início e fim juntos, ou deixe ambos em branco.</div>';
     return;
   }
   if((hi || hf) && !dias){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Se informar horário, selecione também os dias da semana.</div>';
     return;
   }
   if(dias && (!hi || !hf)){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Se informar os dias da semana, preencha também horário de início e fim.</div>';
     return;
   }
   if(cursoPeriodoInvalidoLocal(ini, hi || '00:00', fim, hf || '00:00')){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> A data de fim não pode ser anterior ao início.</div>';
     return;
   }
 
-  var trabalhoSemDataFim = !String(dados.data_fim || '').trim();
-  var itensConflito = trabalhoSemDataFim
-    ? [{
-        linha: 1,
-        socioeducando_id: dados.socioeducando_id,
-        recorrencia_tipo: 'trabalho',
-        data_inicio: dados.data_inicio,
-        data_termino: dados.data_fim || '',
-        horario_inicio: dados.horario_inicio,
-        horario_termino: dados.horario_fim,
-        dias_semana: dados.dias_semana
-      }]
-    : montarItensConflitoTrabalhoParaSocio({
-        socioeducando_id: dados.socioeducando_id,
-        data_inicio: dados.data_inicio,
-        data_termino: dados.data_fim,
-        horario_inicio: dados.horario_inicio,
-        horario_termino: dados.horario_fim,
-        dias_semana: dados.dias_semana,
-        linha: 1
-      });
+  var itensConflito = montarItensConflitoTrabalhoParaSocio({
+    socioeducando_id: dados.socioeducando_id,
+    data_inicio: dados.data_inicio,
+    data_termino: dados.data_fim,
+    horario_inicio: dados.horario_inicio,
+    horario_termino: dados.horario_fim,
+    dias_semana: dados.dias_semana,
+    linha: 1
+  });
 
   function executarSalvarTrabalho(){
     setBusyState(true, 'Salvando trabalho...');
@@ -4657,8 +4852,10 @@ function submitFormTrabalho(){
   var ignorados = {};
   if(dados.id) ignorados.trabalho_id = dados.id;
 
+  setBusyState(true, 'Verificando conflitos de agenda...');
   consultarConflitosAgenda(itensConflito, ignorados, function(conflitos){
     if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      setBusyState(false);
       abrirModalConflitosAgenda({
         resultado: conflitos,
         confirmarTexto: 'Salvar trabalho mesmo assim',
@@ -4722,6 +4919,7 @@ function mostrarFormVisitaTerritorial(socioeducandoId, visitaId){
 }
 
 function submitFormVisitaTerritorial(){
+  setBusyState(true, 'Validando visita territorial...');
   var dados = {
     id: document.getElementById('vt-id').value,
     socioeducando_id: document.getElementById('vt-sid').value,
@@ -4735,14 +4933,17 @@ function submitFormVisitaTerritorial(){
   };
 
   if(!dados.data){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe a data da visita.</div>';
     return;
   }
   if(dados.data > today()){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> A data da visita não pode ser futura.</div>';
     return;
   }
   if(!dados.tec_responsavel){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o técnico responsável.</div>';
     return;
   }
@@ -4798,12 +4999,14 @@ function mostrarFormAdmissao(socioeducandoId){
 }
 
 function submitFormAdmissao(){
+  setBusyState(true, 'Validando admissão...');
   var dados = {
     socioeducando_id: document.getElementById('a-jid').value,
     data_admissao: document.getElementById('a-adm').value,
     data_desligamento: document.getElementById('a-des').value
   };
   if(dados.data_admissao > today()){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Data de admissão não pode ser futura.</div>';
     return;
   }
@@ -4849,13 +5052,16 @@ function renderFormEditarAdmissao(socioeducandoId, adm){
 }
 
 function submitFormEditarAdmissao(){
+  setBusyState(true, 'Validando admissão...');
   var adm = document.getElementById('ea-adm').value;
   var des = document.getElementById('ea-des').value;
   if(adm > today()){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Data de admissão não pode ser futura.</div>';
     return;
   }
   if(adm && des && des < adm){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Data de desligamento não pode ser anterior à admissão.</div>';
     return;
   }
@@ -4949,9 +5155,10 @@ function renderFormFuga(socioeducandoId, fuga){
 }
 
 function submitFormFuga(){
+  setBusyState(true, 'Validando ocorrência...');
   var sai = document.getElementById('fg-sai').value;
   var ret = document.getElementById('fg-ret').value;
-  if(sai && ret && ret < sai){ document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Data de retorno não pode ser anterior à data de saída.</div>'; return; }
+  if(sai && ret && ret < sai){ setBusyState(false); document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Data de retorno não pode ser anterior à data de saída.</div>'; return; }
   var dados = {
     id: document.getElementById('fg-id').value,
     socioeducando_id: document.getElementById('fg-jid').value,
@@ -5129,6 +5336,7 @@ function verificarConflitosSaidaFormulario(done){
 }
 
 function submitFormSaida(){
+  setBusyState(true, 'Validando saída...');
   var dataIda = obterValorDateTimeFlatpickr(document.getElementById('sa-data-ida'));
   var horaIda = obterValorDateTimeFlatpickr(document.getElementById('sa-hora-ida'));
   var dataVolta = obterValorDateTimeFlatpickr(document.getElementById('sa-data-volta'));
@@ -5151,23 +5359,31 @@ function submitFormSaida(){
   };
 
   if(!dataIda || !horaIda || !dataVolta || !horaVolta){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Preencha data e horário de saída e de retorno.</div>';
     return;
   }
   if(dados.data_hora_volta < dados.data_hora_ida){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">A data/hora de volta não pode ser anterior à data/hora de ida.</div>';
     return;
   }
   if(!dados.nome_acompanhante){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o nome do(a) acompanhante.</div>';
     return;
   }
   if(!dados.tipo){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o tipo da saída.</div>';
     return;
   }
+  setBusyState(true, 'Verificando conflitos de agenda...');
   verificarConflitosSaidaFormulario(function(conflitos){
-    if(conflitos && conflitos.conflitos && conflitos.conflitos.length && !modalConfirmarConflitos(conflitos)) return;
+    if(conflitos && conflitos.conflitos && conflitos.conflitos.length && !modalConfirmarConflitos(conflitos)) {
+      setBusyState(false);
+      return;
+    }
 
     setBusyState(true, 'Salvando saída...');
     google.script.run
@@ -5248,7 +5464,7 @@ function opcoesSocioeducandoAtendimento(selecionadoId){
 }
 
 function linhaAtendimentoHtml(selecionadoId, inicio, termino, observacoes){
-  var labelSel = 'Selecione o socioeducando';
+  var labelSel = CSD_SOCIO_PLACEHOLDER;
   var temSel = false;
   if(selecionadoId){
     var js = ATENDIMENTO_SOCIOEDUCANDOS.find(function(x){ return String(x.id) === String(selecionadoId); });
@@ -5263,7 +5479,7 @@ function linhaAtendimentoHtml(selecionadoId, inicio, termino, observacoes){
     +'<span class="csd-label'+(temSel?'':' ph')+'">'+esc(labelSel)+'</span>'
     +'<span class="csd-arrow">&#9660;</span>'
     +'</button>'
-    +'<div class="csd-panel"><input type="text" class="csd-search" placeholder="Buscar nome ou ID..."><ul class="csd-list">'+opts+'</ul></div>'
+    +'<div class="csd-panel"><input type="text" class="csd-search" placeholder="'+esc(CSD_SOCIO_SEARCH_PLACEHOLDER)+'"><ul class="csd-list">'+opts+'</ul></div>'
     +'<input type="hidden" class="at-socio" value="'+esc(selecionadoId || '')+'">'
     +'</div></td>'
     +'<td><input type="datetime-local" class="at-inicio js-datetime" value="'+esc(inicio || '')+'"></td>'
@@ -5492,11 +5708,13 @@ function submitFormAtendimentos(socioeducandoPadraoId){
   // Disable button immediately to prevent double-submit and signal activity
   var btnSalvar = document.getElementById('at-salvar');
   if(btnSalvar){ btnSalvar.disabled = true; btnSalvar.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>Salvando...'; }
+  setBusyState(true, 'Validando atendimentos...');
 
   var tipo = document.getElementById('at-tipo').value;
   var responsavel = document.getElementById('at-resp').value.trim();
 
   if(!tipo || !responsavel){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">Preencha tipo de atendimento e responsável.</div>';
     if(btnSalvar){ btnSalvar.disabled = false; btnSalvar.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>Salvar informações'; }
     return;
@@ -5513,11 +5731,13 @@ function submitFormAtendimentos(socioeducandoPadraoId){
     var obs = obsEl ? obsEl.value.trim() : '';
 
     if(!sid || !ini || !ter){
+      setBusyState(false);
       document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">Preencha socioeducando, início e término na linha '+(i+1)+'.</div>';
       if(btnSalvar){ btnSalvar.disabled = false; btnSalvar.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>Salvar informações'; }
       return;
     }
     if(ter < ini){
+      setBusyState(false);
       document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">A data/hora de término não pode ser anterior ao início na linha '+(i+1)+'.</div>';
       if(btnSalvar){ btnSalvar.disabled = false; btnSalvar.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>Salvar informações'; }
       return;
@@ -5531,6 +5751,7 @@ function submitFormAtendimentos(socioeducandoPadraoId){
     });
   }
 
+  setBusyState(true, 'Verificando conflitos de agenda...');
   verificarConflitosAtendimentoFormulario(function(conflitos){
     function executarSalvarAtendimentos(){
       // Freeze screen immediately before the async GAS call
@@ -5560,6 +5781,7 @@ function submitFormAtendimentos(socioeducandoPadraoId){
     }
 
     if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      setBusyState(false);
       abrirModalConflitosAgenda({
         resultado: conflitos,
         confirmarTexto: 'Salvar atendimentos mesmo assim',
@@ -5633,6 +5855,7 @@ function renderFormEditarAtendimento(socioeducandoId, at){
 }
 
 function submitFormEditarAtendimento(){
+  setBusyState(true, 'Validando atendimento...');
   var iniEl = document.getElementById('ea-at-inicio');
   var terEl = document.getElementById('ea-at-termino');
   var ini = obterValorDateTimeFlatpickr(iniEl) || iniEl.value;
@@ -5646,14 +5869,17 @@ function submitFormEditarAtendimento(){
     observacoes: document.getElementById('ea-at-obs').value.trim()
   };
   if(!dados.tipo_atendimento || !dados.responsavel || !ini || !ter){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">Preencha todos os campos obrigatórios.</div>';
     return;
   }
   if(ter < ini){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">A data/hora de término não pode ser anterior ao início.</div>';
     return;
   }
 
+  setBusyState(true, 'Verificando conflitos de agenda...');
   consultarConflitosAgenda([
     {
       linha: 1,
@@ -5671,6 +5897,7 @@ function submitFormEditarAtendimento(){
     }
 
     if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      setBusyState(false);
       abrirModalConflitosAgenda({
         resultado: conflitos,
         confirmarTexto: 'Salvar atendimento mesmo assim',
@@ -5705,10 +5932,51 @@ function buildResumoDiaHtml(ad){
   }
 
   var atHoje  = ad.atendimentos_hoje || [];
+  var cuHoje  = ad.cursos_hoje       || [];
+  var trHoje  = ad.trabalhos_hoje    || [];
   var saHoje  = ad.saidas_hoje       || [];
   var retHoje = ad.retornos_hoje     || [];
   var fugHoje = ad.fugas_hoje        || [];
-  var temAtividade = atHoje.length || saHoje.length || retHoje.length || fugHoje.length;
+  var niverHoje = ad.aniversariantes_hoje || [];
+  var temAtividade = atHoje.length || cuHoje.length || trHoje.length || saHoje.length || retHoje.length || fugHoje.length || niverHoje.length;
+  var totalCategorias = (atHoje.length ? 1 : 0)
+    + (cuHoje.length ? 1 : 0)
+    + (trHoje.length ? 1 : 0)
+    + (saHoje.length ? 1 : 0)
+    + (retHoje.length ? 1 : 0)
+    + (fugHoje.length ? 1 : 0)
+    + (niverHoje.length ? 1 : 0);
+
+  function horaParaMinutos(valor){
+    var m = String(valor || '').match(/(\d{1,2}):(\d{2})/);
+    if(!m) return 9999;
+    var h = Number(m[1]);
+    var min = Number(m[2]);
+    if(isNaN(h) || isNaN(min)) return 9999;
+    return h * 60 + min;
+  }
+
+  function compararPorHorario(inicioA, fimA, inicioB, fimB){
+    var iniA = horaParaMinutos(inicioA);
+    var iniB = horaParaMinutos(inicioB);
+    if(iniA !== iniB) return iniA - iniB;
+    var terA = horaParaMinutos(fimA);
+    var terB = horaParaMinutos(fimB);
+    return terA - terB;
+  }
+
+  var atHojeOrdenado = atHoje.slice().sort(function(a, b){
+    return compararPorHorario(a.hora_inicio, a.hora_termino, b.hora_inicio, b.hora_termino);
+  });
+  var trHojeOrdenado = trHoje.slice().sort(function(a, b){
+    return compararPorHorario(a.horario_inicio, a.horario_fim, b.horario_inicio, b.horario_fim);
+  });
+  var saHojeOrdenado = saHoje.slice().sort(function(a, b){
+    return compararPorHorario(a.hora_ida, a.hora_volta, b.hora_ida, b.hora_volta);
+  });
+  var retHojeOrdenado = retHoje.slice().sort(function(a, b){
+    return compararPorHorario(a.hora_ida, a.hora_volta, b.hora_ida, b.hora_volta);
+  });
 
   function itemAt(a){
     var badge = a.realizado === 'Não'
@@ -5730,6 +5998,16 @@ function buildResumoDiaHtml(ad){
       +'<span style="font-size:11px">Saiu: '+esc(s.hora_ida)+'</span>'
       +volta+'</div>';
   }
+  function itemTr(t){
+    var horario = (t.horario_inicio && t.horario_fim)
+      ? esc(t.horario_inicio)+' &ndash; '+esc(t.horario_fim)
+      : '<span class="text-muted">Horário não informado</span>';
+    return '<div class="resumo-dia-item">'
+      +'<span class="resumo-dia-nome"><a class="link-btn" onclick="mostrarPerfil(\''+esc(t.socioeducando_id)+'\')">'+esc(t.socioeducando_nome)+'</a></span>'
+      +'<span class="text-muted" style="font-size:11px">'+esc(t.empresa || t.tipo || 'Trabalho')+'</span>'
+      +'<span style="font-size:11px">'+horario+'</span>'
+      +'</div>';
+  }
   function itemRet(r){
     return '<div class="resumo-dia-item">'
       +'<span class="resumo-dia-nome"><a class="link-btn" onclick="mostrarPerfil(\''+esc(r.socioeducando_id)+'\')">'+esc(r.socioeducando_nome)+'</a></span>'
@@ -5744,16 +6022,76 @@ function buildResumoDiaHtml(ad){
       +'<span class="text-muted" style="font-size:11px">'+esc(f.tipo)+'</span>'
       +b+'</div>';
   }
+  function itemNiver(n){
+    var idadeTxt = (n.idade === null || n.idade === undefined || n.idade === '') ? '' : ' ('+esc(String(n.idade))+' anos)';
+    return '<div class="resumo-dia-item">'
+      +'<span class="resumo-dia-nome"><a class="link-btn" onclick="mostrarPerfil(\''+esc(n.socioeducando_id)+'\')">'+esc(n.socioeducando_nome)+'</a></span>'
+      +'<span class="text-muted" style="font-size:11px">Nascimento: '+esc(n.data_nascimento || '—')+idadeTxt+'</span>'
+      +'</div>';
+  }
+
+  var cursosAgrupadosMap = {};
+  cuHoje.forEach(function(c){
+    var key = String(c.curso_id || '') + '|' + String(c.horario_inicio || '') + '|' + String(c.horario_termino || '');
+    if(!cursosAgrupadosMap[key]){
+      cursosAgrupadosMap[key] = {
+        curso_id: c.curso_id,
+        nome_curso: c.nome_curso,
+        instituicao: c.instituicao,
+        local: c.local,
+        tipo_curso: c.tipo_curso,
+        horario_inicio: c.horario_inicio,
+        horario_termino: c.horario_termino,
+        socioeducandos: []
+      };
+    }
+    cursosAgrupadosMap[key].socioeducandos.push({
+      id: c.socioeducando_id,
+      nome: c.socioeducando_nome
+    });
+  });
+
+  var cursosAgrupados = Object.keys(cursosAgrupadosMap).map(function(k){
+    var g = cursosAgrupadosMap[k];
+    g.socioeducandos.sort(function(a, b){
+      return String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
+    });
+    return g;
+  }).sort(function(a, b){
+    var ord = compararPorHorario(a.horario_inicio, a.horario_termino, b.horario_inicio, b.horario_termino);
+    if(ord !== 0) return ord;
+    return String(a.nome_curso || '').localeCompare(String(b.nome_curso || ''), 'pt-BR');
+  });
+
+  function itemCursoAgrupado(g){
+    var subtitulo = [];
+    if(g.tipo_curso) subtitulo.push(g.tipo_curso);
+    if(g.instituicao) subtitulo.push(g.instituicao);
+    if(g.local) subtitulo.push(g.local);
+    var horario = (g.horario_inicio && g.horario_termino)
+      ? g.horario_inicio+' &ndash; '+g.horario_termino
+      : 'Horário não informado';
+    var totalSocioeducandos = g.socioeducandos.length;
+    return '<div class="resumo-dia-item">'
+      +'<span class="resumo-dia-nome">'+esc(g.nome_curso || 'Curso')+'</span>'
+      +(subtitulo.length ? '<span class="text-muted" style="font-size:11px">'+esc(subtitulo.join(' - '))+'</span>' : '')
+      +'<span style="font-size:11px">'+horario+'</span>'
+      +'<span class="text-muted" style="font-size:11px">'+totalSocioeducandos+' socioeducando'+(totalSocioeducandos === 1 ? '' : 's')+'</span>'
+      +'</div>';
+  }
 
   var conteudo = '';
   if(!temAtividade){
     conteudo = '<p class="text-muted" style="margin:4px 0 0;font-size:13px">Nenhuma atividade registrada para este dia.</p>';
   } else {
-    conteudo = '<div class="resumo-dia-grid">';
-    if(atHoje.length)  conteudo += '<div class="resumo-dia-col"><div class="resumo-dia-titulo"><i class="fa-solid fa-user-group"></i> Atendimentos ('+atHoje.length+')</div><div class="resumo-dia-itens">'+atHoje.map(itemAt).join('')+'</div></div>';
-    if(saHoje.length)  conteudo += '<div class="resumo-dia-col"><div class="resumo-dia-titulo"><i class="fa-solid fa-bus"></i> Saídas ('+saHoje.length+')</div><div class="resumo-dia-itens">'+saHoje.map(itemSa).join('')+'</div></div>';
-    if(retHoje.length) conteudo += '<div class="resumo-dia-col"><div class="resumo-dia-titulo"><i class="fa-solid fa-rotate-left"></i> Retornos ('+retHoje.length+')</div><div class="resumo-dia-itens">'+retHoje.map(itemRet).join('')+'</div></div>';
+    conteudo = '<div class="resumo-dia-grid"'+(totalCategorias > 1 ? ' style="grid-template-columns:1fr"' : '')+'>';
+    if(atHoje.length)  conteudo += '<div class="resumo-dia-col"><div class="resumo-dia-titulo"><i class="fa-solid fa-user-group"></i> Atendimentos ('+atHoje.length+')</div><div class="resumo-dia-itens">'+atHojeOrdenado.map(itemAt).join('')+'</div></div>';
+    if(cursosAgrupados.length) conteudo += '<div class="resumo-dia-col"><div class="resumo-dia-titulo"><i class="fa-solid fa-book-open"></i> Cursos ('+cursosAgrupados.length+')</div><div class="resumo-dia-itens">'+cursosAgrupados.map(itemCursoAgrupado).join('')+'</div></div>';
+    if(trHoje.length) conteudo += '<div class="resumo-dia-col"><div class="resumo-dia-titulo"><i class="fa-solid fa-briefcase"></i> Trabalhos ('+trHoje.length+')</div><div class="resumo-dia-itens">'+trHojeOrdenado.map(itemTr).join('')+'</div></div>';
+    if(saHoje.length)  conteudo += '<div class="resumo-dia-col"><div class="resumo-dia-titulo"><i class="fa-solid fa-bus"></i> Saídas ('+saHoje.length+')</div><div class="resumo-dia-itens">'+saHojeOrdenado.map(itemSa).join('')+'</div></div>';
+    if(retHoje.length) conteudo += '<div class="resumo-dia-col"><div class="resumo-dia-titulo"><i class="fa-solid fa-rotate-left"></i> Retornos ('+retHoje.length+')</div><div class="resumo-dia-itens">'+retHojeOrdenado.map(itemRet).join('')+'</div></div>';
     if(fugHoje.length) conteudo += '<div class="resumo-dia-col"><div class="resumo-dia-titulo" style="color:#dc3545"><i class="fa-solid fa-person-running"></i> Fugas/Evasões ('+fugHoje.length+')</div><div class="resumo-dia-itens">'+fugHoje.map(itemFug).join('')+'</div></div>';
+    if(niverHoje.length) conteudo += '<div class="resumo-dia-col"><div class="resumo-dia-titulo" style="color:#b86800"><i class="fa-solid fa-cake-candles"></i> Aniversariantes ('+niverHoje.length+')</div><div class="resumo-dia-itens">'+niverHoje.map(itemNiver).join('')+'</div></div>';
     conteudo += '</div>';
   }
 
@@ -5887,6 +6225,7 @@ function fecharModalNaoRealizado() {
 }
 
 function submitNaoRealizado(atendimentoId, socioeducandoId) {
+  setBusyState(true, 'Validando reposição...');
   var motivo  = (document.getElementById('nr-motivo')  || {}).value || '';
   var inicio  = obterValorDateTimeFlatpickr(document.getElementById('nr-inicio'))  || (document.getElementById('nr-inicio')  || {}).value || '';
   var termino = obterValorDateTimeFlatpickr(document.getElementById('nr-termino')) || (document.getElementById('nr-termino') || {}).value || '';
@@ -5894,27 +6233,33 @@ function submitNaoRealizado(atendimentoId, socioeducandoId) {
   var msgEl   = document.getElementById('modal-nr-msg');
 
   if (!motivo.trim()) {
+    setBusyState(false);
     if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">Informe o motivo.</div>';
     return;
   }
   if (!inicio || !termino) {
+    setBusyState(false);
     if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">Informe a data/hora do novo atendimento.</div>';
     return;
   }
   if (termino < inicio) {
+    setBusyState(false);
     if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger">O término não pode ser anterior ao início.</div>';
     return;
   }
 
   var btn = document.getElementById('nr-btn-salvar');
   if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+  setBusyState(true, 'Salvando não realizado...');
 
   google.script.run
     .withSuccessHandler(function() {
+      setBusyState(false);
       fecharModalNaoRealizado();
       mostrarPerfil(socioeducandoId);
     })
     .withFailureHandler(function(err) {
+      setBusyState(false);
       if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-xmark"></i> Confirmar não realizado'; }
       if (msgEl) msgEl.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>';
     })
@@ -6073,11 +6418,12 @@ function verificarConflitosSaidaLoteFormulario(done){
 }
 
 function submitSaidaLote(){
+  setBusyState(true, 'Validando saída em lote...');
   var vinculos = [];
   document.querySelectorAll('.slote-status').forEach(function(s){
     if(s.value) vinculos.push({ id: s.dataset.id, status: s.value });
   });
-  if(!vinculos.length){ document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">Defina o status de ao menos um socioeducando.</div>'; return; }
+  if(!vinculos.length){ setBusyState(false); document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">Defina o status de ao menos um socioeducando.</div>'; return; }
 
   var dataIda = obterValorDateTimeFlatpickr(document.getElementById('sl-data-ida'));
   var horaIda = obterValorDateTimeFlatpickr(document.getElementById('sl-hora-ida'));
@@ -6097,19 +6443,23 @@ function submitSaidaLote(){
   };
 
   if(!dados.nome_acompanhante){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o nome do(a) acompanhante.</div>';
     return;
   }
   if(!dados.tipo){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o tipo da saída.</div>';
     return;
   }
   if(!dataIda || !horaIda || !dataVolta || !horaVolta){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Preencha data e horário de saída e de retorno.</div>';
     return;
   }
 
   if(dados.data_hora_volta < dados.data_hora_ida){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">A data/hora de volta não pode ser anterior à data/hora de ida.</div>';
     return;
   }
@@ -6533,6 +6883,7 @@ function atualizarContadorLote(){
 }
 
 function submitCursoLote(){
+  setBusyState(true, 'Validando curso em lote...');
   var vinculos = [];
   document.querySelectorAll('.sv-status').forEach(function(s){
     if(s.value) vinculos.push({ id: s.dataset.id, matriculado: s.value === 'Matriculado' });
@@ -6543,8 +6894,8 @@ function submitCursoLote(){
   var hi  = document.getElementById('cl-hi').value;
   var ht  = document.getElementById('cl-ht').value;
   var dias = lerDiasSemanaCurso('cl');
-  if((hi && !ht) || (!hi && ht)){ document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o horário de início e término juntos, ou deixe ambos em branco.</div>'; return; }
-  if(cursoPeriodoInvalidoLocal(ini, hi, ter, ht)){ document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> O término não pode ser anterior ao início.</div>'; return; }
+  if((hi && !ht) || (!hi && ht)){ setBusyState(false); document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> Informe o horário de início e término juntos, ou deixe ambos em branco.</div>'; return; }
+  if(cursoPeriodoInvalidoLocal(ini, hi, ter, ht)){ setBusyState(false); document.getElementById('form-msg').innerHTML='<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> O término não pode ser anterior ao início.</div>'; return; }
 
   var dados = {
     tipo_curso:  document.getElementById('cl-tipo').value,
@@ -6594,8 +6945,10 @@ function submitCursoLote(){
     return;
   }
 
+  setBusyState(true, 'Verificando conflitos de agenda...');
   consultarConflitosAgenda(itensConflito, {}, function(conflitos){
     if(conflitos && conflitos.conflitos && conflitos.conflitos.length){
+      setBusyState(false);
       abrirModalConflitosAgenda({
         resultado: conflitos,
         confirmarTexto: 'Salvar curso em lote mesmo assim',
@@ -6805,10 +7158,11 @@ function onKeydownInteresseLote(e){
 }
 
 function submitInteressesLote(){
+  setBusyState(true, 'Validando interesses...');
   var interesse = document.getElementById('il-interesse').value.trim();
-  if(!interesse){ document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">Informe o nome do interesse.</div>'; return; }
+  if(!interesse){ setBusyState(false); document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">Informe o nome do interesse.</div>'; return; }
   var ids = Array.from(document.querySelectorAll('.int-check')).filter(function(c){ return c.checked; }).map(function(c){ return c.dataset.id; });
-  if(!ids.length){ document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">Selecione ao menos um socioeducando.</div>'; return; }
+  if(!ids.length){ setBusyState(false); document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">Selecione ao menos um socioeducando.</div>'; return; }
 
   setBusyState(true, 'Salvando interesses...');
   google.script.run
@@ -6878,16 +7232,19 @@ function renderConfigTiposAtendimento(lista, tipoEditando){
 }
 
 function submitTipoAtendimento(){
+  setBusyState(true, 'Validando tipo de atendimento...');
   var dados = {
     tipo_original: document.getElementById('cfg-tipo-original').value,
     tipo: document.getElementById('cfg-tipo-nome').value.trim(),
     duracao_minutos: Number(document.getElementById('cfg-tipo-duracao').value)
   };
   if(!dados.tipo){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">Informe o nome do tipo.</div>';
     return;
   }
   if(!dados.duracao_minutos || dados.duracao_minutos <= 0){
+    setBusyState(false);
     document.getElementById('form-msg').innerHTML='<div class="alert alert-danger">Informe uma duração padrão válida (em minutos).</div>';
     return;
   }

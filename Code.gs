@@ -2477,28 +2477,45 @@ function carregarOverview() {
     return true;
   }
 
+  function trabalhoAIniciar(row) {
+    var inicioIso = toIso(row[ct.data_inicio]);
+    return !!inicioIso && inicioIso > hojeIso;
+  }
+
   var trabalhosPorSocioeducando = {};
   var trabalhosDetalhesPorSocioeducando = {};
+  var trabalhosAIniciarDetalhesPorSocioeducando = {};
   var visitasTerritoriaisPorSocioeducando = {};
   allTrabalhos.forEach(function(r) {
-    if (!trabalhoAtivoHoje(r)) return;
     var sid = String(r[ct.socioeducando_id]);
-    if (!trabalhosPorSocioeducando[sid]) trabalhosPorSocioeducando[sid] = [];
-    if (!trabalhosDetalhesPorSocioeducando[sid]) trabalhosDetalhesPorSocioeducando[sid] = [];
     var empresa = String(r[ct.empresa] || '').trim();
-    if (empresa) trabalhosPorSocioeducando[sid].push(empresa);
-    trabalhosDetalhesPorSocioeducando[sid].push({
+    var detalhe = {
       id: String(r[ct.id]),
       tipo: String(r[ct.tipo] || ''),
       empresa: empresa,
       curso: String(r[ct.curso] || ''),
       data_contrato: fmtDate(r[ct.data_contrato]),
+      data_inicio_iso: toIso(r[ct.data_inicio]),
       data_inicio: fmtDate(r[ct.data_inicio]),
       data_fim: fmtDate(r[ct.data_fim]),
       horario_inicio: fmtTime(r[ct.horario_inicio]),
       horario_fim: fmtTime(r[ct.horario_fim]),
       dias_semana: String(r[ct.dias_semana] || '')
-    });
+    };
+
+    if (trabalhoAtivoHoje(r)) {
+      if (!trabalhosPorSocioeducando[sid]) trabalhosPorSocioeducando[sid] = [];
+      if (!trabalhosDetalhesPorSocioeducando[sid]) trabalhosDetalhesPorSocioeducando[sid] = [];
+      if (empresa) trabalhosPorSocioeducando[sid].push(empresa);
+      trabalhosDetalhesPorSocioeducando[sid].push(detalhe);
+      return;
+    }
+
+    if (trabalhoAIniciar(r)) {
+      if (!trabalhosAIniciarDetalhesPorSocioeducando[sid]) trabalhosAIniciarDetalhesPorSocioeducando[sid] = [];
+      detalhe.a_iniciar = true;
+      trabalhosAIniciarDetalhesPorSocioeducando[sid].push(detalhe);
+    }
   });
 
   allVisitasTerritoriais.forEach(function(r) {
@@ -2520,6 +2537,14 @@ function carregarOverview() {
       var ai = String(a.data_inicio || '');
       var bi = String(b.data_inicio || '');
       return bi.localeCompare(ai);
+    });
+  });
+
+  Object.keys(trabalhosAIniciarDetalhesPorSocioeducando).forEach(function(sid) {
+    trabalhosAIniciarDetalhesPorSocioeducando[sid].sort(function(a, b) {
+      var ai = String(a.data_inicio_iso || '');
+      var bi = String(b.data_inicio_iso || '');
+      return ai.localeCompare(bi);
     });
   });
 
@@ -2590,6 +2615,7 @@ function carregarOverview() {
       });
     var trabalhosAtivos = trabalhosPorSocioeducando[j.id] || [];
     var trabalhosAtivosDetalhes = trabalhosDetalhesPorSocioeducando[j.id] || [];
+    var trabalhosAIniciarDetalhes = trabalhosAIniciarDetalhesPorSocioeducando[j.id] || [];
     var visitasTerritoriaisQtd = Number(visitasTerritoriaisPorSocioeducando[j.id] || 0);
     var fezSaidaCultural = !!fezSaidaCulturalPorSocioeducando[j.id];
 
@@ -2611,6 +2637,7 @@ function carregarOverview() {
       cursos_ativos_detalhes: cursosAtivosDetalhes,
       trabalhos_empresas_ativas: trabalhosAtivos,
       trabalhos_ativos_detalhes: trabalhosAtivosDetalhes,
+      trabalhos_a_iniciar_detalhes: trabalhosAIniciarDetalhes,
       visitas_territoriais_qtd: visitasTerritoriaisQtd,
       nao_possui_visita_territorial: visitasTerritoriaisQtd === 0,
       trabalhando: trabalhosAtivos.length > 0,
@@ -2635,6 +2662,7 @@ function carregarOverview() {
       saidas_hoje: [],
       retornos_hoje: [],
       fugas_hoje: [],
+      aniversariantes_hoje: [],
       _deferred: true
     },
     _perf_overview: perf
@@ -2658,11 +2686,33 @@ function carregarAtividadesDia(dataIso, contexto) {
   var nomes = {};
   socioeducandos.forEach(function(j) { nomes[j.id] = j.nome; });
   var ca = (contexto && contexto.atendimentosCols) || getAtendimentosCols();
+  var cc = (contexto && contexto.cursosCols) || getCursosCols();
+  var cm = (contexto && contexto.cursoMatriculasCols) || getCursoMatriculasCols();
+  var ct = (contexto && contexto.trabalhosCols) || getTrabalhosCols();
   var atendimentosRows = (contexto && contexto.atendimentosRows) || getRowsAtivas(SHEETS.ATENDIMENTOS);
+  var cursosRows = (contexto && contexto.cursosRows) || getRowsAtivas(SHEETS.CURSOS);
+  var cursoMatriculasRows = (contexto && contexto.cursoMatriculasRows) || getRowsAtivas(SHEETS.CURSO_MATRICULAS);
+  var trabalhosRows = (contexto && contexto.trabalhosRows) || getRowsAtivas(SHEETS.TRABALHOS);
   var saidasRows = (contexto && contexto.saidasRows) || getRowsAtivas(SHEETS.SAIDAS);
   var saidaMatriculasRows = (contexto && contexto.saidaMatriculasRows) || getRowsAtivas(SHEETS.SAIDA_MATRICULAS);
   var fugasRows = (contexto && contexto.fugasRows) || getRowsAtivas(SHEETS.FUGAS);
   perf.base_ms = Date.now() - tBase;
+
+  function parseDiasSemanaNums(valor) {
+    return String(valor || '').split(/[;,]/)
+      .map(function(v) { return Number(String(v || '').trim()); })
+      .filter(function(v) { return !isNaN(v) && v >= 0 && v <= 6; });
+  }
+
+  function diaNoIntervalo(dia, inicio, fim) {
+    if (!inicio) return false;
+    if (dia < inicio) return false;
+    if (fim && dia > fim) return false;
+    return true;
+  }
+
+  var diaSemanaIso = Number(Utilities.formatDate(dRef, tz, 'u')) || 0; // 1..7 (Seg..Dom)
+  var diaSemanaJs = diaSemanaIso === 7 ? 0 : diaSemanaIso; // 0..6 (Dom..Sab)
 
   // Atendimentos do dia
   var tAt = Date.now();
@@ -2682,6 +2732,87 @@ function carregarAtividadesDia(dataIso, contexto) {
     })
     .sort(function(a, b) { return a.hora_inicio.localeCompare(b.hora_inicio); });
   perf.atendimentos_ms = Date.now() - tAt;
+
+  // Cursos do dia (recorrentes por dia da semana), filtrados por matrícula ativa no período
+  var tCursos = Date.now();
+  var cursosMap = {};
+  cursosRows.forEach(function(r) {
+    cursosMap[String(r[cc.id])] = r;
+  });
+
+  var cursosHoje = cursoMatriculasRows
+    .filter(function(m) {
+      if (!boolVal(m[cm.matriculado])) return false;
+      var dataTerminoMatriculaIso = toIso(m[cm.data_termino]);
+      if (dataTerminoMatriculaIso && dataTerminoMatriculaIso < diaIso) return false;
+
+      var curso = cursosMap[String(m[cm.curso_id])];
+      if (!curso) return false;
+
+      var inicioCursoIso = toIso(curso[cc.data_inicio]);
+      var fimCursoIso = toIso(curso[cc.data_termino]);
+      if (!diaNoIntervalo(diaIso, inicioCursoIso, fimCursoIso)) return false;
+
+      var dias = parseDiasSemanaNums(curso[cc.dias_semana]);
+      if (!dias.length || dias.indexOf(diaSemanaJs) < 0) return false;
+
+      return true;
+    })
+    .map(function(m) {
+      var sid = String(m[cm.socioeducando_id]);
+      var curso = cursosMap[String(m[cm.curso_id])] || [];
+      return {
+        curso_id: String(m[cm.curso_id]),
+        curso_matricula_id: String(m[cm.id]),
+        socioeducando_id: sid,
+        socioeducando_nome: nomes[sid] || ('ID ' + sid),
+        tipo_curso: String(curso[cc.tipo_curso] || ''),
+        nome_curso: String(curso[cc.nome_curso] || ''),
+        instituicao: String(curso[cc.instituicao] || ''),
+        local: String(curso[cc.local] || ''),
+        horario_inicio: fmtTime(curso[cc.horario_inicio]),
+        horario_termino: fmtTime(curso[cc.horario_termino])
+      };
+    })
+    .sort(function(a, b) {
+      var cn = String(a.nome_curso || '').localeCompare(String(b.nome_curso || ''), 'pt-BR');
+      if (cn !== 0) return cn;
+      return String(a.socioeducando_nome || '').localeCompare(String(b.socioeducando_nome || ''), 'pt-BR');
+    });
+  perf.cursos_ms = Date.now() - tCursos;
+
+  // Trabalhos do dia (recorrentes por dia da semana)
+  var tTrabalhos = Date.now();
+  var trabalhosHoje = trabalhosRows
+    .filter(function(t) {
+      var inicioIso = toIso(t[ct.data_inicio]);
+      var fimIso = toIso(t[ct.data_fim]);
+      if (!diaNoIntervalo(diaIso, inicioIso, fimIso)) return false;
+
+      var dias = parseDiasSemanaNums(t[ct.dias_semana]);
+      if (!dias.length || dias.indexOf(diaSemanaJs) < 0) return false;
+
+      return true;
+    })
+    .map(function(t) {
+      var sid = String(t[ct.socioeducando_id]);
+      return {
+        id: String(t[ct.id]),
+        socioeducando_id: sid,
+        socioeducando_nome: nomes[sid] || ('ID ' + sid),
+        tipo: String(t[ct.tipo] || ''),
+        empresa: String(t[ct.empresa] || ''),
+        curso: String(t[ct.curso] || ''),
+        horario_inicio: fmtTime(t[ct.horario_inicio]),
+        horario_fim: fmtTime(t[ct.horario_fim])
+      };
+    })
+    .sort(function(a, b) {
+      var en = String(a.empresa || '').localeCompare(String(b.empresa || ''), 'pt-BR');
+      if (en !== 0) return en;
+      return String(a.socioeducando_nome || '').localeCompare(String(b.socioeducando_nome || ''), 'pt-BR');
+    });
+  perf.trabalhos_ms = Date.now() - tTrabalhos;
 
   // Saídas do dia (partida neste dia)
   var tSaidas = Date.now();
@@ -2748,14 +2879,44 @@ function carregarAtividadesDia(dataIso, contexto) {
       };
     });
   perf.fugas_ms = Date.now() - tFugas;
+
+  // Aniversariantes do dia (mesmo dia/mês da data de referência)
+  var tNiver = Date.now();
+  var partesDia = String(diaIso || '').split('-');
+  var mmdd = partesDia.length >= 3 ? (partesDia[1] + '-' + partesDia[2]) : '';
+  var anoRef = Number(partesDia[0] || 0);
+  var aniversariantesHoje = socioeducandos
+    .filter(function(j) {
+      var nascIso = String(j.data_nascimento_iso || '');
+      if (!nascIso || nascIso.length < 10) return false;
+      return nascIso.substring(5, 10) === mmdd;
+    })
+    .map(function(j) {
+      var nascIso = String(j.data_nascimento_iso || '');
+      var anoNasc = Number(nascIso.substring(0, 4) || 0);
+      var idade = (anoRef > 0 && anoNasc > 0) ? (anoRef - anoNasc) : null;
+      return {
+        socioeducando_id: String(j.id),
+        socioeducando_nome: String(j.nome || ''),
+        data_nascimento: fmtDate(nascIso),
+        idade: idade
+      };
+    })
+    .sort(function(a, b) {
+      return String(a.socioeducando_nome || '').localeCompare(String(b.socioeducando_nome || ''), 'pt-BR');
+    });
+  perf.aniversariantes_ms = Date.now() - tNiver;
   perf.total_ms = Date.now() - t0;
 
   return {
     data_iso:          diaIso,
     atendimentos_hoje: atendimentosHoje,
+    cursos_hoje:       cursosHoje,
+    trabalhos_hoje:    trabalhosHoje,
     saidas_hoje:       saidasHoje,
     retornos_hoje:     retornosHoje,
     fugas_hoje:        fugasHoje,
+    aniversariantes_hoje: aniversariantesHoje,
     _perf_atividades_dia: perf
   };
 }
@@ -4104,30 +4265,396 @@ function _sobreposicaoDatasRecorrentes(c1, c2) {
   return { inicio: ini, fim: fim };
 }
 
-function _conflitoEntreRecorrencias(c1, c2) {
+function _horaParaMinutos(hhmm) {
+  var s = String(hhmm || '').trim();
+  if (!s) return null;
+  var p = s.split(':');
+  if (p.length < 2) return null;
+  var h = Number(p[0]);
+  var m = Number(p[1]);
+  if (!isFinite(h) || !isFinite(m) || h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+}
+
+function _minutosParaHora(mins) {
+  var m = Number(mins || 0);
+  if (!isFinite(m)) m = 0;
+  if (m < 0) m = 0;
+  if (m > 23 * 60 + 59) m = 23 * 60 + 59;
+  var hh = String(Math.floor(m / 60)).padStart(2, '0');
+  var mm = String(m % 60).padStart(2, '0');
+  return hh + ':' + mm;
+}
+
+function _faixaHorarioRecorrencia(rec) {
+  var ini = _horaParaMinutos(rec.horario_inicio);
+  var fim = _horaParaMinutos(rec.horario_termino);
+  if (ini === null || fim === null) {
+    return { inicio: 0, termino: 24 * 60 - 1 };
+  }
+  return { inicio: ini, termino: fim };
+}
+
+function _diasSemanaRecorrencia(rec) {
+  var mapa = { domingo: 0, segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6 };
+  var src = Array.isArray(rec.diasSet) ? rec.diasSet : [];
+  if (!src.length) return [0, 1, 2, 3, 4, 5, 6];
+
+  var out = {};
+  src.forEach(function(v) {
+    var n = mapa[_normalizarDiaSemanaCurso(v)];
+    if (n >= 0) out[n] = true;
+  });
+  return Object.keys(out).map(function(k) { return Number(k); });
+}
+
+function _intersecaoDiasSemana(a, b) {
+  var setA = {};
+  a.forEach(function(v) { setA[v] = true; });
+  return b.filter(function(v) { return !!setA[v]; });
+}
+
+function _nomeDiaSemanaNumero(n) {
+  var nomes = ['domingo', 'segunda-feira', 'terca-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sabado'];
+  var i = Number(n);
+  return (i >= 0 && i <= 6) ? nomes[i] : '';
+}
+
+function _ultimaDataDiaSemanaNoIntervalo(inicio, fim, diaSemana) {
+  if (!fim) return null;
+  var base = _inicioDia(fim);
+  var alvo = Number(diaSemana);
+  if (alvo < 0 || alvo > 6) return null;
+  var delta = (base.getDay() - alvo + 7) % 7;
+  var cand = new Date(base.getFullYear(), base.getMonth(), base.getDate() - delta, 0, 0, 0, 0);
+  return cand.getTime() >= _inicioDia(inicio).getTime() ? cand : null;
+}
+
+function _detalheConflitoRecorrente(c1, c2, deveIgnorarDataIso) {
   var faixa = _sobreposicaoDatasRecorrentes(c1, c2);
   if (!faixa) return null;
 
-  var limite = new Date(faixa.inicio.getFullYear(), faixa.inicio.getMonth(), faixa.inicio.getDate() + 13, 23, 59, 59, 999);
-  if (faixa.fim && limite.getTime() > faixa.fim.getTime()) limite = faixa.fim;
+  var h1 = _faixaHorarioRecorrencia(c1);
+  var h2 = _faixaHorarioRecorrencia(c2);
+  var iniMin = Math.max(h1.inicio, h2.inicio);
+  var fimMin = Math.min(h1.termino, h2.termino);
+  if (iniMin >= fimMin) return null;
 
-  for (var cursor = _inicioDia(faixa.inicio); cursor.getTime() <= limite.getTime(); cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 1)) {
-    var o1 = _cursoFaixaOcorrenciaNoDia(c1, cursor);
-    if (!o1) continue;
-    var o2 = _cursoFaixaOcorrenciaNoDia(c2, cursor);
-    if (!o2) continue;
-    if (_intervalosConflitam(o1.inicio, o1.termino, o2.inicio, o2.termino)) {
-      return {
-        inicioIso: toIsoDateTime(o1.inicio),
-        terminoIso: toIsoDateTime(o1.termino)
-      };
+  var dias1 = _diasSemanaRecorrencia(c1);
+  var dias2 = _diasSemanaRecorrencia(c2);
+  var diasComuns = _intersecaoDiasSemana(dias1, dias2);
+  if (!diasComuns.length) return null;
+
+  var ignorarPorData = typeof deveIgnorarDataIso === 'function';
+  var primeiraDataEfetiva = null;
+  var ultimaDataEfetiva = null;
+  var diasEfetivos = [];
+
+  diasComuns.forEach(function(diaSemana) {
+    var primeira = _primeiraDataDiaSemanaNoIntervalo(faixa.inicio, faixa.fim, diaSemana);
+    if (!primeira) return;
+
+    if (ignorarPorData) {
+      while (primeira && (!faixa.fim || primeira.getTime() <= faixa.fim.getTime()) && deveIgnorarDataIso(_formatIsoDateLocal(primeira))) {
+        primeira = new Date(primeira.getFullYear(), primeira.getMonth(), primeira.getDate() + 7, 0, 0, 0, 0);
+      }
+      if (primeira && faixa.fim && primeira.getTime() > faixa.fim.getTime()) primeira = null;
     }
+    if (!primeira) return;
+
+    var ultima = faixa.fim ? _ultimaDataDiaSemanaNoIntervalo(faixa.inicio, faixa.fim, diaSemana) : primeira;
+    if (ignorarPorData && ultima) {
+      while (ultima && ultima.getTime() >= _inicioDia(faixa.inicio).getTime() && deveIgnorarDataIso(_formatIsoDateLocal(ultima))) {
+        ultima = new Date(ultima.getFullYear(), ultima.getMonth(), ultima.getDate() - 7, 0, 0, 0, 0);
+      }
+      if (ultima && ultima.getTime() < _inicioDia(faixa.inicio).getTime()) ultima = null;
+    }
+    if (!ultima || ultima.getTime() < primeira.getTime()) return;
+
+    diasEfetivos.push(diaSemana);
+    if (!primeiraDataEfetiva || primeira.getTime() < primeiraDataEfetiva.getTime()) primeiraDataEfetiva = primeira;
+    if (!ultimaDataEfetiva || ultima.getTime() > ultimaDataEfetiva.getTime()) ultimaDataEfetiva = ultima;
+  });
+
+  if (!diasEfetivos.length || !primeiraDataEfetiva) return null;
+
+  var dataInicioIso = _formatIsoDateLocal(primeiraDataEfetiva);
+  var dataFimIso = ultimaDataEfetiva ? _formatIsoDateLocal(ultimaDataEfetiva) : '';
+  var nomesDias = diasEfetivos.map(_nomeDiaSemanaNumero).filter(function(v) { return !!v; });
+
+  return {
+    tipo: 'recorrente',
+    data_inicio: dataInicioIso,
+    data_fim: dataFimIso,
+    dias_semana: nomesDias,
+    horario_inicio: _minutosParaHora(iniMin),
+    horario_termino: _minutosParaHora(fimMin)
+  };
+}
+
+function _primeiraDataComDiasSemana(inicio, fim, diasSemana) {
+  var base = _inicioDia(inicio);
+  if (!diasSemana || !diasSemana.length) return (!fim || base.getTime() <= fim.getTime()) ? base : null;
+
+  var diasPermitidos = {};
+  diasSemana.forEach(function(d) { diasPermitidos[Number(d)] = true; });
+
+  for (var i = 0; i < 7; i++) {
+    var cand = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i, 0, 0, 0, 0);
+    if (!diasPermitidos[cand.getDay()]) continue;
+    if (fim && cand.getTime() > fim.getTime()) return null;
+    return cand;
   }
 
   return null;
 }
 
-function _conflitosItemTrabalhoRecorrente(item, contexto, ignorados) {
+function _primeiraDataDiaSemanaNoIntervalo(inicio, fim, diaSemana) {
+  var base = _inicioDia(inicio);
+  var alvo = Number(diaSemana);
+  if (alvo < 0 || alvo > 6) return null;
+  var delta = (alvo - base.getDay() + 7) % 7;
+  var cand = new Date(base.getFullYear(), base.getMonth(), base.getDate() + delta, 0, 0, 0, 0);
+  return (!fim || cand.getTime() <= fim.getTime()) ? cand : null;
+}
+
+function _conflitoRecorrenciaComIntervalo(rec, inicio, termino) {
+  if (!inicio || !termino) return null;
+
+  var recIni = _parseIsoDateLocal(rec.data_inicio);
+  if (!recIni) return null;
+  var recFim = rec.data_termino ? _parseIsoDateLocal(rec.data_termino) : null;
+
+  var faixaInicio = _maxDate(_inicioDia(inicio), _inicioDia(recIni));
+  var faixaFim = _fimDia(termino);
+  if (recFim) faixaFim = _minDate(faixaFim, _fimDia(recFim));
+  if (faixaInicio.getTime() > faixaFim.getTime()) return null;
+
+  var hRec = _faixaHorarioRecorrencia(rec);
+  var diasRec = _diasSemanaRecorrencia(rec);
+  var melhor = null;
+  var semanaMs = 7 * 24 * 60 * 60 * 1000;
+  var inicioMs = inicio.getTime();
+  var terminoMs = termino.getTime();
+  var limiteFimMs = faixaFim.getTime();
+
+  diasRec.forEach(function(diaSemana) {
+    var baseDia = _primeiraDataDiaSemanaNoIntervalo(_inicioDia(recIni), faixaFim, diaSemana);
+    if (!baseDia) return;
+
+    var dataIsoBase = _formatIsoDateLocal(baseDia);
+    var occIniBase = _toDateSafe(cursoDataHoraLocal(dataIsoBase, _minutosParaHora(hRec.inicio)));
+    var occFimBase = _toDateSafe(cursoDataHoraLocal(dataIsoBase, _minutosParaHora(hRec.termino)));
+    if (!occIniBase || !occFimBase) return;
+
+    var occIniBaseMs = occIniBase.getTime();
+    var occFimBaseMs = occFimBase.getTime();
+    var kMin = Math.ceil((inicioMs - occFimBaseMs + 1) / semanaMs);
+    var kMaxSobreposicao = Math.floor((terminoMs - 1 - occIniBaseMs) / semanaMs);
+    var kMaxVigencia = Math.floor((limiteFimMs - occIniBaseMs) / semanaMs);
+    var kMax = Math.min(kMaxSobreposicao, kMaxVigencia);
+    var kCand = Math.max(0, kMin);
+
+    if (kCand <= kMax) {
+      var occIni = new Date(occIniBaseMs + kCand * semanaMs);
+      var occFim = new Date(occFimBaseMs + kCand * semanaMs);
+      if (_intervalosConflitam(inicio, termino, occIni, occFim)) {
+        if (!melhor || occIni.getTime() < melhor.inicio.getTime()) {
+          melhor = { inicio: occIni, termino: occFim };
+        }
+      }
+    }
+  });
+
+  if (!melhor) return null;
+  return {
+    inicioIso: toIsoDateTime(melhor.inicio),
+    terminoIso: toIsoDateTime(melhor.termino)
+  };
+}
+
+function _conflitoEntreRecorrencias(c1, c2, deveIgnorarDataIso) {
+  var faixa = _sobreposicaoDatasRecorrentes(c1, c2);
+  if (!faixa) return null;
+
+  var h1 = _faixaHorarioRecorrencia(c1);
+  var h2 = _faixaHorarioRecorrencia(c2);
+  var iniMin = Math.max(h1.inicio, h2.inicio);
+  var fimMin = Math.min(h1.termino, h2.termino);
+  if (iniMin >= fimMin) return null;
+
+  var dias1 = _diasSemanaRecorrencia(c1);
+  var dias2 = _diasSemanaRecorrencia(c2);
+  var diasComuns = _intersecaoDiasSemana(dias1, dias2);
+  if (!diasComuns.length) return null;
+
+  var ignorarPorData = typeof deveIgnorarDataIso === 'function';
+  if (ignorarPorData) {
+    var melhor = null;
+    var fimFaixa = faixa.fim;
+
+    diasComuns.forEach(function(diaSemana) {
+      var cand = _primeiraDataDiaSemanaNoIntervalo(faixa.inicio, fimFaixa, diaSemana);
+      var tentativas = 0;
+
+      while (cand && (!fimFaixa || cand.getTime() <= fimFaixa.getTime())) {
+        var dataIsoCand = _formatIsoDateLocal(cand);
+        if (!deveIgnorarDataIso(dataIsoCand)) {
+          var inicioCand = _toDateSafe(cursoDataHoraLocal(dataIsoCand, _minutosParaHora(iniMin)));
+          var terminoCand = _toDateSafe(cursoDataHoraLocal(dataIsoCand, _minutosParaHora(fimMin)));
+          if (inicioCand && terminoCand) {
+            if (!melhor || inicioCand.getTime() < melhor.inicio.getTime()) {
+              melhor = { inicio: inicioCand, termino: terminoCand };
+            }
+          }
+          break;
+        }
+
+        cand = new Date(cand.getFullYear(), cand.getMonth(), cand.getDate() + 7, 0, 0, 0, 0);
+        tentativas++;
+
+        // Proteção contra loop infinito em callbacks externos que ignorem toda data.
+        if (!fimFaixa && tentativas > 5200) {
+          cand = null;
+          break;
+        }
+      }
+    });
+
+    if (!melhor) return null;
+    return {
+      inicioIso: toIsoDateTime(melhor.inicio),
+      terminoIso: toIsoDateTime(melhor.termino)
+    };
+  }
+
+  var diaConflito = _primeiraDataComDiasSemana(faixa.inicio, faixa.fim, diasComuns);
+  if (!diaConflito) return null;
+
+  var dataIso = _formatIsoDateLocal(diaConflito);
+  var inicio = _toDateSafe(cursoDataHoraLocal(dataIso, _minutosParaHora(iniMin)));
+  var termino = _toDateSafe(cursoDataHoraLocal(dataIso, _minutosParaHora(fimMin)));
+  if (!inicio || !termino) return null;
+
+  return {
+    inicioIso: toIsoDateTime(inicio),
+    terminoIso: toIsoDateTime(termino)
+  };
+}
+
+function _itemPayloadEhRecorrente(item) {
+  return !!(item && (item.recorrencia_tipo === 'curso' || item.recorrencia_tipo === 'trabalho'));
+}
+
+function _normalizarItemPayloadParaConflito(item, indice) {
+  if (!item) return null;
+
+  var sid = String(item.socioeducando_id || '');
+  if (!sid) return null;
+
+  var linha = Number(item.linha || 0) || (Number(indice) + 1);
+
+  if (_itemPayloadEhRecorrente(item)) {
+    var rec = {
+      data_inicio: String(item.data_inicio || '').trim(),
+      data_termino: item.data_termino ? String(item.data_termino).trim() : '',
+      horario_inicio: fmtTime(item.horario_inicio),
+      horario_termino: fmtTime(item.horario_termino),
+      diasSet: String(item.dias_semana || '').split(/[;,]/).map(_normalizarDiaSemanaCurso).filter(function(v) { return !!v; })
+    };
+    if (!rec.data_inicio || !rec.horario_inicio || !rec.horario_termino || !rec.diasSet.length) return null;
+    return {
+      natureza: 'recorrente',
+      tipoRecorrente: String(item.recorrencia_tipo || ''),
+      sid: sid,
+      linha: linha,
+      rec: rec
+    };
+  }
+
+  var inicio = _toDateSafe(item.data_hora_inicio);
+  var termino = _toDateSafe(item.data_hora_termino) || inicio;
+  if (!inicio || !termino) return null;
+
+  return {
+    natureza: 'pontual',
+    sid: sid,
+    linha: linha,
+    inicio: inicio,
+    termino: termino
+  };
+}
+
+function _conflitoEntreItensPayload(a, b) {
+  if (!a || !b || a.sid !== b.sid) return null;
+
+  if (a.natureza === 'pontual' && b.natureza === 'pontual') {
+    if (!_intervalosConflitam(a.inicio, a.termino, b.inicio, b.termino)) return null;
+    return {
+      inicioIso: toIsoDateTime(_maxDate(a.inicio, b.inicio)),
+      terminoIso: toIsoDateTime(_minDate(a.termino, b.termino))
+    };
+  }
+
+  if (a.natureza === 'recorrente' && b.natureza === 'pontual') {
+    return _conflitoRecorrenciaComIntervalo(a.rec, b.inicio, b.termino);
+  }
+
+  if (a.natureza === 'pontual' && b.natureza === 'recorrente') {
+    return _conflitoRecorrenciaComIntervalo(b.rec, a.inicio, a.termino);
+  }
+
+  if (a.natureza === 'recorrente' && b.natureza === 'recorrente') {
+    return _conflitoEntreRecorrencias(a.rec, b.rec);
+  }
+
+  return null;
+}
+
+function _conflitosEntreItensPayload(itens) {
+  var conflitosPorIndice = {};
+  var norm = itens.map(function(it, idx) {
+    return _normalizarItemPayloadParaConflito(it, idx);
+  });
+
+  for (var i = 0; i < norm.length; i++) {
+    var a = norm[i];
+    if (!a) continue;
+    for (var j = i + 1; j < norm.length; j++) {
+      var b = norm[j];
+      if (!b) continue;
+
+      var ocorr = _conflitoEntreItensPayload(a, b);
+      if (!ocorr) continue;
+
+      if (!conflitosPorIndice[i]) conflitosPorIndice[i] = [];
+      if (!conflitosPorIndice[j]) conflitosPorIndice[j] = [];
+
+      var descA = 'Conflito com item da mesma operação (linha ' + b.linha + ')';
+      var descB = 'Conflito com item da mesma operação (linha ' + a.linha + ')';
+
+      conflitosPorIndice[i].push({
+        tipo: 'Item da operação',
+        id: 'linha-' + b.linha,
+        descricao: descA,
+        inicio: ocorr.inicioIso,
+        termino: ocorr.terminoIso
+      });
+
+      conflitosPorIndice[j].push({
+        tipo: 'Item da operação',
+        id: 'linha-' + a.linha,
+        descricao: descB,
+        inicio: ocorr.inicioIso,
+        termino: ocorr.terminoIso
+      });
+    }
+  }
+
+  return conflitosPorIndice;
+}
+
+function _conflitosItemRecorrente(item, contexto, ignorados) {
   var conflitos = [];
   var sid = String(item.socioeducando_id || '');
   if (!sid) return conflitos;
@@ -4135,8 +4662,8 @@ function _conflitosItemTrabalhoRecorrente(item, contexto, ignorados) {
   var dataInicio = String(item.data_inicio || '');
   if (!dataInicio) return conflitos;
 
-  var trabalhoNovo = {
-    tipo: 'Trabalho',
+  var recorrenciaNova = {
+    tipo: String(item.recorrencia_tipo || ''),
     empresa: '',
     curso: '',
     data_inicio: dataInicio,
@@ -4146,7 +4673,7 @@ function _conflitosItemTrabalhoRecorrente(item, contexto, ignorados) {
     diasSet: String(item.dias_semana || '').split(/[;,]/).map(_normalizarDiaSemanaCurso).filter(function(v) { return !!v; })
   };
 
-  if (!trabalhoNovo.horario_inicio || !trabalhoNovo.horario_termino || !trabalhoNovo.diasSet.length) {
+  if (!recorrenciaNova.horario_inicio || !recorrenciaNova.horario_termino || !recorrenciaNova.diasSet.length) {
     return conflitos;
   }
 
@@ -4159,7 +4686,7 @@ function _conflitosItemTrabalhoRecorrente(item, contexto, ignorados) {
     var aFim = _toDateSafe(r[5]) || aIni;
     if (!aIni || !aFim) return;
 
-    var ocorr = _encontrarConflitoCurso(trabalhoNovo, aIni, aFim);
+    var ocorr = _conflitoRecorrenciaComIntervalo(recorrenciaNova, aIni, aFim);
     if (!ocorr) return;
 
     conflitos.push({
@@ -4187,7 +4714,7 @@ function _conflitosItemTrabalhoRecorrente(item, contexto, ignorados) {
     var sFim = _toDateSafe(evento[cs.data_hora_volta]) || sIni;
     if (!sIni || !sFim) return;
 
-    var ocorr = _encontrarConflitoCurso(trabalhoNovo, sIni, sFim);
+    var ocorr = _conflitoRecorrenciaComIntervalo(recorrenciaNova, sIni, sFim);
     if (!ocorr) return;
 
     conflitos.push({
@@ -4230,8 +4757,16 @@ function _conflitosItemTrabalhoRecorrente(item, contexto, ignorados) {
       }
     }
 
-    var ocorr = _conflitoEntreRecorrencias(trabalhoNovo, cursoExistente);
+    var ocorr = _conflitoEntreRecorrencias(recorrenciaNova, cursoExistente, function(dataIso) {
+      var key = _chaveCursoEventoDia(cursoId, sid, dataIso);
+      return !!contexto.cursos.eventosAusenciaMap[key];
+    });
     if (!ocorr) return;
+
+    var detalheRecorrenteCurso = _detalheConflitoRecorrente(recorrenciaNova, cursoExistente, function(dataIso) {
+      var key = _chaveCursoEventoDia(cursoId, sid, dataIso);
+      return !!contexto.cursos.eventosAusenciaMap[key];
+    });
 
     var descricao = cursoExistente.nome || 'Curso';
     if (cursoExistente.instituicao) descricao += ' - ' + cursoExistente.instituicao;
@@ -4241,7 +4776,8 @@ function _conflitosItemTrabalhoRecorrente(item, contexto, ignorados) {
       id: matriculaId,
       descricao: descricao,
       inicio: ocorr.inicioIso,
-      termino: ocorr.terminoIso
+      termino: ocorr.terminoIso,
+      conflito_recorrente: detalheRecorrenteCurso
     });
   });
 
@@ -4265,8 +4801,10 @@ function _conflitosItemTrabalhoRecorrente(item, contexto, ignorados) {
 
     if (!trabalhoExistente.data_inicio || !trabalhoExistente.horario_inicio || !trabalhoExistente.horario_termino || !trabalhoExistente.diasSet.length) return;
 
-    var ocorr = _conflitoEntreRecorrencias(trabalhoNovo, trabalhoExistente);
+    var ocorr = _conflitoEntreRecorrencias(recorrenciaNova, trabalhoExistente);
     if (!ocorr) return;
+
+    var detalheRecorrenteTrabalho = _detalheConflitoRecorrente(recorrenciaNova, trabalhoExistente);
 
     var descricao = trabalhoExistente.tipo || 'Trabalho';
     if (trabalhoExistente.empresa) descricao += ' - ' + trabalhoExistente.empresa;
@@ -4277,7 +4815,8 @@ function _conflitosItemTrabalhoRecorrente(item, contexto, ignorados) {
       id: trabalhoId,
       descricao: descricao,
       inicio: ocorr.inicioIso,
-      termino: ocorr.terminoIso
+      termino: ocorr.terminoIso,
+      conflito_recorrente: detalheRecorrenteTrabalho
     });
   });
 
@@ -4552,14 +5091,16 @@ function verificarConflitosAgenda(payload) {
   if (!socioIds.length) return { conflitos: [], total_conflitos: 0 };
 
   var contexto = _coletarContextoConflitosAgenda(socioIds);
+  var conflitosInternos = _conflitosEntreItensPayload(itens);
 
   var conflitosPorItem = [];
   var total = 0;
 
-  itens.forEach(function(it) {
-    var conflitos = (it && it.recorrencia_tipo === 'trabalho')
-      ? _conflitosItemTrabalhoRecorrente(it, contexto, ignorados)
+  itens.forEach(function(it, idx) {
+    var conflitosBase = _itemPayloadEhRecorrente(it)
+      ? _conflitosItemRecorrente(it, contexto, ignorados)
       : _listarConflitosAgendaParaItem(it, contexto, ignorados);
+    var conflitos = conflitosBase.concat(conflitosInternos[idx] || []);
 
     if (conflitos.length) {
       total += conflitos.length;

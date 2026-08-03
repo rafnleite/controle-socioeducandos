@@ -66,13 +66,15 @@ específica: `?page=perfil&id=...`, `?page=atendimento[&id=...]`, `?page=saida`,
 - Cartões de indicadores: total de socioeducandos, internados ativos, cursos em
   andamento, fugas nos últimos 30 dias.
 - **Resumo do dia**: lista de atendimentos, saídas, retornos e fugas/evasões do dia,
-  com navegação entre dias (setas ◀▶, seletor de data, botão "Hoje").
+  aniversariantes e navegação entre dias (setas ◀▶, seletor de data, botão "Hoje").
 - Listagem de socioeducandos com status (internado/ausente/desligado) e atalho para o
   perfil.
 - A tabela também exibe o atributo **E-mail profissional** e permite ordenação por
   essa coluna.
 - A grade principal do painel segue a ordem: **ID**, **Nome**, **Status**,
   **Internado desde**, **Idade**, **Escolaridade**, **E-mail** e **Resumo**.
+- Filtros da tabela de socioeducandos (além da busca): status, em cursos,
+  trabalhando, **sem visita territorial** e **sem saída cultural**.
 - A coluna **Resumo** consolida indicadores em pills:
   - curso: ícone + quantidade de cursos ativos;
   - trabalho: ícone + empresa (uma pill por vínculo ativo);
@@ -81,7 +83,7 @@ específica: `?page=perfil&id=...`, `?page=atendimento[&id=...]`, `?page=saida`,
   - alerta: pill `NÃO FEZ SAÍDA CULTURAL` para quem ainda não realizou saída cultural.
 - **Drill-down por clique nos pills**:
   - ao clicar na pill de cursos, abre modal com os cursos ativos do socioeducando
-    (tipo, curso, local, período e horário), com atalho para abrir o vínculo;
+    (tipo, curso, local, período e horário), em modo consulta;
   - ao clicar em uma pill de trabalho, abre modal com os detalhes do vínculo
     selecionado (tipo, empresa, curso, contrato, início/fim e horário), com
     atalho para abrir a edição do trabalho.
