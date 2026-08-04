@@ -953,6 +953,56 @@ function abrirCadastroSaida(){
   ESTADO.socioeducandoId = null;
   mostrarFormSaidaLote();
 }
+
+function mostrarDocumentosSocioeducandos(){
+  navActive('btn-nav-cad');
+  ESTADO.tela = 'documentos-socioeducandos';
+  showSpinner('Carregando documentos...');
+  google.script.run
+    .withSuccessHandler(renderDocumentosSocioeducandos)
+    .withFailureHandler(showError)
+    .getSocioeducandosInternadosDocumentos();
+}
+
+function renderDocumentosSocioeducandos(socioeducandos){
+  socioeducandos = Array.isArray(socioeducandos) ? socioeducandos : [];
+  var campos = [
+    ['rg','RG'], ['cpf','CPF'], ['certidao_nascimento','Certidão de nascimento'],
+    ['titulo_eleitor','Título de eleitor'], ['carteira_trabalho','Carteira de trabalho'], ['alistamento_exercito','Alistamento no Exército']
+  ];
+  var linhas = socioeducandos.length
+    ? socioeducandos.map(function(j){
+        return '<tr data-documentos-id="'+esc(j.id)+'"><td><strong>'+esc(j.nome)+'</strong><br><small class="text-muted">ID '+esc(j.id)+'</small></td>'
+          +campos.map(function(c){ return '<td><input type="text" data-documento="'+c[0]+'" value="'+esc(j[c[0]] || '')+'" style="min-width:150px"></td>'; }).join('')
+          +'</tr>';
+      }).join('')
+    : '<tr><td colspan="7" class="no-records">Não há socioeducandos internados no momento.</td></tr>';
+  var html = '<div class="card">'
+    +'<div class="page-hdr"><div><h4><i class="fa-solid fa-id-card"></i> Documentos dos socioeducandos</h4><small>Preencha ou altere os documentos dos socioeducandos internados e salve tudo de uma vez.</small></div></div>'
+    +'<div id="form-msg"></div>'
+    +'<div style="overflow-x:auto"><table><thead><tr><th>Socioeducando</th>'
+    +campos.map(function(c){ return '<th>'+c[1]+'</th>'; }).join('')
+    +'</tr></thead><tbody>'+linhas+'</tbody></table></div>'
+    +(socioeducandos.length ? '<div class="d-flex gap-2" style="margin-top:16px"><button class="btn btn-primary" onclick="salvarDocumentosSocioeducandosUI()"><i class="fa-solid fa-floppy-disk"></i> Salvar documentos</button><button class="btn btn-secondary" onclick="mostrarOverview()">Cancelar</button></div>' : '')
+    +'</div>';
+  setContent(html);
+}
+
+function salvarDocumentosSocioeducandosUI(){
+  var linhas = Array.from(document.querySelectorAll('tr[data-documentos-id]')).map(function(tr){
+    var item = { id: tr.getAttribute('data-documentos-id') };
+    tr.querySelectorAll('[data-documento]').forEach(function(input){ item[input.getAttribute('data-documento')] = input.value.trim(); });
+    return item;
+  });
+  setBusyState(true, 'Salvando documentos...');
+  google.script.run
+    .withSuccessHandler(function(r){
+      setBusyState(false);
+      document.getElementById('form-msg').innerHTML = '<div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> Documentos atualizados para '+esc(String((r&&r.atualizados)||0))+' socioeducando(s).</div>';
+    })
+    .withFailureHandler(function(err){ setBusyState(false); document.getElementById('form-msg').innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(err.message)+'</div>'; })
+    .salvarDocumentosSocioeducandos(linhas);
+}
 function inicializarTopo(){
   document.addEventListener('click', function(e){
     var dd = document.getElementById('cad-dropdown');
@@ -2294,7 +2344,7 @@ function renderOverview(d){
 
   console.time('overview.render.controles');
   var statusBtns = ['internado','ausente','desligado'].map(function(s){
-    var label = {internado:'Internado',ausente:'Ausente',desligado:'Desligado'}[s];
+    var label = {internado:'Internado',ausente:'Evadido',desligado:'Desligado'}[s];
     var ativo = filtStatus.indexOf(s) >= 0 ? ' active' : '';
     return '<button class="seg-btn'+ativo+'" onclick="toggleFiltroStatus(\''+s+'\')" data-st="'+s+'">'+label+'</button>';
   }).join('');
@@ -2335,7 +2385,7 @@ function renderOverview(d){
     var badge = j.status==='internado'
       ? '<span class="badge b-green">Internado</span>'
       : j.status==='ausente'
-        ? '<span class="badge b-red">Ausente</span>'
+        ? '<span class="badge b-red">Evadido</span>'
         : '<span class="badge b-grey">Desligado</span>';
 
     var desde = j.internado_desde
@@ -3358,7 +3408,7 @@ function isPerfilRequestAtivo(reqId, socioeducandoId){
 
 function renderPerfilSkeleton(){
   return ''
-    + '<div id="perfil-topo-slot" class="card"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando cabeçalho do perfil...</div></div>'
+    + '<div id="perfil-topo-slot"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando cabeçalho do perfil...</div></div>'
     + '<div id="perfil-admissoes-slot" class="card"><div class="spinner"><i class="fa-solid fa-spinner fa-spin"></i> Carregando admissões...</div></div>'
     + '<div class="card agenda-perfil-card">'
     + '<div class="sec-hdr"><h5><i class="fa-solid fa-calendar-days"></i> Agenda</h5><small class="text-muted">Cursos, trabalhos, saídas e atendimentos</small></div>'
@@ -3422,6 +3472,7 @@ function atualizarContadoresAbasPerfil(){
 
 function renderPerfilCabecalhoResumo(resumo){
   var j = resumo.socioeducando;
+  ESTADO.perfilDocumentosSocioeducando = j;
   var status = resumo.status;
   var internadoAtivo = resumo.internado_ativo;
   var ausenteAtual = resumo.ausente_atual;
@@ -3437,11 +3488,14 @@ function renderPerfilCabecalhoResumo(resumo){
   var statusBadge = status==='internado'
     ? '<span class="badge b-green" style="font-size:13px">Internado</span>'+(internadoAtivo?'<small class="text-muted"> desde '+internadoAtivo.data_admissao+internacaoTempoTopo+'</small>':'')
     : status==='ausente'
-      ? '<span class="badge b-red" style="font-size:13px">Ausente</span>'+(ausenteAtual?'<small class="text-muted"> '+ausenteAtual.tipo_saida+' em '+ausenteAtual.data_saida+'</small>':'')
+      ? '<span class="badge b-red" style="font-size:13px">Evadido</span>'+(ausenteAtual?'<small class="text-muted"> '+ausenteAtual.tipo_saida+' em '+ausenteAtual.data_saida+'</small>':'')
       : '<span class="badge b-grey" style="font-size:13px">Desligado</span>';
 
   var metaPerfil = [];
   if(j.escolaridade) metaPerfil.push('Escolaridade: ' + esc(j.escolaridade));
+  if(temDocumentosSocioeducando(j)){
+    metaPerfil.push('<a class="link-btn" onclick="abrirModalDocumentosSocioeducando(\''+j.id+'\')"><i class="fa-solid fa-id-card"></i>ver documentos</a>');
+  }
   if(j.email_profissional){
     var emailPerfil = esc(j.email_profissional);
     if(podeGerenciarCredenciaisFrontend()){
@@ -3902,7 +3956,7 @@ function renderPerfilSecaoFugas(socioeducandoId, fugas){
     : lista.map(function(f){
         var tb = f.tipo_saida==='Fuga'?'<span class="badge b-red">Fuga</span>':'<span class="badge b-orange">Evasão</span>';
         var retorno = f.data_retorno || '<span class="text-danger">Não retornou</span>';
-        var stBadge = f.data_retorno ? '<span class="badge b-green">Retornou</span>' : '<span class="badge b-red">Ausente</span>';
+        var stBadge = f.data_retorno ? '<span class="badge b-green">Retornou</span>' : '<span class="badge b-red">Evadido</span>';
         var btnRet = !f.data_retorno_iso
           ? '<button class="btn btn-outline btn-xs" onclick="mostrarFormRetorno(\''+f.id+'\')"><i class="fa-solid fa-rotate-left"></i> Retorno</button> '
           : '';
@@ -3951,6 +4005,7 @@ function renderPerfil(d){
   ESTADO.tela = 'perfil';
 
   var j = d.socioeducando;
+  ESTADO.perfilDocumentosSocioeducando = j;
   var admissoes = filtrarAtivos(d.admissoes);
   var cursos = filtrarAtivos(d.cursos);
   var trabalhos = filtrarAtivos(d.trabalhos);
@@ -3978,11 +4033,14 @@ function renderPerfil(d){
   var statusBadge = status==='internado'
     ? '<span class="badge b-green" style="font-size:13px">Internado</span>'+(internadoAtivo?'<small class="text-muted"> desde '+internadoAtivo.data_admissao+internacaoTempoTopo+'</small>':'')
     : status==='ausente'
-      ? '<span class="badge b-red" style="font-size:13px">Ausente</span>'+(ausenteAtual?'<small class="text-muted"> '+ausenteAtual.tipo_saida+' em '+ausenteAtual.data_saida+'</small>':'')
+      ? '<span class="badge b-red" style="font-size:13px">Evadido</span>'+(ausenteAtual?'<small class="text-muted"> '+ausenteAtual.tipo_saida+' em '+ausenteAtual.data_saida+'</small>':'')
       : '<span class="badge b-grey" style="font-size:13px">Desligado</span>';
 
   var metaPerfil = [];
   if(j.escolaridade) metaPerfil.push('Escolaridade: ' + esc(j.escolaridade));
+  if(temDocumentosSocioeducando(j)){
+    metaPerfil.push('<a class="link-btn" onclick="abrirModalDocumentosSocioeducando(\''+j.id+'\')"><i class="fa-solid fa-id-card"></i>ver documentos</a>');
+  }
   if(j.email_profissional){
     var emailPerfil = esc(j.email_profissional);
     if(podeGerenciarCredenciaisFrontend()){
@@ -4059,7 +4117,7 @@ function renderPerfil(d){
     : fugas.map(function(f){
         var tb = f.tipo_saida==='Fuga'?'<span class="badge b-red">Fuga</span>':'<span class="badge b-orange">Evasão</span>';
         var retorno = f.data_retorno || '<span class="text-danger">Não retornou</span>';
-        var stBadge = f.data_retorno ? '<span class="badge b-green">Retornou</span>' : '<span class="badge b-red">Ausente</span>';
+        var stBadge = f.data_retorno ? '<span class="badge b-green">Retornou</span>' : '<span class="badge b-red">Evadido</span>';
         var btnRet = !f.data_retorno_iso
           ? '<button class="btn btn-outline btn-xs" onclick="mostrarFormRetorno(\''+f.id+'\')"><i class="fa-solid fa-rotate-left"></i> Retorno</button> '
           : '';
@@ -4270,6 +4328,15 @@ function renderFormSocioeducando(socioeducando){
       return '<option value="'+e+'"'+(socioeducando&&socioeducando.escolaridade===e?' selected':'')+'>'+e+'</option>';
     }).join('')
     +'</select></div>'
+    +'<div class="sec-hdr" style="margin-top:14px"><h5><i class="fa-solid fa-id-card"></i> Documentos</h5></div>'
+    +'<div class="row2">'
+    +'<div class="form-group"><label>RG</label><input type="text" id="f-rg" value="'+(socioeducando?esc(socioeducando.rg):'')+'"></div>'
+    +'<div class="form-group"><label>CPF</label><input type="text" id="f-cpf" value="'+(socioeducando?esc(socioeducando.cpf):'')+'"></div>'
+    +'</div>'
+    +'<div class="form-group"><label>Certidão de nascimento</label><input type="text" id="f-certidao" value="'+(socioeducando?esc(socioeducando.certidao_nascimento):'')+'"></div>'
+    +'<div class="form-group"><label>Título de eleitor</label><input type="text" id="f-titulo" value="'+(socioeducando?esc(socioeducando.titulo_eleitor):'')+'"></div>'
+    +'<div class="form-group"><label>Carteira de trabalho</label><input type="text" id="f-carteira" value="'+(socioeducando?esc(socioeducando.carteira_trabalho):'')+'"></div>'
+    +'<div class="form-group"><label>Alistamento no Exército</label><input type="text" id="f-alistamento" value="'+(socioeducando?esc(socioeducando.alistamento_exercito):'')+'"></div>'
     +(!editando ? '<div class="form-group"><label>Data de admissão <span class="req">*</span></label><input type="date" id="f-adm" value="'+today()+'" max="'+today()+'"></div>' : '')
     +'<div class="d-flex gap-2">'
     +'<button class="btn btn-primary" onclick="submitFormSocioeducando('+editando+')"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>'
@@ -4290,6 +4357,12 @@ function submitFormSocioeducando(editando){
     senha_profissional: elSenha ? elSenha.value : '',
     data_nascimento: document.getElementById('f-nasc').value,
     escolaridade: document.getElementById('f-escol').value,
+    rg: document.getElementById('f-rg').value.trim(),
+    cpf: document.getElementById('f-cpf').value.trim(),
+    certidao_nascimento: document.getElementById('f-certidao').value.trim(),
+    titulo_eleitor: document.getElementById('f-titulo').value.trim(),
+    carteira_trabalho: document.getElementById('f-carteira').value.trim(),
+    alistamento_exercito: document.getElementById('f-alistamento').value.trim(),
     data_admissao: (!editando && document.getElementById('f-adm')) ? document.getElementById('f-adm').value : '',
     editando: editando
   };
@@ -4364,6 +4437,59 @@ function abrirModalCredenciaisSocioeducando(socioeducandoId, nomeSocioeducando){
 
 function fecharModalCredenciaisSocioeducando(){
   var m = document.getElementById('modal-credenciais-socioeducando');
+  if(m) m.remove();
+}
+
+function documentosSocioeducandoLista(j){
+  return [
+    { label: 'RG', valor: j && j.rg },
+    { label: 'CPF', valor: j && j.cpf },
+    { label: 'Certidão de nascimento', valor: j && j.certidao_nascimento },
+    { label: 'Título de eleitor', valor: j && j.titulo_eleitor },
+    { label: 'Carteira de trabalho', valor: j && j.carteira_trabalho },
+    { label: 'Alistamento no Exército', valor: j && j.alistamento_exercito }
+  ];
+}
+
+function temDocumentosSocioeducando(j){
+  return documentosSocioeducandoLista(j).some(function(doc){ return String(doc.valor || '').trim(); });
+}
+
+function abrirModalDocumentosSocioeducando(socioeducandoId){
+  var resumo = ESTADO.perfilChunks && ESTADO.perfilChunks.resumo;
+  var j = resumo && resumo.socioeducando && String(resumo.socioeducando.id) === String(socioeducandoId)
+    ? resumo.socioeducando
+    : (ESTADO.perfilDocumentosSocioeducando && String(ESTADO.perfilDocumentosSocioeducando.id) === String(socioeducandoId) ? ESTADO.perfilDocumentosSocioeducando : null);
+  if(!j || !temDocumentosSocioeducando(j)) return;
+
+  var modalExistente = document.getElementById('modal-documentos-socioeducando');
+  if(modalExistente) modalExistente.remove();
+
+  var linhas = documentosSocioeducandoLista(j)
+    .filter(function(doc){ return String(doc.valor || '').trim(); })
+    .map(function(doc){
+      return '<div class="credenciais-modal-item"><span class="credenciais-modal-label">'+esc(doc.label)+'</span><div class="credenciais-modal-value">'+esc(doc.valor)+'</div></div>';
+    }).join('');
+
+  var overlay = document.createElement('div');
+  overlay.id = 'modal-documentos-socioeducando';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(16,20,35,.55);display:flex;align-items:center;justify-content:center;z-index:10000';
+  overlay.innerHTML = ''
+    + '<div style="background:#fff;border-radius:10px;padding:24px 26px;max-width:520px;width:95%;box-shadow:0 8px 40px rgba(0,0,0,.25)">'
+    + '<h5 style="margin:0 0 12px"><i class="fa-solid fa-id-card"></i> Documentos</h5>'
+    + '<div class="text-muted" style="margin-bottom:10px">Socioeducando: <strong>'+esc(j.nome||'')+'</strong> (ID #'+esc(j.id)+')</div>'
+    + linhas
+    + '<div class="d-flex gap-2" style="margin-top:14px">'
+    + '<button class="btn btn-secondary" onclick="fecharModalDocumentosSocioeducando()">Fechar</button>'
+    + '</div>'
+    + '</div>';
+
+  overlay.addEventListener('click', function(e){ if(e.target === overlay) fecharModalDocumentosSocioeducando(); });
+  document.body.appendChild(overlay);
+}
+
+function fecharModalDocumentosSocioeducando(){
+  var m = document.getElementById('modal-documentos-socioeducando');
   if(m) m.remove();
 }
 
@@ -6016,7 +6142,7 @@ function buildResumoDiaHtml(ad){
       +'</div>';
   }
   function itemFug(f){
-    var b = f.retornou ? '<span class="badge b-grey">Retornou</span>' : '<span class="badge b-red">Ausente</span>';
+    var b = f.retornou ? '<span class="badge b-grey">Retornou</span>' : '<span class="badge b-red">Evadido</span>';
     return '<div class="resumo-dia-item">'
       +'<span class="resumo-dia-nome"><a class="link-btn" onclick="mostrarPerfil(\''+esc(f.socioeducando_id)+'\')">'+esc(f.socioeducando_nome)+'</a></span>'
       +'<span class="text-muted" style="font-size:11px">'+esc(f.tipo)+'</span>'

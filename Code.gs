@@ -103,8 +103,8 @@ function inicializarPlanilha() {
   var configs = [
     {
       nome: SHEETS.SOCIOEDUCANDOS,
-      headers: ['ID (SUASE)', 'Nome', 'Data de Nascimento', 'Escolaridade', 'E-mail Profissional', 'Senha Profissional (Criptografada)', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
-      widths:  [100, 280, 130, 200, 220, 260, 130, 180, 130, 180, 130, 180]
+      headers: ['ID (SUASE)', 'Nome', 'Data de Nascimento', 'Escolaridade', 'RG', 'CPF', 'Certidão de Nascimento', 'Título de Eleitor', 'Carteira de Trabalho', 'Alistamento no Exército', 'E-mail Profissional', 'Senha Profissional (Criptografada)', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
+      widths:  [100, 280, 130, 200, 150, 150, 180, 160, 180, 180, 220, 260, 130, 180, 130, 180, 130, 180]
     },
     {
       nome: SHEETS.CURSOS,
@@ -191,6 +191,7 @@ function inicializarPlanilha() {
   ensureSocioeducandosNascimentoColumn();
   // Garante colunas de credenciais profissionais em socioeducandos.
   ensureSocioeducandosCredenciaisColumns();
+  ensureSocioeducandosDocumentosColumns();
   // Garante colunas de horário e dias da semana para cursos em planilhas antigas.
   ensureCursosEstrutura();
   // Garante colunas de Vagas/Data Limite Inscrição em Cursos em planilhas antigas.
@@ -773,6 +774,27 @@ function ensureSocioeducandosCredenciaisColumns() {
   if (alterou) clearSheetCaches(SHEETS.SOCIOEDUCANDOS);
 }
 
+function ensureSocioeducandosDocumentosColumns() {
+  var sh = getSheet(SHEETS.SOCIOEDUCANDOS);
+  if (sh.getLastRow() === 0) return;
+  var documentos = [
+    { nome: 'RG', largura: 150 }, { nome: 'CPF', largura: 150 },
+    { nome: 'Certidão de Nascimento', largura: 180 }, { nome: 'Título de Eleitor', largura: 160 },
+    { nome: 'Carteira de Trabalho', largura: 180 }, { nome: 'Alistamento no Exército', largura: 180 }
+  ];
+  var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function(h) { return String(h || '').trim().toLowerCase(); });
+  var alterou = false;
+  documentos.forEach(function(documento) {
+    if (headers.indexOf(documento.nome.toLowerCase()) >= 0) return;
+    var pos = sh.getLastColumn() + 1;
+    sh.getRange(1, pos).setValue(documento.nome).setFontWeight('bold').setBackground('#3c3c7a').setFontColor('white');
+    sh.setColumnWidth(pos, documento.largura);
+    headers.push(documento.nome.toLowerCase());
+    alterou = true;
+  });
+  if (alterou) clearSheetCaches(SHEETS.SOCIOEDUCANDOS);
+}
+
 function ensureAtendimentosObservacoesColumn() {
   var sh = getSheet(SHEETS.ATENDIMENTOS);
   if (sh.getLastRow() === 0) return;
@@ -1190,7 +1212,9 @@ function getTrabalhosCols() {
 }
 
 function getVisitasTerritoriaisCols() {
+    maybeEnsureOnRead(function() {
   ensureVisitasTerritoriaisSheet();
+    }
   if (_COLS_CACHE[SHEETS.VISITAS_TERRITORIAIS]) return _COLS_CACHE[SHEETS.VISITAS_TERRITORIAIS];
   maybeEnsureOnRead(function() {
     ensureColunasPadraoAuditoria(SHEETS.VISITAS_TERRITORIAIS);
@@ -1225,7 +1249,9 @@ function getVisitasTerritoriaisCols() {
 }
 
 function getFamiliaresCols() {
+    maybeEnsureOnRead(function() {
   ensureFamiliaresSheet();
+    });
   if (_COLS_CACHE[SHEETS.FAMILIARES]) return _COLS_CACHE[SHEETS.FAMILIARES];
   maybeEnsureOnRead(function() {
     ensureColunasPadraoAuditoria(SHEETS.FAMILIARES);
@@ -1394,11 +1420,11 @@ function salvarInteressesLote(socioeducandoIds, interesse) {
 
 function getSocioeducandosCols() {
   if (_COLS_CACHE[SHEETS.SOCIOEDUCANDOS]) return _COLS_CACHE[SHEETS.SOCIOEDUCANDOS];
-  ensureSocioeducandosNascimentoColumn();
-  ensureSocioeducandosCredenciaisColumns();
+  ensureSocioeducandosDocumentosColumns();
   maybeEnsureOnRead(function() {
     ensureSocioeducandosNascimentoColumn();
     ensureSocioeducandosCredenciaisColumns();
+    ensureSocioeducandosDocumentosColumns();
     ensureColunasPadraoAuditoria(SHEETS.SOCIOEDUCANDOS);
     ensureOrdemColunas(SHEETS.SOCIOEDUCANDOS, ['ID (SUASE)', 'Nome', 'Data de Nascimento', 'Escolaridade', 'E-mail Profissional', 'Senha Profissional (Criptografada)', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por']);
   });
@@ -1416,6 +1442,12 @@ function getSocioeducandosCols() {
     senha_profissional_cripto: idx('senha profissional (criptografada)', -1),
     nascimento: idx('data de nascimento', -1),
     escolaridade: idx('escolaridade', 2),
+    rg: idx('rg', -1),
+    cpf: idx('cpf', -1),
+    certidao_nascimento: idx('certidão de nascimento', -1),
+    titulo_eleitor: idx('título de eleitor', -1),
+    carteira_trabalho: idx('carteira de trabalho', -1),
+    alistamento_exercito: idx('alistamento no exército', -1),
     registrado_em: idx('registrado em', 3),
     criadoPor: idx('criado por', 4),
     atualizadoEm: idx('atualizado em', 5),
@@ -2257,6 +2289,12 @@ function getSocioeducandos(incluirDeletados) {
         data_nascimento_iso: toIso(nascimentoRaw),
         data_nascimento: fmtDate(nascimentoRaw),
         escolaridade: String(r[cols.escolaridade] || ''),
+        rg: cols.rg >= 0 ? String(r[cols.rg] || '') : '',
+        cpf: cols.cpf >= 0 ? String(r[cols.cpf] || '') : '',
+        certidao_nascimento: cols.certidao_nascimento >= 0 ? String(r[cols.certidao_nascimento] || '') : '',
+        titulo_eleitor: cols.titulo_eleitor >= 0 ? String(r[cols.titulo_eleitor] || '') : '',
+        carteira_trabalho: cols.carteira_trabalho >= 0 ? String(r[cols.carteira_trabalho] || '') : '',
+        alistamento_exercito: cols.alistamento_exercito >= 0 ? String(r[cols.alistamento_exercito] || '') : '',
         created_at: fmtDate(r[cols.registrado_em]),
         deletado_em: deletadoEm,
         ativo: !deletadoEm
@@ -2941,7 +2979,7 @@ function carregarPerfil(socioeducandoId) {
   var ausenteAtual   = fugas.find(function(f) { return !f.data_retorno_iso; }) || null;
 
   var status = 'desligado';
-  if (ausenteAtual)   status = 'ausente';
+  if (ausenteAtual) status = 'ausente';
   else if (internadoAtivo) status = 'internado';
 
   return {
@@ -3449,6 +3487,7 @@ function verificarSocioeducandoExistente(id) {
 function salvarSocioeducando(dados) {
   ensureSocioeducandosNascimentoColumn();
   ensureSocioeducandosCredenciaisColumns();
+  ensureSocioeducandosDocumentosColumns();
   var sh = getSheet(SHEETS.SOCIOEDUCANDOS);
   var rows = getRows(SHEETS.SOCIOEDUCANDOS);
   var cols = getSocioeducandosCols();
@@ -3497,6 +3536,7 @@ function salvarSocioeducando(dados) {
     }
     if (cols.nascimento >= 0) linhaEdicao[cols.nascimento] = dados.data_nascimento || '';
     linhaEdicao[cols.escolaridade] = dados.escolaridade || '';
+    preencherDocumentosSocioeducando(linhaEdicao, cols, dados);
     linhaEdicao[cols.registrado_em] = rows[idx][cols.registrado_em] || new Date();
     linhaEdicao[cols.criadoPor] = rows[idx][cols.criadoPor] || user;
     linhaEdicao[cols.atualizadoEm] = new Date();
@@ -3516,6 +3556,7 @@ function salvarSocioeducando(dados) {
     }
     if (cols.nascimento >= 0) linhaNova[cols.nascimento] = dados.data_nascimento || '';
     linhaNova[cols.escolaridade] = dados.escolaridade || '';
+    preencherDocumentosSocioeducando(linhaNova, cols, dados);
     linhaNova[cols.registrado_em] = new Date();
     linhaNova[cols.criadoPor] = user;
     linhaNova[cols.atualizadoEm] = '';
@@ -3957,8 +3998,95 @@ function salvarFuga(dados) {
     linha[cf.atualizadoEm] = '';
     linha[cf.atualizadoPor] = '';
     sh.appendRow(linha);
+
+    var matriculasEncerradas = encerrarMatriculasAtivasPorEvasao(
+      dados.socioeducando_id,
+      dados.data_saida,
+      user
+    );
+    return { ok: true, matriculas_encerradas: matriculasEncerradas };
   }
   return { ok: true };
+}
+
+function preencherDocumentosSocioeducando(linha, cols, dados) {
+  ['rg', 'cpf', 'certidao_nascimento', 'titulo_eleitor', 'carteira_trabalho', 'alistamento_exercito'].forEach(function(campo) {
+    if (cols[campo] >= 0) linha[cols[campo]] = String(dados[campo] || '').trim();
+  });
+}
+
+function getSocioeducandosInternadosDocumentos() {
+  var ca = getAdmissoesCols();
+  var cf = getFugasCols();
+  var internados = {}, evadidos = {};
+  getRowsAtivas(SHEETS.ADMISSOES).forEach(function(r) { if (!toIso(r[ca.data_desligamento])) internados[String(r[ca.socioeducando_id])] = true; });
+  getRowsAtivas(SHEETS.FUGAS).forEach(function(r) { if (!toIso(r[cf.data_retorno])) evadidos[String(r[cf.socioeducando_id])] = true; });
+  return getSocioeducandos().filter(function(j) { return internados[j.id] && !evadidos[j.id]; });
+}
+
+function salvarDocumentosSocioeducandos(linhas) {
+  var permitidos = {};
+  getSocioeducandosInternadosDocumentos().forEach(function(j) { permitidos[j.id] = true; });
+  var porId = {};
+  (Array.isArray(linhas) ? linhas : []).forEach(function(item) { if (item && item.id) porId[String(item.id)] = item; });
+  var cols = getSocioeducandosCols();
+  var sh = getSheet(SHEETS.SOCIOEDUCANDOS);
+  var rows = getRows(SHEETS.SOCIOEDUCANDOS);
+  var agora = new Date(), user = usuarioAtual(), atualizados = 0;
+  rows.forEach(function(row, indice) {
+    var id = String(row[cols.id]);
+    if (!porId[id] || !permitidos[id]) return;
+    preencherDocumentosSocioeducando(row, cols, porId[id]);
+    row[cols.atualizadoEm] = agora;
+    row[cols.atualizadoPor] = user;
+    sh.getRange(indice + 2, 1, 1, row.length).setValues([row]);
+    atualizados++;
+  });
+  if (atualizados) clearSheetCaches(SHEETS.SOCIOEDUCANDOS);
+  return { ok: true, atualizados: atualizados };
+}
+
+/**
+ * Encerra como desistentes as matrículas de cursos que estavam em andamento
+ * na data da fuga/evasão informada.
+ */
+function encerrarMatriculasAtivasPorEvasao(socioeducandoId, dataEvasao, usuario) {
+  var cm = getCursoMatriculasCols();
+  var cc = getCursosCols();
+  var sh = getSheet(SHEETS.CURSO_MATRICULAS);
+  var cursosPorId = {};
+
+  getRowsAtivas(SHEETS.CURSOS).forEach(function(curso) {
+    cursosPorId[String(curso[cc.id])] = curso;
+  });
+
+  var matriculas = getRows(SHEETS.CURSO_MATRICULAS);
+  var agora = new Date();
+  var encerradas = 0;
+
+  matriculas.forEach(function(matricula, indice) {
+    if (cm.deletado_em >= 0 && String(matricula[cm.deletado_em] || '').trim() !== '') return;
+    var curso = cursosPorId[String(matricula[cm.curso_id])];
+    var cursoEmAndamento = curso && calcularStatusCurso(
+      toIso(curso[cc.data_inicio]),
+      toIso(curso[cc.data_termino]),
+      dataEvasao
+    ) === 'Em andamento';
+    var matriculaAtiva = matricula[cm.matriculado] === true && !toIso(matricula[cm.data_termino]);
+
+    if (String(matricula[cm.socioeducando_id]) !== String(socioeducandoId) || !matriculaAtiva || !cursoEmAndamento) return;
+
+    var linha = indice + 2;
+    sh.getRange(linha, cm.tipo_termino + 1).setValue('Desistente');
+    sh.getRange(linha, cm.data_termino + 1).setValue(dataEvasao);
+    sh.getRange(linha, cm.observacoes + 1).setValue('Evadiu');
+    sh.getRange(linha, cm.atualizadoEm + 1).setValue(agora);
+    sh.getRange(linha, cm.atualizadoPor + 1).setValue(usuario);
+    encerradas++;
+  });
+
+  if (encerradas) clearSheetCaches(SHEETS.CURSO_MATRICULAS);
+  return encerradas;
 }
 
 function registrarRetorno(fugaId, dataRetorno) {
