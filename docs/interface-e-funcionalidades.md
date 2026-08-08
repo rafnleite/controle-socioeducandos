@@ -182,6 +182,17 @@ o primeiro paint da tela.
   mesmo em caso de desistência.
 - Página "Cursos" dedicada: cursos com inscrição prestes a encerrar (com contagem de
   vagas ocupadas/disponíveis) e socioeducandos internados sem curso recente.
+- **Gerar relatórios** (página "Cursos"): baixa um arquivo `.xlsx` com duas abas:
+  - `Socioeducandos em cursos`: somente matrículas ativas em cursos cujo período está
+    em andamento, com socioeducando, curso, instituição, datas, horário semanal e
+    observações da matrícula. Os dias da semana são exportados por extenso e as
+    dimensões das linhas e colunas são ajustadas automaticamente ao conteúdo;
+  - `Socioeducandos sem cursos`: internados ativos sem matrícula ativa em curso em
+    andamento, com escolaridade, interesses, término do último vínculo de curso,
+    tempos decorridos e início da internação atual.
+- No relatório, uma matrícula encerrada por conclusão ou desistência não é considerada
+  ativa. Para o histórico, a data usada é a de término do vínculo da matrícula, e não
+  necessariamente a data prevista de encerramento do curso.
 - **Evento diário do curso** (a partir do calendário do perfil): para cada dia de
   ocorrência do curso e socioeducando, o sistema permite CRUD de observação e flag
   `Ausente` em um modal (create/read/update/delete do registro diário).

@@ -973,12 +973,12 @@ function renderDocumentosSocioeducandos(socioeducandos){
   var linhas = socioeducandos.length
     ? socioeducandos.map(function(j){
         return '<tr data-documentos-id="'+esc(j.id)+'"><td><strong>'+esc(j.nome)+'</strong><br><small class="text-muted">ID '+esc(j.id)+'</small></td>'
-          +campos.map(function(c){ return '<td><input type="text" data-documento="'+c[0]+'" value="'+esc(j[c[0]] || '')+'" style="min-width:150px"></td>'; }).join('')
+          +campos.map(function(c){ return '<td>'+selectStatusDocumentoHtml('', c[0], j[c[0]], 'min-width:150px')+'</td>'; }).join('')
           +'</tr>';
       }).join('')
     : '<tr><td colspan="7" class="no-records">Não há socioeducandos internados no momento.</td></tr>';
   var html = '<div class="card">'
-    +'<div class="page-hdr"><div><h4><i class="fa-solid fa-id-card"></i> Documentos dos socioeducandos</h4><small>Preencha ou altere os documentos dos socioeducandos internados e salve tudo de uma vez.</small></div></div>'
+    +'<div class="page-hdr"><div><h4><i class="fa-solid fa-id-card"></i> Documentos dos socioeducandos</h4><small>Informe a situação de cada documento e salve tudo de uma vez.</small></div></div>'
     +'<div id="form-msg"></div>'
     +'<div style="overflow-x:auto"><table><thead><tr><th>Socioeducando</th>'
     +campos.map(function(c){ return '<th>'+c[1]+'</th>'; }).join('')
@@ -991,7 +991,7 @@ function renderDocumentosSocioeducandos(socioeducandos){
 function salvarDocumentosSocioeducandosUI(){
   var linhas = Array.from(document.querySelectorAll('tr[data-documentos-id]')).map(function(tr){
     var item = { id: tr.getAttribute('data-documentos-id') };
-    tr.querySelectorAll('[data-documento]').forEach(function(input){ item[input.getAttribute('data-documento')] = input.value.trim(); });
+    tr.querySelectorAll('[data-documento]').forEach(function(input){ item[input.getAttribute('data-documento')] = input.value; });
     return item;
   });
   setBusyState(true, 'Salvando documentos...');
@@ -1063,6 +1063,29 @@ function mostrarPaginaCursos() {
     .withSuccessHandler(renderPaginaCursos)
     .withFailureHandler(showError)
     .carregarPaginaCursos();
+}
+
+function gerarRelatoriosCursos() {
+  setBusyState(true, 'Gerando relatórios de cursos...');
+  google.script.run
+    .withSuccessHandler(function(arquivo) {
+      try {
+        var binario = atob(arquivo.base64);
+        var bytes = new Uint8Array(binario.length);
+        for (var i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
+        var url = URL.createObjectURL(new Blob([bytes], { type: arquivo.mime_type }));
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = arquivo.nome;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+        setBusyState(false);
+      } catch (e) { setBusyState(false); showError(e); }
+    })
+    .withFailureHandler(function(e) { setBusyState(false); showError(e); })
+    .gerarRelatoriosCursosXlsx();
 }
 
 function diaSemanaNomeCompletoCurso(isoDate) {
@@ -1340,6 +1363,7 @@ function renderPaginaCursos(d) {
   var html = '<div class="page-hdr"><h4><i class="fa-solid fa-book-open"></i> Cursos</h4>'
     +'<div class="d-flex gap-2 flex-wrap">'
     +'<button class="btn btn-primary" onclick="abrirCadastroCurso()"><i class="fa-solid fa-plus"></i>Novo curso</button>'
+    +'<button class="btn btn-outline" onclick="gerarRelatoriosCursos()"><i class="fa-solid fa-file-excel"></i>Gerar relatórios</button>'
     +'<button class="btn btn-primary" onclick="mostrarPaginaCursos()"><i class="fa-solid fa-rotate-right"></i>Atualizar</button>'
     +'</div>'
     +'</div>'
@@ -3035,7 +3059,11 @@ function eventosAgendaPerfil(d, rangeStart, rangeEnd){
   // Cursos — gerar ocorrências semanais para cada dia da semana cadastrado
   // Mapa: '0'=Dom … '6'=Sáb  →  getDay() do JS
   (d.cursos || []).forEach(function(c){
-    if(!c.data_inicio_iso || !c.data_termino_iso) return;
+    var fimCursoIso = c.data_termino_iso || '';
+    if(c.matricula_data_termino_iso && (!fimCursoIso || c.matricula_data_termino_iso < fimCursoIso)){
+      fimCursoIso = c.matricula_data_termino_iso;
+    }
+    if(!c.data_inicio_iso || !fimCursoIso) return;
     var hi = String(c.horario_inicio  || '').trim();
     var ht = String(c.horario_termino || '').trim();
     if(!hi || !ht) return; // sem horário definido, não pode renderizar no time-grid
@@ -3051,7 +3079,7 @@ function eventosAgendaPerfil(d, rangeStart, rangeEnd){
     var hFim = parseInt(htParts[0], 10), mFim = parseInt(htParts[1] || '0', 10);
 
     var inicioCurso = new Date(c.data_inicio_iso + 'T00:00:00');
-    var fimCurso = new Date(c.data_termino_iso + 'T23:59:59');
+    var fimCurso = new Date(fimCursoIso + 'T23:59:59');
     var cursorBase = limiteInicio || inicioCurso;
     var cursor = inicioCurso < cursorBase ? new Date(cursorBase) : new Date(inicioCurso);
     var fim = limiteFim ? (fimCurso < limiteFim ? fimCurso : limiteFim) : fimCurso;
@@ -4330,13 +4358,13 @@ function renderFormSocioeducando(socioeducando){
     +'</select></div>'
     +'<div class="sec-hdr" style="margin-top:14px"><h5><i class="fa-solid fa-id-card"></i> Documentos</h5></div>'
     +'<div class="row2">'
-    +'<div class="form-group"><label>RG</label><input type="text" id="f-rg" value="'+(socioeducando?esc(socioeducando.rg):'')+'"></div>'
-    +'<div class="form-group"><label>CPF</label><input type="text" id="f-cpf" value="'+(socioeducando?esc(socioeducando.cpf):'')+'"></div>'
+    +'<div class="form-group"><label>RG</label>'+selectStatusDocumentoHtml('f-rg', '', socioeducando&&socioeducando.rg)+'</div>'
+    +'<div class="form-group"><label>CPF</label>'+selectStatusDocumentoHtml('f-cpf', '', socioeducando&&socioeducando.cpf)+'</div>'
     +'</div>'
-    +'<div class="form-group"><label>Certidão de nascimento</label><input type="text" id="f-certidao" value="'+(socioeducando?esc(socioeducando.certidao_nascimento):'')+'"></div>'
-    +'<div class="form-group"><label>Título de eleitor</label><input type="text" id="f-titulo" value="'+(socioeducando?esc(socioeducando.titulo_eleitor):'')+'"></div>'
-    +'<div class="form-group"><label>Carteira de trabalho</label><input type="text" id="f-carteira" value="'+(socioeducando?esc(socioeducando.carteira_trabalho):'')+'"></div>'
-    +'<div class="form-group"><label>Alistamento no Exército</label><input type="text" id="f-alistamento" value="'+(socioeducando?esc(socioeducando.alistamento_exercito):'')+'"></div>'
+    +'<div class="form-group"><label>Certidão de nascimento</label>'+selectStatusDocumentoHtml('f-certidao', '', socioeducando&&socioeducando.certidao_nascimento)+'</div>'
+    +'<div class="form-group"><label>Título de eleitor</label>'+selectStatusDocumentoHtml('f-titulo', '', socioeducando&&socioeducando.titulo_eleitor)+'</div>'
+    +'<div class="form-group"><label>Carteira de trabalho</label>'+selectStatusDocumentoHtml('f-carteira', '', socioeducando&&socioeducando.carteira_trabalho)+'</div>'
+    +'<div class="form-group"><label>Alistamento no Exército</label>'+selectStatusDocumentoHtml('f-alistamento', '', socioeducando&&socioeducando.alistamento_exercito)+'</div>'
     +(!editando ? '<div class="form-group"><label>Data de admissão <span class="req">*</span></label><input type="date" id="f-adm" value="'+today()+'" max="'+today()+'"></div>' : '')
     +'<div class="d-flex gap-2">'
     +'<button class="btn btn-primary" onclick="submitFormSocioeducando('+editando+')"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>'
@@ -4357,12 +4385,12 @@ function submitFormSocioeducando(editando){
     senha_profissional: elSenha ? elSenha.value : '',
     data_nascimento: document.getElementById('f-nasc').value,
     escolaridade: document.getElementById('f-escol').value,
-    rg: document.getElementById('f-rg').value.trim(),
-    cpf: document.getElementById('f-cpf').value.trim(),
-    certidao_nascimento: document.getElementById('f-certidao').value.trim(),
-    titulo_eleitor: document.getElementById('f-titulo').value.trim(),
-    carteira_trabalho: document.getElementById('f-carteira').value.trim(),
-    alistamento_exercito: document.getElementById('f-alistamento').value.trim(),
+    rg: document.getElementById('f-rg').value,
+    cpf: document.getElementById('f-cpf').value,
+    certidao_nascimento: document.getElementById('f-certidao').value,
+    titulo_eleitor: document.getElementById('f-titulo').value,
+    carteira_trabalho: document.getElementById('f-carteira').value,
+    alistamento_exercito: document.getElementById('f-alistamento').value,
     data_admissao: (!editando && document.getElementById('f-adm')) ? document.getElementById('f-adm').value : '',
     editando: editando
   };
@@ -4440,6 +4468,25 @@ function fecharModalCredenciaisSocioeducando(){
   if(m) m.remove();
 }
 
+function normalizarStatusDocumento(valor){
+  var status = String(valor || '').trim().toUpperCase();
+  if(status === 'NAO') status = 'NÃO';
+  if(status === 'SIM' || status === 'NÃO' || status === 'EM ANDAMENTO') return status;
+  return status ? 'SIM' : '';
+}
+
+function atualizarCorStatusDocumento(el){
+  el.setAttribute('data-status', el.value || '');
+}
+
+function selectStatusDocumentoHtml(id, campo, valor, estilo){
+  var atual = normalizarStatusDocumento(valor);
+  return '<select'+(id?' id="'+id+'"':'')+(campo?' data-documento="'+campo+'"':'')+' class="status-documento-select" data-status="'+atual+'" onchange="atualizarCorStatusDocumento(this)"'+(estilo?' style="'+estilo+'"':'')+'>'
+    +'<option value="">Selecione...</option>'
+    +['SIM','NÃO','EM ANDAMENTO'].map(function(status){ return '<option value="'+status+'"'+(atual===status?' selected':'')+'>'+status+'</option>'; }).join('')
+    +'</select>';
+}
+
 function documentosSocioeducandoLista(j){
   return [
     { label: 'RG', valor: j && j.rg },
@@ -4468,7 +4515,9 @@ function abrirModalDocumentosSocioeducando(socioeducandoId){
   var linhas = documentosSocioeducandoLista(j)
     .filter(function(doc){ return String(doc.valor || '').trim(); })
     .map(function(doc){
-      return '<div class="credenciais-modal-item"><span class="credenciais-modal-label">'+esc(doc.label)+'</span><div class="credenciais-modal-value">'+esc(doc.valor)+'</div></div>';
+      var status = normalizarStatusDocumento(doc.valor);
+      var classe = status === 'SIM' ? 'b-green' : (status === 'NÃO' ? 'b-red' : 'b-orange');
+      return '<div class="credenciais-modal-item"><span class="credenciais-modal-label">'+esc(doc.label)+'</span><div class="credenciais-modal-value"><span class="badge '+classe+'">'+esc(status)+'</span></div></div>';
     }).join('');
 
   var overlay = document.createElement('div');

@@ -97,8 +97,21 @@ function include(filename) {
 }
 
 // ── Inicialização ─────────────────────────────────────────────
+function mostrarProgressoInicializacao_(ss, atual, total, etapa) {
+  var percentual = total > 0 ? Math.min(100, Math.round((atual / total) * 100)) : 0;
+  var blocosPreenchidos = Math.round(percentual / 10);
+  var barra = Array(blocosPreenchidos + 1).join('█') + Array(11 - blocosPreenchidos).join('░');
+  var mensagem = barra + ' ' + percentual + '% (' + atual + '/' + total + ')\n' + etapa;
+  Logger.log('[Inicialização] %s', mensagem.replace('\n', ' — '));
+  // Tempo negativo mantém o indicador visível até ser substituído pela
+  // próxima atualização ou fechado manualmente pelo usuário.
+  ss.toast(mensagem, 'Inicializando planilha', -1);
+  SpreadsheetApp.flush();
+}
+
 function inicializarPlanilha() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  Logger.log('[Inicialização] Início da inicialização da planilha.');
 
   var configs = [
     {
@@ -143,8 +156,8 @@ function inicializarPlanilha() {
     },
     {
       nome: SHEETS.ATENDIMENTOS,
-      headers: ['ID', 'ID Socioeducando', 'Tipo de Atendimento', 'Responsável', 'Data/Hora Início', 'Data/Hora Término', 'Observações', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Realizado', 'Motivo Não Realizado', 'ID Atendimento Reposição', 'Deletado em', 'Deletado por'],
-      widths:  [50, 70, 180, 200, 150, 150, 250, 130, 180, 130, 180, 80, 250, 90, 130, 180]
+      headers: ['ID', 'ID Socioeducando', 'Tipo de Atendimento', 'Responsável', 'Data/Hora Início', 'Data/Hora Término', 'Realizado', 'Motivo Não Realizado', 'ID Atendimento Reposição', 'Observações', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
+      widths:  [50, 70, 180, 200, 150, 150, 80, 250, 90, 250, 130, 180, 130, 180, 130, 180]
     },
     {
       nome: SHEETS.TRABALHOS,
@@ -172,8 +185,11 @@ function inicializarPlanilha() {
       widths:  [50, 70, 220, 130, 180]
     }
   ];
+  var totalEtapasInicializacao = configs.length * 2 + 3;
+  mostrarProgressoInicializacao_(ss, 0, totalEtapasInicializacao, 'Preparando a inicialização...');
 
-  configs.forEach(function(cfg) {
+  configs.forEach(function(cfg, indice) {
+    mostrarProgressoInicializacao_(ss, indice + 1, totalEtapasInicializacao, 'Verificando aba: ' + cfg.nome);
     var sheet = ss.getSheetByName(cfg.nome);
     if (!sheet) sheet = ss.insertSheet(cfg.nome);
     if (sheet.getLastRow() === 0) {
@@ -217,6 +233,7 @@ function inicializarPlanilha() {
   ensureAtendimentosColunasNaoRealizado();
   // Garante tabela de tipos de atendimento e duração padrão.
   ensureTiposAtendimentoPadrao();
+  mostrarProgressoInicializacao_(ss, configs.length + 1, totalEtapasInicializacao, 'Migrações de estrutura concluídas.');
   // Garante as colunas padrão de auditoria (Registrado em/Criado por/Atualizado
   // por) e de exclusão lógica (Deletado em/Deletado por) em todas as abas.
   Object.keys(SHEETS).forEach(function(key) {
@@ -226,8 +243,20 @@ function inicializarPlanilha() {
     }
     ensureColunasPadraoAuditoria(SHEETS[key]);
   });
+  mostrarProgressoInicializacao_(ss, configs.length + 2, totalEtapasInicializacao, 'Colunas de auditoria verificadas.');
+
+  // Algumas migrações acima podem criar colunas ao final de uma aba já
+  // existente. Faz uma segunda passagem depois de todas elas para garantir
+  // que o schema oficial termine sempre na ordem definida em `configs`.
+  configs.forEach(function(cfg, indice) {
+    Logger.log('[Inicialização] Passagem final %s/%s: %s.', indice + 1, configs.length, cfg.nome);
+    var sheet = ss.getSheetByName(cfg.nome);
+    if (sheet) ensureSheetEstruturaByConfig(sheet, cfg.headers, cfg.widths);
+    mostrarProgressoInicializacao_(ss, configs.length + 3 + indice, totalEtapasInicializacao, 'Reorganizando aba: ' + cfg.nome);
+  });
 
   // Normaliza a ordem física das colunas em tabelas existentes.
+  mostrarProgressoInicializacao_(ss, totalEtapasInicializacao - 1, totalEtapasInicializacao, 'Validando a ordem final das colunas...');
   getSocioeducandosCols();
   getCursosCols();
   getCursoMatriculasCols();
@@ -243,7 +272,8 @@ function inicializarPlanilha() {
   getTiposAtendimentoCols();
   getInteressesCursoCols();
 
-  Logger.log('Planilha inicializada com sucesso.');
+  Logger.log('[Inicialização] Planilha inicializada com sucesso.');
+  ss.toast('██████████ 100%\nPlanilha inicializada e colunas reorganizadas. Clique no X para fechar.', 'Inicialização concluída', -1);
 }
 
 /**
@@ -259,6 +289,7 @@ function ensureSheetEstruturaByConfig(sheet, headersEsperados, largurasEsperadas
 
   var alterou = false;
   var headersAtuais = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(norm);
+  Logger.log('[Inicialização] Verificando estrutura da aba "%s".', sheet.getName());
 
   // Adiciona colunas faltantes (inicialmente ao final).
   headersEsperados.forEach(function(nomeColuna) {
@@ -268,6 +299,7 @@ function ensureSheetEstruturaByConfig(sheet, headersEsperados, largurasEsperadas
     sheet.getRange(1, pos).setFontWeight('bold').setBackground('#3c3c7a').setFontColor('white');
     alterou = true;
     headersAtuais.push(norm(nomeColuna));
+    Logger.log('[Inicialização] Aba "%s": coluna "%s" adicionada na posição %s.', sheet.getName(), nomeColuna, pos);
   });
 
   // Coloca as colunas oficiais na ordem esperada.
@@ -284,6 +316,8 @@ function ensureSheetEstruturaByConfig(sheet, headersEsperados, largurasEsperadas
   });
 
   sheet.setFrozenRows(1);
+  var ordemFinal = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  Logger.log('[Inicialização] Aba "%s": ordem final = %s', sheet.getName(), ordemFinal.join(' | '));
   if (alterou) clearSheetCaches(sheet.getName());
 }
 
@@ -719,6 +753,7 @@ function ensureOrdemColunas(nomeAba, ordemEsperada) {
     var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(normalize);
     var currentIndex = headers.indexOf(normalize(nome));
     if (currentIndex < 0 || currentIndex === targetIndex) return;
+    Logger.log('[Inicialização] Aba "%s": movendo "%s" da posição %s para %s.', nomeAba, nome, currentIndex + 1, targetIndex + 1);
     sh.moveColumns(sh.getRange(1, currentIndex + 1, sh.getMaxRows(), 1), targetIndex + 1);
     alterou = true;
   });
@@ -1212,9 +1247,9 @@ function getTrabalhosCols() {
 }
 
 function getVisitasTerritoriaisCols() {
-    maybeEnsureOnRead(function() {
-  ensureVisitasTerritoriaisSheet();
-    }
+  maybeEnsureOnRead(function() {
+    ensureVisitasTerritoriaisSheet();
+  });
   if (_COLS_CACHE[SHEETS.VISITAS_TERRITORIAIS]) return _COLS_CACHE[SHEETS.VISITAS_TERRITORIAIS];
   maybeEnsureOnRead(function() {
     ensureColunasPadraoAuditoria(SHEETS.VISITAS_TERRITORIAIS);
@@ -1426,7 +1461,7 @@ function getSocioeducandosCols() {
     ensureSocioeducandosCredenciaisColumns();
     ensureSocioeducandosDocumentosColumns();
     ensureColunasPadraoAuditoria(SHEETS.SOCIOEDUCANDOS);
-    ensureOrdemColunas(SHEETS.SOCIOEDUCANDOS, ['ID (SUASE)', 'Nome', 'Data de Nascimento', 'Escolaridade', 'E-mail Profissional', 'Senha Profissional (Criptografada)', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por']);
+    ensureOrdemColunas(SHEETS.SOCIOEDUCANDOS, ['ID (SUASE)', 'Nome', 'Data de Nascimento', 'Escolaridade', 'RG', 'CPF', 'Certidão de Nascimento', 'Título de Eleitor', 'Carteira de Trabalho', 'Alistamento no Exército', 'E-mail Profissional', 'Senha Profissional (Criptografada)', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por']);
   });
   var headers = getHeadersLower(SHEETS.SOCIOEDUCANDOS);
 
@@ -4010,8 +4045,12 @@ function salvarFuga(dados) {
 }
 
 function preencherDocumentosSocioeducando(linha, cols, dados) {
+  var statusPermitidos = { 'SIM': true, 'NÃO': true, 'EM ANDAMENTO': true };
   ['rg', 'cpf', 'certidao_nascimento', 'titulo_eleitor', 'carteira_trabalho', 'alistamento_exercito'].forEach(function(campo) {
-    if (cols[campo] >= 0) linha[cols[campo]] = String(dados[campo] || '').trim();
+    var status = String(dados[campo] || '').trim().toUpperCase();
+    if (status === 'NAO') status = 'NÃO';
+    if (status && !statusPermitidos[status]) throw new Error('Situação inválida para o documento: ' + campo + '.');
+    if (cols[campo] >= 0) linha[cols[campo]] = status;
   });
 }
 
@@ -5620,6 +5659,159 @@ function calcularStatusCurso(dataInicioIso, dataTerminoIso, hoje) {
   if (dataInicioIso && dataInicioIso > hoje) return 'Previsto';
   if (dataTerminoIso && dataTerminoIso < hoje) return 'Encerrado';
   return 'Em andamento';
+}
+
+/** Gera um XLSX com as duas visões operacionais de cursos. */
+function gerarRelatoriosCursosXlsx() {
+  var dados = montarDadosRelatoriosCursos();
+  var arquivoTemporario = SpreadsheetApp.create('Relatorios de cursos - temporario');
+  var arquivoId = arquivoTemporario.getId();
+  try {
+    var emCursos = arquivoTemporario.getSheets()[0];
+    emCursos.setName('Socioeducandos em cursos');
+    preencherAbaRelatorioCursos(emCursos,
+      ['Socioeducando', 'Curso', 'Instituição', 'Data início', 'Data fim', 'Horário', 'Observações da matrícula'],
+      dados.em_cursos, [4, 5]);
+
+    var semCursos = arquivoTemporario.insertSheet('Socioeducandos sem cursos');
+    preencherAbaRelatorioCursos(semCursos,
+      ['Socioeducando', 'Escolaridade', 'Interesses', 'Data de término do último curso', 'Dias desde o término do último curso', 'Data de início da internação', 'Dias desde o início da internação'],
+      dados.sem_cursos, [4, 6]);
+
+    SpreadsheetApp.flush();
+    var nome = 'Relatorios_Cursos_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd') + '.xlsx';
+    var mimeXlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    var resposta = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + arquivoId + '/export?format=xlsx', {
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+      muteHttpExceptions: true
+    });
+    if (resposta.getResponseCode() !== 200) {
+      throw new Error('Não foi possível converter o relatório para XLSX (código ' + resposta.getResponseCode() + ').');
+    }
+    var blob = resposta.getBlob().setContentType(mimeXlsx).setName(nome);
+    return {
+      nome: nome,
+      mime_type: mimeXlsx,
+      base64: Utilities.base64Encode(blob.getBytes())
+    };
+  } finally {
+    DriveApp.getFileById(arquivoId).setTrashed(true);
+  }
+}
+
+function montarDadosRelatoriosCursos() {
+  var hoje = toIso(new Date());
+  var cc = getCursosCols(), cm = getCursoMatriculasCols();
+  var ca = getAdmissoesCols(), cs = getSocioeducandosCols();
+  var cursos = getRowsAtivas(SHEETS.CURSOS);
+  var matriculas = getRowsAtivas(SHEETS.CURSO_MATRICULAS);
+  var socioeducandos = getRowsAtivas(SHEETS.SOCIOEDUCANDOS);
+  var admissoes = getRowsAtivas(SHEETS.ADMISSOES);
+  var interessesPorSocio = getInteressesCursoResumo().porSocioeducando;
+  var cursosMap = {}, socioMap = {};
+  cursos.forEach(function(c) { cursosMap[String(c[cc.id])] = c; });
+  socioeducandos.forEach(function(s) { socioMap[String(s[cs.id])] = s; });
+
+  function matriculaEmCursoAndamento(m) {
+    if (!boolVal(m[cm.matriculado])) return false;
+    if (String(m[cm.tipo_termino] || '').trim() || toIso(m[cm.data_termino])) return false;
+    var curso = cursosMap[String(m[cm.curso_id])];
+    return !!curso && calcularStatusCurso(toIso(curso[cc.data_inicio]), toIso(curso[cc.data_termino]), hoje) === 'Em andamento';
+  }
+
+  var socioEmCurso = {};
+  var emCursos = matriculas.filter(matriculaEmCursoAndamento).map(function(m) {
+    var sid = String(m[cm.socioeducando_id]);
+    var socio = socioMap[sid], curso = cursosMap[String(m[cm.curso_id])];
+    socioEmCurso[sid] = true;
+    var horario = diasSemanaTextuaisRelatorio(curso[cc.dias_semana]);
+    var faixa = [fmtTime(curso[cc.horario_inicio]), fmtTime(curso[cc.horario_termino])].filter(String).join(' às ');
+    horario = horario && faixa ? horario + ' - ' + faixa : horario || faixa;
+    return [socio ? String(socio[cs.nome] || '') : ('ID ' + sid), String(curso[cc.nome_curso] || ''),
+      String(curso[cc.instituicao] || ''), valorDataRelatorio(curso[cc.data_inicio]),
+      valorDataRelatorio(curso[cc.data_termino]), horario, String(m[cm.observacoes] || '')];
+  }).sort(function(a, b) {
+    return String(a[0]).localeCompare(String(b[0]), 'pt-BR') || String(a[1]).localeCompare(String(b[1]), 'pt-BR');
+  });
+
+  var admissaoAtivaPorSocio = {};
+  admissoes.forEach(function(a) {
+    if (toIso(a[ca.data_desligamento])) return;
+    var sid = String(a[ca.socioeducando_id]), data = toIso(a[ca.data_admissao]);
+    if (data && (!admissaoAtivaPorSocio[sid] || data > admissaoAtivaPorSocio[sid])) admissaoAtivaPorSocio[sid] = data;
+  });
+  var ultimoTerminoPorSocio = {};
+  matriculas.forEach(function(m) {
+    if (!boolVal(m[cm.matriculado])) return;
+    var data = toIso(m[cm.data_termino]);
+    var curso = cursosMap[String(m[cm.curso_id])];
+    // Em registros antigos, o curso pode ter encerrado sem o término ter sido
+    // repetido na matrícula. Nesse caso, usa o fim previsto do próprio curso.
+    if (!data && curso) {
+      var fimCurso = toIso(curso[cc.data_termino]);
+      if (fimCurso && fimCurso < hoje) data = fimCurso;
+    }
+    if (!data) return;
+    var sid = String(m[cm.socioeducando_id]);
+    if (!ultimoTerminoPorSocio[sid] || data > ultimoTerminoPorSocio[sid]) ultimoTerminoPorSocio[sid] = data;
+  });
+
+  var semCursos = Object.keys(admissaoAtivaPorSocio).filter(function(sid) {
+    return !socioEmCurso[sid] && !!socioMap[sid];
+  }).map(function(sid) {
+    var socio = socioMap[sid], ultimo = ultimoTerminoPorSocio[sid] || '';
+    var inicio = admissaoAtivaPorSocio[sid];
+    return [String(socio[cs.nome] || ''), String(socio[cs.escolaridade] || ''),
+      (interessesPorSocio[sid] || []).map(function(i) { return i.interesse; }).join(', '),
+      valorDataRelatorio(ultimo), ultimo ? diferencaDiasIso(ultimo, hoje) : '',
+      valorDataRelatorio(inicio), diferencaDiasIso(inicio, hoje)];
+  }).sort(function(a, b) { return String(a[0]).localeCompare(String(b[0]), 'pt-BR'); });
+  return { em_cursos: emCursos, sem_cursos: semCursos };
+}
+
+function valorDataRelatorio(valor) {
+  var iso = toIso(valor);
+  if (!iso) return '';
+  var p = iso.split('-');
+  return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+}
+
+function diferencaDiasIso(inicioIso, fimIso) {
+  if (!inicioIso || !fimIso) return '';
+  return Math.max(0, Math.floor((new Date(fimIso + 'T12:00:00') - new Date(inicioIso + 'T12:00:00')) / 86400000));
+}
+
+function diasSemanaTextuaisRelatorio(valor) {
+  var nomes = {
+    '0': 'Domingo', domingo: 'Domingo', dom: 'Domingo',
+    '1': 'Segunda-feira', segunda: 'Segunda-feira', 'segunda-feira': 'Segunda-feira', seg: 'Segunda-feira',
+    '2': 'Terça-feira', terca: 'Terça-feira', 'terca-feira': 'Terça-feira', ter: 'Terça-feira',
+    '3': 'Quarta-feira', quarta: 'Quarta-feira', 'quarta-feira': 'Quarta-feira', qua: 'Quarta-feira',
+    '4': 'Quinta-feira', quinta: 'Quinta-feira', 'quinta-feira': 'Quinta-feira', qui: 'Quinta-feira',
+    '5': 'Sexta-feira', sexta: 'Sexta-feira', 'sexta-feira': 'Sexta-feira', sex: 'Sexta-feira',
+    '6': 'Sábado', sabado: 'Sábado', sab: 'Sábado'
+  };
+  return String(valor || '').split(/[;,]/).map(function(dia) {
+    var original = String(dia || '').trim();
+    if (!original) return '';
+    var chave = removerAcentos(original).toLowerCase();
+    return nomes[chave] || original;
+  }).filter(String).join(', ');
+}
+
+function preencherAbaRelatorioCursos(aba, cabecalhos, linhas, colunasData) {
+  aba.clear();
+  aba.getRange(1, 1, 1, cabecalhos.length).setValues([cabecalhos]);
+  if (linhas.length) aba.getRange(2, 1, linhas.length, cabecalhos.length).setValues(linhas);
+  aba.setFrozenRows(1);
+  aba.getRange(1, 1, 1, cabecalhos.length).setBackground('#3c3c7a').setFontColor('#ffffff').setFontWeight('bold').setWrap(true).setVerticalAlignment('middle');
+  if (linhas.length) {
+    aba.getRange(2, 1, linhas.length, cabecalhos.length).setVerticalAlignment('top').setWrap(true);
+    colunasData.forEach(function(coluna) { aba.getRange(2, coluna, linhas.length, 1).setNumberFormat('dd/mm/yyyy'); });
+    aba.getRange(1, 1, linhas.length + 1, cabecalhos.length).createFilter();
+  }
+  aba.autoResizeColumns(1, cabecalhos.length);
+  aba.autoResizeRows(1, linhas.length + 1);
 }
 
 function carregarPaginaCursos() {
