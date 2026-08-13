@@ -142,9 +142,23 @@
 - [ ] Com `Ausente = true` no dia, o motor de conflitos ignora aquela ocorrência de curso para novas verificações no mesmo intervalo.
 - [ ] Em uma planilha legada, a migração converte `ID Curso` + `ID Socioeducando` para `ID Curso Matrícula` quando houver uma matrícula correspondente.
 
+### 4.6 Exclusão lógica de curso
+- [ ] A ação `Excluir` na página de Cursos pede confirmação.
+- [ ] Após confirmar, `Cursos.Deletado em` e `Cursos.Deletado por` são preenchidos e nenhuma linha é removida fisicamente.
+- [ ] O curso excluído deixa de aparecer na página de Cursos, no perfil do socioeducando, nos relatórios e nas verificações de conflitos.
+
 ---
 
 ## 5. Saídas / Vínculos de Saída
+
+### 5.0 Alertas de encerramento no painel geral
+- [ ] Curso encerrado com matrícula `Matriculado` sem `Tipo de Término` e/ou `Data de Término` → aparece no topo como alerta.
+- [ ] Saída com `Data/Hora Volta` passada e matrícula sem `Retorno` → aparece no topo como alerta agrupado por saída.
+- [ ] Oficina encerrada com matrícula sem `Realizada` → aparece no topo como alerta.
+- [ ] Navegação dos alertas exibe `Alerta 1 de N` e permite avançar/voltar com as setas.
+- [ ] Alerta de curso abre a edição em lote das matrículas do curso.
+- [ ] Alerta de oficina abre a edição das matrículas da oficina.
+- [ ] Alerta de saída abre modal com todos os socioeducandos pendentes e permite salvar `Retorno` e observações em lote.
 
 ### 5.1 Cadastro individual (Saída + Vínculo, a partir do perfil)
 - [ ] Criar nova saída vinculando um socioeducando (Local, **Tipo**, Data de saída, Horário de saída, Data de retorno, Horário de retorno, Condução, **Nome do acompanhante**, Status) → cria linha em `Saidas` e `SaidaMatriculas`.
@@ -155,6 +169,11 @@
 - [ ] Preencher **Observações da saída** (evento, geral) e salvar → persiste em `Saidas.Observações`, distinta da observação por vínculo em `SaidaMatriculas`.
 - [ ] **Verificação de conflito de agenda**: socioeducando já tem curso/saída/atendimento no mesmo horário → alerta de conflito (não bloqueia, apenas avisa).
 - [ ] **Registrar volta** → `Data/Hora Volta` preenchida; validação contra data de ida.
+- [ ] `Retorno` começa nulo no cadastro da matrícula.
+- [ ] Informar `Retorno = Sim` ou `Não` antes do horário de saída → erro de validação.
+- [ ] Informar `Retorno = Sim` após o horário de saída → salva e o resumo exibe `Retornou`.
+- [ ] Informar `Retorno = Não` após o horário de saída → salva e o resumo exibe `Não retornou`.
+- [ ] Deixar `Retorno` nulo, mesmo com `Data/Hora Volta` preenchida → o resumo exibe as duas datas/horas, sem afirmar retorno.
 
 ### 5.2 Cadastro em lote (vários socioeducandos na mesma saída)
 - [ ] Selecionar vários socioeducandos com status individual (Prevista/Realizada/Cancelada) → 1 `Saida` + N `SaidaMatriculas`.

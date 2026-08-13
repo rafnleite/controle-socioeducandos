@@ -8,6 +8,9 @@ var SHEETS = {
   CURSOS:           'Cursos',
   CURSO_MATRICULAS: 'CursoMatriculas',
   CURSO_EVENTOS:    'CursoEventos',
+  TIPOS_OFICINA:    'TiposOficina',
+  OFICINAS:         'Oficinas',
+  OFICINA_MATRICULAS: 'OficinaMatriculas',
   TRABALHOS:        'Trabalhos',
   VISITAS_TERRITORIAIS: 'VisitasTerritoriais',
   FAMILIARES:       'Familiares',
@@ -27,6 +30,14 @@ var TIPOS_ATENDIMENTO_PADRAO = [
   { tipo: 'Assistência Social', duracao_minutos: 60 },
   { tipo: 'Educação Física', duracao_minutos: 60 },
   { tipo: 'Enfermagem', duracao_minutos: 30 }
+];
+
+var TIPOS_OFICINA_PADRAO = [
+  'Oficina Esportiva',
+  'Oficina de Profissionalização',
+  'Oficina de Macramê',
+  'Oficina Jurídica',
+  'Oficina de Horticultura'
 ];
 
 var TIPOS_SAIDA_PADRAO = ['Cultural', 'Familiar', 'Lazer', 'Esportiva', 'Descida para casa', 'Outros'];
@@ -61,6 +72,7 @@ function onOpen() {
 //         exec?page=atendimento&id=ID   → Atendimento pré-selecionado
 //         exec?page=saida               → Saída em lote
 //         exec?page=curso               → Curso em lote
+//         exec?page=oficina             → Oficinas
 //         exec?page=importar            → Importar dados
 function doGet(e) {
   var params = (e && e.parameter) ? e.parameter : {};
@@ -135,6 +147,21 @@ function inicializarPlanilha() {
       widths:  [50, 110, 110, 80, 260, 130, 180, 130, 180, 130, 180]
     },
     {
+      nome: SHEETS.TIPOS_OFICINA,
+      headers: ['Tipo de Oficina', 'Registrado em', 'Criado por'],
+      widths:  [240, 130, 180]
+    },
+    {
+      nome: SHEETS.OFICINAS,
+      headers: ['ID', 'Nome', 'Tipo', 'Responsável', 'Data', 'Horário Início', 'Horário Término', 'Observações', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
+      widths:  [50, 240, 110, 200, 100, 100, 100, 260, 130, 180, 130, 180, 130, 180]
+    },
+    {
+      nome: SHEETS.OFICINA_MATRICULAS,
+      headers: ['ID', 'ID Oficina', 'ID Socioeducando', 'Realizada', 'Observações', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
+      widths:  [50, 90, 110, 90, 260, 130, 180, 130, 180, 130, 180]
+    },
+    {
       nome: SHEETS.ADMISSOES,
       headers: ['ID', 'ID Socioeducando', 'Data Admissão', 'Data Desligamento', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
       widths:  [50, 70, 110, 130, 130, 180, 130, 180, 130, 180]
@@ -151,8 +178,8 @@ function inicializarPlanilha() {
     },
     {
       nome: SHEETS.SAIDA_MATRICULAS,
-      headers: ['ID', 'ID Saída', 'ID Socioeducando', 'Status', 'Observações', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
-      widths:  [50, 70, 70, 100, 250, 130, 180, 130, 180, 130, 180]
+      headers: ['ID', 'ID Saída', 'ID Socioeducando', 'Status', 'Retorno', 'Observações', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
+      widths:  [50, 70, 70, 100, 100, 250, 130, 180, 130, 180, 130, 180]
     },
     {
       nome: SHEETS.ATENDIMENTOS,
@@ -233,11 +260,13 @@ function inicializarPlanilha() {
   ensureAtendimentosColunasNaoRealizado();
   // Garante tabela de tipos de atendimento e duração padrão.
   ensureTiposAtendimentoPadrao();
+  // Garante tabela de tipos de oficina e seus tipos padrão.
+  ensureTiposOficinaPadrao();
   mostrarProgressoInicializacao_(ss, configs.length + 1, totalEtapasInicializacao, 'Migrações de estrutura concluídas.');
   // Garante as colunas padrão de auditoria (Registrado em/Criado por/Atualizado
   // por) e de exclusão lógica (Deletado em/Deletado por) em todas as abas.
   Object.keys(SHEETS).forEach(function(key) {
-    if (SHEETS[key] === SHEETS.TIPOS_ATENDIMENTO || SHEETS[key] === SHEETS.INTERESSES_CURSO) {
+    if (SHEETS[key] === SHEETS.TIPOS_ATENDIMENTO || SHEETS[key] === SHEETS.INTERESSES_CURSO || SHEETS[key] === SHEETS.TIPOS_OFICINA) {
       ensureColunasAuditoriaBasica(SHEETS[key]);
       return;
     }
@@ -261,6 +290,9 @@ function inicializarPlanilha() {
   getCursosCols();
   getCursoMatriculasCols();
   getCursoEventosCols();
+  getTiposOficinaCols();
+  getOficinasCols();
+  getOficinaMatriculasCols();
   getAdmissoesCols();
   getFugasCols();
   getSaidasCols();
@@ -891,6 +923,25 @@ function ensureSaidasTipoColumn() {
   sh.insertColumnAfter(sh.getLastColumn());
   sh.getRange(1, sh.getLastColumn()).setValue('Tipo');
   sh.setColumnWidth(sh.getLastColumn(), 150);
+}
+
+function ensureSaidaMatriculasRetornoColumn() {
+  var sh = getSheet(SHEETS.SAIDA_MATRICULAS);
+  if (sh.getLastRow() === 0) return;
+  var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var normalizar = function(h) { return String(h || '').trim().toLowerCase(); };
+  if (headers.map(normalizar).indexOf('retorno') >= 0) return;
+  var idxStatus = headers.map(normalizar).indexOf('status');
+  if (idxStatus >= 0) {
+    sh.insertColumnAfter(idxStatus + 1);
+    sh.getRange(1, idxStatus + 2).setValue('Retorno');
+    sh.setColumnWidth(idxStatus + 2, 100);
+  } else {
+    sh.insertColumnAfter(sh.getLastColumn());
+    sh.getRange(1, sh.getLastColumn()).setValue('Retorno');
+    sh.setColumnWidth(sh.getLastColumn(), 100);
+  }
+  clearSheetCaches(SHEETS.SAIDA_MATRICULAS);
 }
 
 function ensureAtendimentosColunasNaoRealizado() {
@@ -1953,9 +2004,10 @@ function getSaidasCols() {
 
 function getSaidaMatriculasCols() {
   if (_COLS_CACHE[SHEETS.SAIDA_MATRICULAS]) return _COLS_CACHE[SHEETS.SAIDA_MATRICULAS];
+  ensureSaidaMatriculasRetornoColumn();
   maybeEnsureOnRead(function() {
     ensureColunasPadraoAuditoria(SHEETS.SAIDA_MATRICULAS);
-    ensureOrdemColunas(SHEETS.SAIDA_MATRICULAS, ['ID', 'ID Saída', 'ID Socioeducando', 'Status', 'Observações', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por']);
+    ensureOrdemColunas(SHEETS.SAIDA_MATRICULAS, ['ID', 'ID Saída', 'ID Socioeducando', 'Status', 'Retorno', 'Observações', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por']);
   });
   var headers = getHeadersLower(SHEETS.SAIDA_MATRICULAS);
 
@@ -1969,11 +2021,12 @@ function getSaidaMatriculasCols() {
     saida_id:         idx('id saída', 1),
     socioeducando_id: idx('id socioeducando', 2),
     status:           idx('status', 3),
-    observacoes:      idx('observações', 4),
-    registrado_em:    idx('registrado em', 5),
-    criadoPor:        idx('criado por', 6),
-    atualizadoEm:     idx('atualizado em', 7),
-    atualizadoPor:    idx('atualizado por', 8),
+    retorno:          idx('retorno', 4),
+    observacoes:      idx('observações', 5),
+    registrado_em:    idx('registrado em', 6),
+    criadoPor:        idx('criado por', 7),
+    atualizadoEm:     idx('atualizado em', 8),
+    atualizadoPor:    idx('atualizado por', 9),
     deletado_em:      idx('deletado em', -1),
     deletado_por:     idx('deletado por', -1)
   };
@@ -2012,6 +2065,7 @@ function getSaidasBySocioeducando(socioeducandoId, incluirDeletados) {
       nome_acompanhante:   String(s[cs.nome_acompanhante]   || ''),
       observacoes_saida:   String(s[cs.observacoes]         || ''),
       status:              String(m[cm.status]              || ''),
+      retorno:             normalizarRetornoSaida(m[cm.retorno]) || null,
       observacoes:         String(m[cm.observacoes]         || ''),
       created_at:          fmtDate(m[cm.registrado_em]),
       deletado_em:         matriculaDeletada || saidaDeletada,
@@ -2171,8 +2225,61 @@ function carregarSaidaMatricula(matriculaId) {
     nome_acompanhante:   String(s[cs.nome_acompanhante]   || ''),
     observacoes_saida:   String(s[cs.observacoes]         || ''),
     status:              String(m[cm.status]              || ''),
+    retorno:             normalizarRetornoSaida(m[cm.retorno]) || null,
     observacoes:         String(m[cm.observacoes]         || '')
   };
+}
+
+function carregarPendenciasRetornoSaida(saidaId) {
+  var cs = getSaidasCols();
+  var cm = getSaidaMatriculasCols();
+  var saida = getRowsAtivas(SHEETS.SAIDAS).find(function(r) { return String(r[cs.id]) === String(saidaId); });
+  if (!saida) throw new Error('Saída não encontrada.');
+  var nomes = {};
+  getSocioeducandos(true).forEach(function(j) { nomes[String(j.id)] = String(j.nome || 'ID ' + j.id); });
+  var matriculas = getRowsAtivas(SHEETS.SAIDA_MATRICULAS).filter(function(m) {
+    return String(m[cm.saida_id]) === String(saidaId) && !normalizarRetornoSaida(m[cm.retorno]) && !_statusSaidaEhCancelada(m[cm.status]);
+  }).map(function(m) {
+    return {
+      matricula_id: String(m[cm.id]),
+      socioeducando_id: String(m[cm.socioeducando_id]),
+      nome: nomes[String(m[cm.socioeducando_id])] || ('ID ' + m[cm.socioeducando_id]),
+      observacoes: String(m[cm.observacoes] || '')
+    };
+  });
+  return {
+    saida: {
+      saida_id: String(saida[cs.id]),
+      local: String(saida[cs.local] || ''),
+      data_hora_ida: fmtDateTime(saida[cs.data_hora_ida]),
+      data_hora_volta: fmtDateTime(saida[cs.data_hora_volta])
+    },
+    matriculas: matriculas
+  };
+}
+
+function atualizarRetornosSaidaLote(saidaId, edicoes) {
+  var cs = getSaidasCols();
+  var cm = getSaidaMatriculasCols();
+  var saida = getRowsAtivas(SHEETS.SAIDAS).find(function(r) { return String(r[cs.id]) === String(saidaId); });
+  if (!saida) throw new Error('Saída não encontrada.');
+  var sh = getSheet(SHEETS.SAIDA_MATRICULAS);
+  var rows = getRows(SHEETS.SAIDA_MATRICULAS);
+  var user = usuarioAtual();
+  var agora = new Date();
+  (edicoes || []).forEach(function(e) {
+    if (!e || !e.matricula_id) return;
+    var idx = rows.findIndex(function(r) { return String(r[cm.id]) === String(e.matricula_id); });
+    if (idx < 0 || String(rows[idx][cm.saida_id]) !== String(saidaId)) throw new Error('Matrícula de saída não encontrada.');
+    var retorno = normalizarRetornoSaida(e.retorno);
+    if (String(e.retorno == null ? '' : e.retorno).trim() && !retorno) throw new Error('Retorno deve ser Sim ou Não.');
+    if (retorno) validarRetornoSaida(saida[cs.data_hora_ida], retorno);
+    sh.getRange(idx + 2, cm.retorno + 1).setValue(retorno);
+    sh.getRange(idx + 2, cm.observacoes + 1).setValue(String(e.observacoes || '').trim());
+    if (cm.atualizadoEm >= 0) sh.getRange(idx + 2, cm.atualizadoEm + 1).setValue(agora);
+    if (cm.atualizadoPor >= 0) sh.getRange(idx + 2, cm.atualizadoPor + 1).setValue(user);
+  });
+  return { ok: true };
 }
 
 function salvarSaidaComMatricula(dados) {
@@ -2190,13 +2297,16 @@ function salvarSaidaComMatricula(dados) {
   if (!dados.conducao) throw new Error('Condução é obrigatória.');
   if (!dados.nome_acompanhante || String(dados.nome_acompanhante).trim() === '') throw new Error('Nome do(a) acompanhante é obrigatório.');
   if (!dados.status) throw new Error('Status é obrigatório.');
+  var retornoInformado = normalizarRetornoSaida(dados.retorno);
+  if (String(dados.retorno == null ? '' : dados.retorno).trim() && !retornoInformado) throw new Error('Retorno deve ser Sim ou Não.');
+  if (retornoInformado) validarRetornoSaida(dados.data_hora_ida, retornoInformado);
 
   var shSaidas = getSheet(SHEETS.SAIDAS);
   var shMat = getSheet(SHEETS.SAIDA_MATRICULAS);
-  var rowsSaidas = getRows(SHEETS.SAIDAS);
-  var rowsMat = getRows(SHEETS.SAIDA_MATRICULAS);
   var cs = getSaidasCols();
   var cm = getSaidaMatriculasCols();
+  var rowsSaidas = getRows(SHEETS.SAIDAS);
+  var rowsMat = getRows(SHEETS.SAIDA_MATRICULAS);
   var user = usuarioAtual();
 
   var saidaLinha = [
@@ -2225,30 +2335,35 @@ function salvarSaidaComMatricula(dados) {
     shSaidas.appendRow(saidaLinha);
   }
 
-  var matLinha = [
-    null, saidaId, Number(dados.socioeducando_id),
-    dados.status, dados.observacoes || '', null, null, null, null, null, null
-  ];
+  var matLinha = new Array(shMat.getLastColumn()).fill('');
+  matLinha[cm.saida_id] = saidaId;
+  matLinha[cm.socioeducando_id] = Number(dados.socioeducando_id);
+  matLinha[cm.status] = dados.status;
+  matLinha[cm.retorno] = retornoInformado;
+  matLinha[cm.observacoes] = dados.observacoes || '';
 
   if (dados.matricula_id) {
     var idxM = rowsMat.findIndex(function(r) { return String(r[cm.id]) === String(dados.matricula_id); });
     if (idxM < 0) throw new Error('Vínculo de saída não encontrado para edição.');
-    matLinha[0] = Number(dados.matricula_id);
-    matLinha[5] = rowsMat[idxM][cm.registrado_em] || new Date();
-    matLinha[6] = rowsMat[idxM][cm.criadoPor] || user;
-    matLinha[7] = rowsMat[idxM][cm.atualizadoEm] || new Date();
-    matLinha[8] = user;
+    matLinha[cm.id] = Number(dados.matricula_id);
+    if (dados.retorno === undefined) matLinha[cm.retorno] = normalizarRetornoSaida(rowsMat[idxM][cm.retorno]);
+    matLinha[cm.registrado_em] = rowsMat[idxM][cm.registrado_em] || new Date();
+    matLinha[cm.criadoPor] = rowsMat[idxM][cm.criadoPor] || user;
+    matLinha[cm.atualizadoEm] = new Date();
+    matLinha[cm.atualizadoPor] = user;
+    matLinha[cm.deletado_em] = cm.deletado_em >= 0 ? rowsMat[idxM][cm.deletado_em] : '';
+    matLinha[cm.deletado_por] = cm.deletado_por >= 0 ? rowsMat[idxM][cm.deletado_por] : '';
     shMat.getRange(idxM + 2, 1, 1, matLinha.length).setValues([matLinha]);
   } else {
-    matLinha[0] = nextId(SHEETS.SAIDA_MATRICULAS);
-    matLinha[5] = new Date();
-    matLinha[6] = user;
-    matLinha[7] = '';
-    matLinha[8] = '';
+    matLinha[cm.id] = nextId(SHEETS.SAIDA_MATRICULAS);
+    matLinha[cm.registrado_em] = new Date();
+    matLinha[cm.criadoPor] = user;
+    matLinha[cm.atualizadoEm] = '';
+    matLinha[cm.atualizadoPor] = '';
     shMat.appendRow(matLinha);
   }
 
-  return { ok: true, saida_id: saidaId, matricula_id: matLinha[0] };
+  return { ok: true, saida_id: saidaId, matricula_id: matLinha[cm.id] };
 }
 
 function registrarVolta(saidaId, dataHoraVolta) {
@@ -2297,14 +2412,20 @@ function salvarSaidaLote(vinculosSocioeducandos, dados) {
   ]);
 
   var baseMatId = nextId(SHEETS.SAIDA_MATRICULAS);
+  var cm = getSaidaMatriculasCols();
   var linhasMat = vinculos.map(function(v, i) {
-    return [
-      baseMatId + i, saidaId, Number(v.id),
-      v.status, v.observacoes || '',
-      agora, user, '', '', '', ''
-    ];
+    var linha = new Array(shMat.getLastColumn()).fill('');
+    linha[cm.id] = baseMatId + i;
+    linha[cm.saida_id] = saidaId;
+    linha[cm.socioeducando_id] = Number(v.id);
+    linha[cm.status] = v.status;
+    linha[cm.retorno] = '';
+    linha[cm.observacoes] = v.observacoes || '';
+    linha[cm.registrado_em] = agora;
+    linha[cm.criadoPor] = user;
+    return linha;
   });
-  shMat.getRange(shMat.getLastRow() + 1, 1, linhasMat.length, 11).setValues(linhasMat);
+  shMat.getRange(shMat.getLastRow() + 1, 1, linhasMat.length, shMat.getLastColumn()).setValues(linhasMat);
 
   return { inseridos: linhasMat.length, saida_id: saidaId };
 }
@@ -2459,6 +2580,104 @@ function getFugasBySocioeducando(socioeducandoId, incluirDeletados) {
 
 // ── Dados para as telas ───────────────────────────────────────
 
+function carregarAlertasPendenciasOverview() {
+  var agora = new Date();
+  var hojeIso = toIso(agora);
+  var socioeducandos = getSocioeducandos(true);
+  var nomes = {};
+  socioeducandos.forEach(function(j) { nomes[String(j.id)] = String(j.nome || 'ID ' + j.id); });
+  var alertas = [];
+
+  var cc = getCursosCols();
+  var cm = getCursoMatriculasCols();
+  var cursos = getRowsAtivas(SHEETS.CURSOS);
+  var matriculasCurso = getRowsAtivas(SHEETS.CURSO_MATRICULAS);
+  cursos.forEach(function(curso) {
+    var dataTerminoIso = toIso(curso[cc.data_termino]);
+    if (!dataTerminoIso || dataTerminoIso >= hojeIso) return;
+    var pendentes = matriculasCurso.filter(function(m) {
+      if (String(m[cm.curso_id]) !== String(curso[cc.id])) return false;
+      if (cm.deletado_em >= 0 && toIso(m[cm.deletado_em])) return false;
+      if (cm.matriculado >= 0 && !boolVal(m[cm.matriculado])) return false;
+      return !String(m[cm.tipo_termino] || '').trim() || !toIso(m[cm.data_termino]);
+    });
+    if (!pendentes.length) return;
+    alertas.push({
+      tipo: 'curso',
+      entidade_id: String(curso[cc.id]),
+      titulo: String(curso[cc.nome_curso] || 'Curso'),
+      data_iso: dataTerminoIso,
+      mensagem: 'Curso ' + String(curso[cc.nome_curso] || 'Curso') + ' encerrou dia ' + fmtDate(curso[cc.data_termino]) + ' e tem ' + pendentes.length + ' socioeducando' + (pendentes.length === 1 ? '' : 's') + ' com término não cadastrado.',
+      acao_label: 'Editar matrículas',
+      socioeducandos: pendentes.map(function(m) { return nomes[String(m[cm.socioeducando_id])] || ('ID ' + m[cm.socioeducando_id]); })
+    });
+  });
+
+  var cs = getSaidasCols();
+  var csm = getSaidaMatriculasCols();
+  var saidas = getRowsAtivas(SHEETS.SAIDAS);
+  var matriculasSaida = getRowsAtivas(SHEETS.SAIDA_MATRICULAS);
+  var saidasMap = {};
+  saidas.forEach(function(s) { saidasMap[String(s[cs.id])] = s; });
+  var porSaida = {};
+  matriculasSaida.forEach(function(m) {
+    var s = saidasMap[String(m[csm.saida_id])];
+    if (!s || normalizarRetornoSaida(m[csm.retorno])) return;
+    if (csm.deletado_em >= 0 && toIso(m[csm.deletado_em])) return;
+    if (_statusSaidaEhCancelada(m[csm.status])) return;
+    var volta = _toDateSafe(s[cs.data_hora_volta]);
+    if (!volta || volta.getTime() > agora.getTime()) return;
+    var id = String(s[cs.id]);
+    if (!porSaida[id]) porSaida[id] = { saida: s, matriculas: [] };
+    porSaida[id].matriculas.push(m);
+  });
+  Object.keys(porSaida).forEach(function(id) {
+    var item = porSaida[id], s = item.saida;
+    alertas.push({
+      tipo: 'saida',
+      entidade_id: id,
+      titulo: String(s[cs.local] || 'Saída'),
+      data_iso: toIsoDateTime(s[cs.data_hora_volta]) || toIsoDateTime(s[cs.data_hora_ida]),
+      mensagem: 'Saída ' + String(s[cs.local] || '') + ' encerrou dia ' + fmtDateTime(s[cs.data_hora_volta] || s[cs.data_hora_ida]) + ' e tem ' + item.matriculas.length + ' socioeducando' + (item.matriculas.length === 1 ? '' : 's') + ' sem retorno cadastrado.',
+      acao_label: 'Preencher retornos',
+      socioeducandos: item.matriculas.map(function(m) { return nomes[String(m[csm.socioeducando_id])] || ('ID ' + m[csm.socioeducando_id]); })
+    });
+  });
+
+  var co = getOficinasCols();
+  var com = getOficinaMatriculasCols();
+  var oficinas = getRowsAtivas(SHEETS.OFICINAS);
+  var matriculasOficina = getRowsAtivas(SHEETS.OFICINA_MATRICULAS);
+  oficinas.forEach(function(oficina) {
+    var dataIso = toIso(oficina[co.data]);
+    if (!dataIso) return;
+    var horarioFim = fmtTime(oficina[co.horario_termino]);
+    var fim = _toDateSafe(dataIso + 'T' + (horarioFim || '23:59') + (horarioFim ? '' : ':59'));
+    if (!fim || fim.getTime() > agora.getTime()) return;
+    var pendentes = matriculasOficina.filter(function(m) {
+      if (String(m[com.oficina_id]) !== String(oficina[co.id])) return false;
+      if (com.deletado_em >= 0 && toIso(m[com.deletado_em])) return false;
+      return !String(m[com.realizada] == null ? '' : m[com.realizada]).trim();
+    });
+    if (!pendentes.length) return;
+    alertas.push({
+      tipo: 'oficina',
+      entidade_id: String(oficina[co.id]),
+      titulo: String(oficina[co.nome] || 'Oficina'),
+      data_iso: dataIso,
+      mensagem: 'Oficina ' + String(oficina[co.nome] || 'Oficina') + ' encerrou dia ' + fmtDate(oficina[co.data]) + ' e tem ' + pendentes.length + ' socioeducando' + (pendentes.length === 1 ? '' : 's') + ' sem realização cadastrada.',
+      acao_label: 'Editar matrículas',
+      socioeducandos: pendentes.map(function(m) { return nomes[String(m[com.socioeducando_id])] || ('ID ' + m[com.socioeducando_id]); })
+    });
+  });
+
+  return alertas.sort(function(a, b) {
+    var ad = String(a.data_iso || ''), bd = String(b.data_iso || '');
+    if (ad !== bd) return ad.localeCompare(bd);
+    return String(a.titulo || '').localeCompare(String(b.titulo || ''), 'pt-BR');
+  });
+}
+
 function carregarOverview() {
   var perf = {};
   var t0 = Date.now();
@@ -2467,6 +2686,7 @@ function carregarOverview() {
 
   var tLeitura = Date.now();
   var socioeducandos = getSocioeducandos(true);
+  var csm = getSaidaMatriculasCols();
   var allAdm = getRowsAtivas(SHEETS.ADMISSOES);
   var allFugas = getRowsAtivas(SHEETS.FUGAS);
   var allTrabalhos = getRowsAtivas(SHEETS.TRABALHOS);
@@ -2486,7 +2706,6 @@ function carregarOverview() {
   var ct = getTrabalhosCols();
   var cv = getVisitasTerritoriaisCols();
   var cs = getSaidasCols();
-  var csm = getSaidaMatriculasCols();
   var internadosAtivos = allAdm.filter(function(r) { return !toIso(r[3]); }).length;
   var cMat = getCursoMatriculasCols();
   var cc   = getCursosCols();
@@ -2743,7 +2962,7 @@ function carregarOverview() {
 }
 
 /**
- * Retorna as atividades (atendimentos, saídas, retornos, fugas) de um dia específico.
+ * Retorna as atividades (atendimentos, saídas, fugas e demais eventos) de um dia específico.
  * @param {string|null} dataIso  Data no formato 'YYYY-MM-DD'. Se nulo, usa hoje.
  */
 function carregarAtividadesDia(dataIso, contexto) {
@@ -2761,12 +2980,18 @@ function carregarAtividadesDia(dataIso, contexto) {
   var ca = (contexto && contexto.atendimentosCols) || getAtendimentosCols();
   var cc = (contexto && contexto.cursosCols) || getCursosCols();
   var cm = (contexto && contexto.cursoMatriculasCols) || getCursoMatriculasCols();
+  var co = (contexto && contexto.oficinasCols) || getOficinasCols();
+  var com = (contexto && contexto.oficinaMatriculasCols) || getOficinaMatriculasCols();
   var ct = (contexto && contexto.trabalhosCols) || getTrabalhosCols();
   var atendimentosRows = (contexto && contexto.atendimentosRows) || getRowsAtivas(SHEETS.ATENDIMENTOS);
   var cursosRows = (contexto && contexto.cursosRows) || getRowsAtivas(SHEETS.CURSOS);
   var cursoMatriculasRows = (contexto && contexto.cursoMatriculasRows) || getRowsAtivas(SHEETS.CURSO_MATRICULAS);
+  var oficinasRows = (contexto && contexto.oficinasRows) || getRowsAtivas(SHEETS.OFICINAS);
+  var oficinaMatriculasRows = (contexto && contexto.oficinaMatriculasRows) || getRowsAtivas(SHEETS.OFICINA_MATRICULAS);
   var trabalhosRows = (contexto && contexto.trabalhosRows) || getRowsAtivas(SHEETS.TRABALHOS);
   var saidasRows = (contexto && contexto.saidasRows) || getRowsAtivas(SHEETS.SAIDAS);
+  var csA = (contexto && contexto.saidasCols) || getSaidasCols();
+  var cmA = (contexto && contexto.saidaMatriculasCols) || getSaidaMatriculasCols();
   var saidaMatriculasRows = (contexto && contexto.saidaMatriculasRows) || getRowsAtivas(SHEETS.SAIDA_MATRICULAS);
   var fugasRows = (contexto && contexto.fugasRows) || getRowsAtivas(SHEETS.FUGAS);
   perf.base_ms = Date.now() - tBase;
@@ -2854,6 +3079,20 @@ function carregarAtividadesDia(dataIso, contexto) {
     });
   perf.cursos_ms = Date.now() - tCursos;
 
+  // Oficinas são eventos pontuais, vinculados a uma ou mais matrículas no dia.
+  var tOficinas = Date.now();
+  var oficinasMap = {};
+  oficinasRows.forEach(function(r) { oficinasMap[String(r[co.id])] = r; });
+  var oficinasHoje = oficinaMatriculasRows.filter(function(m) {
+    var o = oficinasMap[String(m[com.oficina_id])];
+    return !!o && toIso(o[co.data]) === diaIso;
+  }).map(function(m) {
+    var sid = String(m[com.socioeducando_id]), o = oficinasMap[String(m[com.oficina_id])] || [];
+    var realizadaDia = String(m[com.realizada] || '').trim();
+    return { oficina_id: String(m[com.oficina_id]), oficina_matricula_id: String(m[com.id]), socioeducando_id: sid, socioeducando_nome: nomes[sid] || ('ID ' + sid), nome: String(o[co.nome] || ''), tipo: String(o[co.tipo] || ''), responsavel: String(o[co.responsavel] || ''), horario_inicio: fmtTime(o[co.horario_inicio]), horario_termino: fmtTime(o[co.horario_termino]), realizada: realizadaDia || null };
+  }).sort(function(a, b) { return (a.horario_inicio || '99:99').localeCompare(b.horario_inicio || '99:99') || a.nome.localeCompare(b.nome, 'pt-BR'); });
+  perf.oficinas_ms = Date.now() - tOficinas;
+
   // Trabalhos do dia (recorrentes por dia da semana)
   var tTrabalhos = Date.now();
   var trabalhosHoje = trabalhosRows
@@ -2889,8 +3128,6 @@ function carregarAtividadesDia(dataIso, contexto) {
 
   // Saídas do dia (partida neste dia)
   var tSaidas = Date.now();
-  var csA = (contexto && contexto.saidasCols) || getSaidasCols();
-  var cmA = (contexto && contexto.saidaMatriculasCols) || getSaidaMatriculasCols();
   var saidasMapA = {};
   saidasRows.forEach(function(r) { saidasMapA[String(r[csA.id])] = r; });
   var saidaMatriculasJuntas = saidaMatriculasRows.map(function(r) {
@@ -2909,32 +3146,17 @@ function carregarAtividadesDia(dataIso, contexto) {
         local: String(x.s[csA.local] || ''),
         hora_ida: fmtDateTime(x.s[csA.data_hora_ida]),
         hora_volta: fmtDateTime(x.s[csA.data_hora_volta]),
-        retornou: !!toIsoDateTime(x.s[csA.data_hora_volta]),
+        retorno: normalizarRetornoSaida(x.m[cmA.retorno]) || null,
         status: String(x.m[cmA.status] || '')
       };
     })
     .sort(function(a, b) { return a.hora_ida.localeCompare(b.hora_ida); });
   perf.saidas_ms = Date.now() - tSaidas;
 
-  // Retornos registrados neste dia (saídas de dias anteriores que voltaram hoje)
+  // O horário de volta pode ser apenas previsto e não é uma atividade separada
+  // no resumo. O retorno confirmado aparece dentro do item da própria saída.
   var tRet = Date.now();
-  var retornosHoje = saidaMatriculasJuntas
-    .filter(function(x) {
-      var idaIso   = toIsoDateTime(x.s[csA.data_hora_ida]).substring(0, 10);
-      var voltaIso = toIsoDateTime(x.s[csA.data_hora_volta]).substring(0, 10);
-      return voltaIso === diaIso && idaIso !== diaIso;
-    })
-    .map(function(x) {
-      var sid = String(x.m[cmA.socioeducando_id]);
-      return {
-        id: String(x.m[cmA.id]),
-        socioeducando_id: sid,
-        socioeducando_nome: nomes[sid] || 'ID ' + sid,
-        local: String(x.s[csA.local] || ''),
-        hora_ida: fmtDateTime(x.s[csA.data_hora_ida]),
-        hora_volta: fmtDateTime(x.s[csA.data_hora_volta])
-      };
-    });
+  var retornosHoje = [];
   perf.retornos_ms = Date.now() - tRet;
 
   // Fugas/evasões do dia
@@ -2985,6 +3207,7 @@ function carregarAtividadesDia(dataIso, contexto) {
     data_iso:          diaIso,
     atendimentos_hoje: atendimentosHoje,
     cursos_hoje:       cursosHoje,
+    oficinas_hoje:     oficinasHoje,
     trabalhos_hoje:    trabalhosHoje,
     saidas_hoje:       saidasHoje,
     retornos_hoje:     retornosHoje,
@@ -3005,6 +3228,7 @@ function carregarPerfil(socioeducandoId) {
   var saidas    = getSaidasBySocioeducando(socioeducandoId, true);
   var atendimentos = getAtendimentosBySocioeducando(socioeducandoId, true);
   var trabalhos = getTrabalhosBySocioeducando(socioeducandoId, true);
+  var oficinas = getOficinasBySocioeducando(socioeducandoId, true);
   var visitasTerritoriais = getVisitasTerritoriaisBySocioeducando(socioeducandoId, true);
   var familiares = getFamiliaresBySocioeducando(socioeducandoId, true);
   var interesses = getInteressesCursoPorSocioeducando(socioeducandoId);
@@ -3024,6 +3248,7 @@ function carregarPerfil(socioeducandoId) {
     ausente_atual:   ausenteAtual,
     admissoes:       admissoes,
     cursos:          cursos,
+    oficinas:        oficinas,
     curso_eventos:   cursoEventos,
     fugas:           fugas,
     saidas:          saidas,
@@ -3737,6 +3962,25 @@ function atualizarCurso(dados) {
   return { ok: true, curso_id: cursoId };
 }
 
+function excluirCurso(cursoId) {
+  if (!cursoId) throw new Error('Curso não identificado.');
+  var cc = getCursosCols();
+  var sh = getSheet(SHEETS.CURSOS);
+  var rows = getRows(SHEETS.CURSOS);
+  var idx = rows.findIndex(function(r) { return String(r[cc.id]) === String(cursoId); });
+  if (idx < 0) throw new Error('Curso não encontrado.');
+  if (cc.deletado_em < 0 || cc.deletado_por < 0) throw new Error('A estrutura da aba Cursos não possui as colunas de exclusão lógica.');
+  if (toIso(rows[idx][cc.deletado_em])) throw new Error('Curso já está excluído.');
+
+  var agora = new Date();
+  var usuario = usuarioAtual();
+  sh.getRange(idx + 2, cc.deletado_em + 1).setValue(agora);
+  sh.getRange(idx + 2, cc.deletado_por + 1).setValue(usuario);
+  if (cc.atualizadoEm >= 0) sh.getRange(idx + 2, cc.atualizadoEm + 1).setValue(agora);
+  if (cc.atualizadoPor >= 0) sh.getRange(idx + 2, cc.atualizadoPor + 1).setValue(usuario);
+  return { ok: true, curso_id: String(cursoId) };
+}
+
 /**
  * Edita apenas os dados da Matrícula (status do vínculo e observações do
  * vínculo em si) — usado no modal "Editar vínculo" da página de Cursos.
@@ -4286,6 +4530,25 @@ function _toDateSafe(v) {
   if (!v) return null;
   var d = v instanceof Date ? v : new Date(v);
   return isNaN(d.getTime()) ? null : d;
+}
+
+function normalizarRetornoSaida(valor) {
+  if (valor === true) return 'Sim';
+  if (valor === false) return 'Não';
+  var texto = removerAcentos(String(valor == null ? '' : valor)).trim().toLowerCase();
+  if (texto === 'sim') return 'Sim';
+  if (texto === 'nao') return 'Não';
+  return '';
+}
+
+function validarRetornoSaida(dataHoraIda, retorno) {
+  var retornoNormalizado = normalizarRetornoSaida(retorno);
+  if (!retornoNormalizado) return '';
+  var saida = _toDateSafe(dataHoraIda);
+  if (saida && new Date().getTime() <= saida.getTime()) {
+    throw new Error('O retorno só pode ser informado após o horário da saída.');
+  }
+  return retornoNormalizado;
 }
 
 function _intervalosConflitam(aInicio, aFim, bInicio, bFim) {
@@ -4865,6 +5128,34 @@ function _conflitosItemRecorrente(item, contexto, ignorados) {
     });
   });
 
+  var cmOficinaRec = contexto.oficinas.matriculaCols;
+  var coOficinaRec = contexto.oficinas.cols;
+  var ignorarOficinaMatriculaId = ignorados.oficina_matricula_id || '';
+  var ignorarOficinaId = ignorados.oficina_id || '';
+  contexto.oficinas.matriculas.forEach(function(r) {
+    var matriculaId = String(r[cmOficinaRec.id]);
+    if (ignorarOficinaMatriculaId && matriculaId === ignorarOficinaMatriculaId) return;
+    if (String(r[cmOficinaRec.socioeducando_id]) !== sid) return;
+    var oficinaId = String(r[cmOficinaRec.oficina_id]);
+    if (ignorarOficinaId && oficinaId === ignorarOficinaId) return;
+    var oficina = contexto.oficinas.oficinasMap[oficinaId];
+    if (!oficina) return;
+    var oficinaInicio = _dataHoraOficina(oficina[coOficinaRec.data], oficina[coOficinaRec.horario_inicio]);
+    var oficinaTermino = _dataHoraOficina(oficina[coOficinaRec.data], oficina[coOficinaRec.horario_termino]) || oficinaInicio;
+    if (!oficinaInicio || !oficinaTermino) return;
+    var ocorrOficina = _conflitoRecorrenciaComIntervalo(recorrenciaNova, oficinaInicio, oficinaTermino);
+    if (!ocorrOficina) return;
+    var descricaoOficina = String(oficina[coOficinaRec.nome] || 'Oficina');
+    if (oficina[coOficinaRec.tipo]) descricaoOficina += ' - ' + String(oficina[coOficinaRec.tipo]);
+    conflitos.push({
+      tipo: 'Oficina',
+      id: matriculaId,
+      descricao: descricaoOficina,
+      inicio: toIsoDateTime(oficinaInicio),
+      termino: toIsoDateTime(oficinaTermino)
+    });
+  });
+
   var cms = contexto.saidas.matriculaCols;
   var cs = contexto.saidas.cols;
   var ignorarSaidaMatriculaId = ignorados.saida_matricula_id || '';
@@ -4997,14 +5288,18 @@ function _coletarContextoConflitosAgenda(socioIds) {
   var cmCurso = getCursoMatriculasCols();
   var ceCurso = getCursoEventosCols();
   var ct = getTrabalhosCols();
+  var co = getOficinasCols();
+  var cmOficina = getOficinaMatriculasCols();
   var nomes = {};
   var saidasMap = {};
   var cursosMap = {};
   var eventosAusenciaMap = {};
+  var oficinasMap = {};
 
   getSocioeducandos().forEach(function(j) { nomes[j.id] = j.nome; });
   getRowsAtivas(SHEETS.SAIDAS).forEach(function(r) { saidasMap[String(r[cs.id])] = r; });
   getRowsAtivas(SHEETS.CURSOS).forEach(function(r) { cursosMap[String(r[cc.id])] = r; });
+  getRowsAtivas(SHEETS.OFICINAS).forEach(function(r) { oficinasMap[String(r[co.id])] = r; });
   var matriculasCursoMap = {};
   getRowsAtivas(SHEETS.CURSO_MATRICULAS).forEach(function(r) {
     matriculasCursoMap[String(r[cmCurso.id])] = r;
@@ -5040,6 +5335,14 @@ function _coletarContextoConflitosAgenda(socioIds) {
       cursosMap: cursosMap,
       matriculas: getRowsAtivas(SHEETS.CURSO_MATRICULAS).filter(function(r) {
         return socioIds.indexOf(String(r[cmCurso.socioeducando_id])) >= 0;
+      })
+    },
+    oficinas: {
+      cols: co,
+      matriculaCols: cmOficina,
+      oficinasMap: oficinasMap,
+      matriculas: getRowsAtivas(SHEETS.OFICINA_MATRICULAS).filter(function(r) {
+        return socioIds.indexOf(String(r[cmOficina.socioeducando_id])) >= 0;
       })
     },
     trabalhos: {
@@ -5106,6 +5409,49 @@ function _conflitosAtendimentosParaItem(sid, inicio, termino, contexto, ignorado
         termino: toIsoDateTime(r[5]) || toIsoDateTime(r[4])
       });
     }
+  });
+
+  return conflitos;
+}
+
+function _dataHoraOficina(data, hora) {
+  var dataIso = toIso(data);
+  var horario = fmtTime(hora);
+  if (!dataIso || !horario) return null;
+  return _toDateSafe(dataIso + 'T' + horario + ':00');
+}
+
+function _conflitosOficinasParaItem(sid, inicio, termino, contexto, ignorados) {
+  var conflitos = [];
+  var cm = contexto.oficinas.matriculaCols;
+  var co = contexto.oficinas.cols;
+  var ignorarMatriculaId = ignorados.oficina_matricula_id || '';
+  var ignorarOficinaId = ignorados.oficina_id || '';
+
+  contexto.oficinas.matriculas.forEach(function(r) {
+    var matriculaId = String(r[cm.id]);
+    if (ignorarMatriculaId && matriculaId === ignorarMatriculaId) return;
+    if (String(r[cm.socioeducando_id]) !== sid) return;
+
+    var oficinaId = String(r[cm.oficina_id]);
+    if (ignorarOficinaId && oficinaId === ignorarOficinaId) return;
+    var oficina = contexto.oficinas.oficinasMap[oficinaId];
+    if (!oficina) return;
+
+    var oficinaInicio = _dataHoraOficina(oficina[co.data], oficina[co.horario_inicio]);
+    var oficinaTermino = _dataHoraOficina(oficina[co.data], oficina[co.horario_termino]) || oficinaInicio;
+    if (!oficinaInicio || !oficinaTermino) return;
+    if (!_intervalosConflitam(inicio, termino, oficinaInicio, oficinaTermino)) return;
+
+    var descricao = String(oficina[co.nome] || 'Oficina');
+    if (oficina[co.tipo]) descricao += ' - ' + String(oficina[co.tipo]);
+    conflitos.push({
+      tipo: 'Oficina',
+      id: matriculaId,
+      descricao: descricao,
+      inicio: toIsoDateTime(oficinaInicio),
+      termino: toIsoDateTime(oficinaTermino)
+    });
   });
 
   return conflitos;
@@ -5222,6 +5568,7 @@ function _listarConflitosAgendaParaItem(item, contexto, ignorados) {
   return []
     .concat(_conflitosSaidasParaItem(sid, inicio, termino, contexto, ignorados))
     .concat(_conflitosAtendimentosParaItem(sid, inicio, termino, contexto, ignorados))
+    .concat(_conflitosOficinasParaItem(sid, inicio, termino, contexto, ignorados))
     .concat(_conflitosCursosParaItem(sid, inicio, termino, contexto, ignorados))
     .concat(_conflitosTrabalhosParaItem(sid, inicio, termino, {
       trabalhos: contexto.trabalhos,
@@ -5239,7 +5586,9 @@ function verificarConflitosAgenda(payload) {
     atendimento_id: payload.ignorar_atendimento_id ? String(payload.ignorar_atendimento_id) : '',
     curso_matricula_id: payload.ignorar_curso_matricula_id ? String(payload.ignorar_curso_matricula_id) : '',
     curso_id: payload.ignorar_curso_id ? String(payload.ignorar_curso_id) : '',
-    trabalho_id: payload.ignorar_trabalho_id ? String(payload.ignorar_trabalho_id) : ''
+    trabalho_id: payload.ignorar_trabalho_id ? String(payload.ignorar_trabalho_id) : '',
+    oficina_matricula_id: payload.ignorar_oficina_matricula_id ? String(payload.ignorar_oficina_matricula_id) : '',
+    oficina_id: payload.ignorar_oficina_id ? String(payload.ignorar_oficina_id) : ''
   };
   if (payload.ignorados) {
     if (payload.ignorados.saida_matricula_id) ignorados.saida_matricula_id = String(payload.ignorados.saida_matricula_id);
@@ -5247,6 +5596,8 @@ function verificarConflitosAgenda(payload) {
     if (payload.ignorados.curso_matricula_id) ignorados.curso_matricula_id = String(payload.ignorados.curso_matricula_id);
     if (payload.ignorados.curso_id) ignorados.curso_id = String(payload.ignorados.curso_id);
     if (payload.ignorados.trabalho_id) ignorados.trabalho_id = String(payload.ignorados.trabalho_id);
+    if (payload.ignorados.oficina_matricula_id) ignorados.oficina_matricula_id = String(payload.ignorados.oficina_matricula_id);
+    if (payload.ignorados.oficina_id) ignorados.oficina_id = String(payload.ignorados.oficina_id);
   }
   var itens = payload.itens;
 
@@ -5940,6 +6291,39 @@ function carregarPaginaCursos() {
     })
     .sort(function(a, b) { return a.data_inicio_iso.localeCompare(b.data_inicio_iso); });
 
+  // ── 1c. Cursos encerrados (data de término anterior a hoje) ──
+  var cursosEncerrados = rowsCursos
+    .filter(function(r) {
+      return calcularStatusCurso(toIso(r[cc.data_inicio]), toIso(r[cc.data_termino]), hoje) === 'Encerrado';
+    })
+    .map(function(r) {
+      var cursoId = String(r[cc.id]);
+      var matriculasCurso = rowsMatriculas.filter(function(m) { return String(m[cm.curso_id]) === cursoId; });
+      var matriculados = matriculasCurso.filter(function(m) { return boolVal(m[cm.matriculado]); });
+      var vagas = r[cc.vagas] !== '' && r[cc.vagas] !== null && r[cc.vagas] !== undefined ? Number(r[cc.vagas]) : null;
+      return {
+        id: cursoId,
+        tipo_curso: String(r[cc.tipo_curso] || ''),
+        nome_curso: String(r[cc.nome_curso] || ''),
+        data_inicio: fmtDate(r[cc.data_inicio]), data_inicio_iso: toIso(r[cc.data_inicio]),
+        data_termino: fmtDate(r[cc.data_termino]), data_termino_iso: toIso(r[cc.data_termino]),
+        horario_inicio: fmtTime(r[cc.horario_inicio]), horario_termino: fmtTime(r[cc.horario_termino]),
+        dias_semana: String(r[cc.dias_semana] || ''), instituicao: String(r[cc.instituicao] || ''),
+        local: String(r[cc.local] || ''), observacoes: String(r[cc.observacoes] || ''),
+        vagas: vagas, inscritos: matriculados.length,
+        matriculas: matriculasCurso.map(function(m) {
+          var sid = String(m[cm.socioeducando_id]), socio = socioMap[sid];
+          return {
+            id: sid, matricula_id: String(m[cm.id]), nome: socio ? socio.nome : ('ID ' + sid),
+            matriculado: boolVal(m[cm.matriculado]), tipo_termino: String(m[cm.tipo_termino] || ''),
+            data_termino: fmtDate(m[cm.data_termino]), data_termino_iso: toIso(m[cm.data_termino]),
+            certificado: boolVal(m[cm.certificado]), observacoes: String(m[cm.observacoes] || '')
+          };
+        })
+      };
+    })
+    .sort(function(a, b) { return b.data_termino_iso.localeCompare(a.data_termino_iso); });
+
   // ── 2. Socioeducandos sem curso recente ──────────────────────
   // Apenas internados ativos
   var admAtivaPorSocio = {};
@@ -6049,6 +6433,7 @@ function carregarPaginaCursos() {
   return {
     proximos_encerramento: proximosEncerramento,
     nao_iniciados:         naoIniciados,
+    cursos_encerrados:     cursosEncerrados,
     sem_curso_recente:     semCursoRecente,
     cursos_andamento:      cursosAndamento
   };
@@ -6085,4 +6470,294 @@ function excluirRegistro(tabela, id) {
   if (idx < 0) throw new Error('Registro não encontrado.');
   sh.deleteRow(idx + 2);
   return { ok: true };
+}
+
+// =============================================================
+// Oficinas — tipos, eventos e matrículas
+// =============================================================
+
+function ensureTiposOficinaPadrao() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(SHEETS.TIPOS_OFICINA);
+  if (!sh) sh = ss.insertSheet(SHEETS.TIPOS_OFICINA);
+
+  var headersEsperados = ['Tipo de Oficina', 'Registrado em', 'Criado por'];
+  if (sh.getLastRow() === 0) {
+    sh.getRange(1, 1, 1, headersEsperados.length).setValues([headersEsperados]);
+    sh.getRange(1, 1, 1, headersEsperados.length).setFontWeight('bold').setBackground('#3c3c7a').setFontColor('white');
+    sh.setFrozenRows(1);
+    sh.setColumnWidth(1, 240); sh.setColumnWidth(2, 130); sh.setColumnWidth(3, 180);
+  }
+
+  var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var norm = headers.map(function(h) { return String(h || '').trim().toLowerCase(); });
+  var tipoIdx = norm.indexOf('tipo de oficina');
+
+  // A primeira versão desta funcionalidade criou ID e auditoria completa.
+  // Normaliza essa estrutura para o mesmo padrão simples de TiposAtendimento,
+  // preservando apenas os nomes já cadastrados.
+  if (norm.indexOf('id') >= 0 && tipoIdx >= 0) {
+    var mapaTiposAntigos = {};
+    var idsAntigos = norm.indexOf('id');
+    var nomesAntigos = sh.getLastRow() > 1
+      ? sh.getRange(2, tipoIdx + 1, sh.getLastRow() - 1, 1).getValues().map(function(r, i) {
+          var nome = String(r[0] || '').trim();
+          if (nome) mapaTiposAntigos[String(sh.getRange(i + 2, idsAntigos + 1).getValue())] = nome;
+          return nome;
+        }).filter(function(v) { return !!v; })
+      : [];
+
+    // Migra a referência antiga numérica de Oficinas para a referência
+    // nominal adotada pelo catálogo de tipos.
+    var shOficinasLegada = ss.getSheetByName(SHEETS.OFICINAS);
+    if (shOficinasLegada && shOficinasLegada.getLastRow() > 0) {
+      var hOf = shOficinasLegada.getRange(1, 1, 1, shOficinasLegada.getLastColumn()).getValues()[0].map(function(h) { return String(h || '').trim().toLowerCase(); });
+      var idTipoOf = hOf.indexOf('id tipo de oficina'), tipoOf = hOf.indexOf('tipo');
+      if (idTipoOf >= 0) {
+        if (tipoOf < 0) { tipoOf = shOficinasLegada.getLastColumn(); shOficinasLegada.getRange(1, tipoOf + 1).setValue('Tipo'); }
+        var qtdOf = shOficinasLegada.getLastRow() - 1;
+        if (qtdOf > 0) {
+          var refs = shOficinasLegada.getRange(2, idTipoOf + 1, qtdOf, 1).getValues();
+          refs.forEach(function(ref, i) { var nome = mapaTiposAntigos[String(ref[0] || '')]; if (nome) shOficinasLegada.getRange(i + 2, tipoOf + 1).setValue(nome); });
+        }
+        shOficinasLegada.deleteColumn(idTipoOf + 1);
+      }
+    }
+    sh.clearContents();
+    if (sh.getMaxColumns() > headersEsperados.length) sh.deleteColumns(headersEsperados.length + 1, sh.getMaxColumns() - headersEsperados.length);
+    sh.getRange(1, 1, 1, headersEsperados.length).setValues([headersEsperados]);
+    if (nomesAntigos.length) sh.getRange(2, 1, nomesAntigos.length, 1).setValues(nomesAntigos.map(function(v) { return [v]; }));
+    clearSheetCaches(SHEETS.TIPOS_OFICINA);
+  }
+
+  // Tipos de oficina seguem o mesmo schema enxuto de TiposAtendimento:
+  // não possuem ID nem colunas de atualização/exclusão lógica.
+  if (sh.getMaxColumns() > headersEsperados.length) {
+    sh.deleteColumns(headersEsperados.length + 1, sh.getMaxColumns() - headersEsperados.length);
+  }
+
+  ensureColunasAuditoriaBasica(SHEETS.TIPOS_OFICINA);
+  ensureOrdemColunas(SHEETS.TIPOS_OFICINA, headersEsperados);
+
+  var atuais = getRowsAtivas(SHEETS.TIPOS_OFICINA).map(function(r) { return String(r[0] || '').trim().toLowerCase(); });
+  var novos = TIPOS_OFICINA_PADRAO.filter(function(nome) { return atuais.indexOf(nome.toLowerCase()) < 0; });
+  if (novos.length) {
+    var agora = new Date(), user = usuarioAtual();
+    var linhas = novos.map(function(nome) { return [nome, agora, user]; });
+    sh.getRange(sh.getLastRow() + 1, 1, linhas.length, headersEsperados.length).setValues(linhas);
+  }
+  clearSheetCaches(SHEETS.TIPOS_OFICINA);
+}
+
+function getTiposOficinaCols() {
+  if (_COLS_CACHE[SHEETS.TIPOS_OFICINA]) return _COLS_CACHE[SHEETS.TIPOS_OFICINA];
+  maybeEnsureOnRead(function() { ensureTiposOficinaPadrao(); });
+  var h = getHeadersLower(SHEETS.TIPOS_OFICINA);
+  function idx(n, f) { var i = h.indexOf(n); return i >= 0 ? i : f; }
+  return _COLS_CACHE[SHEETS.TIPOS_OFICINA] = {
+    tipo: idx('tipo de oficina', 0), registrado_em: idx('registrado em', 1), criadoPor: idx('criado por', 2)
+  };
+}
+
+function getOficinasCols() {
+  if (_COLS_CACHE[SHEETS.OFICINAS]) return _COLS_CACHE[SHEETS.OFICINAS];
+  maybeEnsureOnRead(function() {
+    ensureColunasPadraoAuditoria(SHEETS.OFICINAS);
+    ensureOrdemColunas(SHEETS.OFICINAS, ['ID', 'Nome', 'Tipo', 'Responsável', 'Data', 'Horário Início', 'Horário Término', 'Observações', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por']);
+  });
+  var h = getHeadersLower(SHEETS.OFICINAS);
+  function idx(n, f) { var i = h.indexOf(n); return i >= 0 ? i : f; }
+  return _COLS_CACHE[SHEETS.OFICINAS] = {
+    id: idx('id', 0), nome: idx('nome', 1), tipo: idx('tipo', 2), responsavel: idx('responsável', 3),
+    data: idx('data', 4), horario_inicio: idx('horário início', 5), horario_termino: idx('horário término', 6), observacoes: idx('observações', 7),
+    registrado_em: idx('registrado em', 8), criadoPor: idx('criado por', 9), atualizadoEm: idx('atualizado em', 10), atualizadoPor: idx('atualizado por', 11),
+    deletado_em: idx('deletado em', 12), deletado_por: idx('deletado por', 13)
+  };
+}
+
+function getOficinaMatriculasCols() {
+  if (_COLS_CACHE[SHEETS.OFICINA_MATRICULAS]) return _COLS_CACHE[SHEETS.OFICINA_MATRICULAS];
+  maybeEnsureOnRead(function() {
+    ensureColunasPadraoAuditoria(SHEETS.OFICINA_MATRICULAS);
+    ensureOrdemColunas(SHEETS.OFICINA_MATRICULAS, ['ID', 'ID Oficina', 'ID Socioeducando', 'Realizada', 'Observações', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por']);
+  });
+  var h = getHeadersLower(SHEETS.OFICINA_MATRICULAS);
+  function idx(n, f) { var i = h.indexOf(n); return i >= 0 ? i : f; }
+  return _COLS_CACHE[SHEETS.OFICINA_MATRICULAS] = {
+    id: idx('id', 0), oficina_id: idx('id oficina', 1), socioeducando_id: idx('id socioeducando', 2), realizada: idx('realizada', 3), observacoes: idx('observações', 4),
+    registrado_em: idx('registrado em', 5), criadoPor: idx('criado por', 6), atualizadoEm: idx('atualizado em', 7), atualizadoPor: idx('atualizado por', 8),
+    deletado_em: idx('deletado em', 9), deletado_por: idx('deletado por', 10)
+  };
+}
+
+function getTiposOficina() {
+  ensureTiposOficinaPadrao();
+  var c = getTiposOficinaCols();
+  return getRowsAtivas(SHEETS.TIPOS_OFICINA).filter(function(r) { return r[c.tipo] !== ''; }).map(function(r) {
+    return { id: String(r[c.tipo] || ''), tipo: String(r[c.tipo] || ''), nome: String(r[c.tipo] || '') };
+  }).sort(function(a, b) { return a.tipo.localeCompare(b.tipo, 'pt-BR'); });
+}
+
+function getTiposOficinaConfig() {
+  var usos = {}, co = getOficinasCols();
+  getRowsAtivas(SHEETS.OFICINAS).forEach(function(r) { var tipo = String(r[co.tipo] || '').trim(); if (tipo) usos[tipo.toLowerCase()] = (usos[tipo.toLowerCase()] || 0) + 1; });
+  return getTiposOficina().map(function(t) { return { tipo: t.tipo, em_uso: usos[t.tipo.toLowerCase()] || 0 }; });
+}
+
+function salvarTipoOficina(dados) {
+  var nome = dados && String(dados.tipo || '').trim();
+  if (!nome) throw new Error('Nome do tipo de oficina é obrigatório.');
+  ensureTiposOficinaPadrao();
+  var c = getTiposOficinaCols(), sh = getSheet(SHEETS.TIPOS_OFICINA), rows = getRows(SHEETS.TIPOS_OFICINA), user = usuarioAtual();
+  var original = dados.tipo_original ? String(dados.tipo_original).trim() : '';
+  var mesmo = rows.findIndex(function(r) { return String(r[c.tipo] || '').trim().toLowerCase() === nome.toLowerCase() && !(original && String(r[c.tipo] || '').trim() === original); });
+  if (mesmo >= 0) throw new Error('Já existe um tipo de oficina chamado "' + nome + '".');
+  if (original) {
+    var i = rows.findIndex(function(r) { return String(r[c.tipo] || '').trim() === original; });
+    if (i < 0) throw new Error('Tipo de oficina não encontrado para edição.');
+    sh.getRange(i + 2, c.tipo + 1).setValue(nome);
+    var shOficinas = getSheet(SHEETS.OFICINAS), co = getOficinasCols();
+    getRows(SHEETS.OFICINAS).forEach(function(r, oficinaIdx) {
+      if (String(r[co.tipo] || '').trim() === original) shOficinas.getRange(oficinaIdx + 2, co.tipo + 1).setValue(nome);
+    });
+  } else {
+    var linha = new Array(sh.getLastColumn()).fill('');
+    linha[c.tipo] = nome; linha[c.registrado_em] = new Date(); linha[c.criadoPor] = user;
+    sh.getRange(sh.getLastRow() + 1, 1, 1, linha.length).setValues([linha]);
+  }
+  return { ok: true };
+}
+
+function excluirTipoOficina(tipo, forcar) {
+  ensureTiposOficinaPadrao();
+  var c = getTiposOficinaCols(), sh = getSheet(SHEETS.TIPOS_OFICINA), rows = getRows(SHEETS.TIPOS_OFICINA);
+  var nome = String(tipo || '').trim();
+  var i = rows.findIndex(function(r) { return String(r[c.tipo] || '').trim() === nome; });
+  if (i < 0) throw new Error('Tipo de oficina não encontrado.');
+  var uso = getRowsAtivas(SHEETS.OFICINAS).filter(function(r) { return String(r[getOficinasCols().tipo] || '').trim() === nome; }).length;
+  if (uso && !forcar) throw new Error('Este tipo está em uso em ' + uso + ' oficina(s). Deseja excluir mesmo assim?');
+  sh.deleteRow(i + 2);
+  return { ok: true };
+}
+
+function getDadosFormOficinaLote() {
+  return { socioeducandos: getSocioeducandosAtivos(), tipos_oficina: getTiposOficina() };
+}
+
+function construirLinhaOficina(c, total, dados) {
+  var l = new Array(total).fill('');
+  l[c.nome] = String(dados.nome || '').trim(); l[c.tipo] = String(dados.tipo || dados.tipo_id || '').trim(); l[c.responsavel] = String(dados.responsavel || '').trim();
+  l[c.data] = dados.data || ''; l[c.horario_inicio] = dados.horario_inicio || ''; l[c.horario_termino] = dados.horario_termino || ''; l[c.observacoes] = String(dados.observacoes || '').trim();
+  return l;
+}
+
+function validarDadosOficina(dados) {
+  if (!dados || !dados.nome || !String(dados.nome).trim()) throw new Error('Nome da oficina é obrigatório.');
+  var tipo = String(dados.tipo || dados.tipo_id || '').trim();
+  if (!tipo) throw new Error('Tipo de oficina é obrigatório.');
+  if (!dados.data) throw new Error('Data da oficina é obrigatória.');
+  var hi = String(dados.horario_inicio || '').trim(), ht = String(dados.horario_termino || '').trim();
+  if ((hi && !ht) || (!hi && ht)) throw new Error('Informe o horário de início e término juntos, ou deixe ambos em branco.');
+  if (hi && ht && ht < hi) throw new Error('O horário de término não pode ser anterior ao início.');
+  if (!getTiposOficina().some(function(t) { return String(t.tipo) === tipo; })) throw new Error('Tipo de oficina não encontrado.');
+}
+
+function gravarLinhaOficina(dados, user) {
+  var c = getOficinasCols(), sh = getSheet(SHEETS.OFICINAS), rows = getRows(SHEETS.OFICINAS), l = construirLinhaOficina(c, sh.getLastColumn(), dados), id;
+  if (dados.oficina_id) {
+    var i = rows.findIndex(function(r) { return String(r[c.id]) === String(dados.oficina_id); });
+    if (i < 0) throw new Error('Oficina não encontrada para edição.');
+    id = Number(dados.oficina_id); l[c.id] = id; l[c.registrado_em] = rows[i][c.registrado_em] || new Date(); l[c.criadoPor] = rows[i][c.criadoPor] || user;
+    if (c.atualizadoEm >= 0) l[c.atualizadoEm] = new Date(); if (c.atualizadoPor >= 0) l[c.atualizadoPor] = user;
+    sh.getRange(i + 2, 1, 1, l.length).setValues([l]);
+  } else {
+    id = nextId(SHEETS.OFICINAS); l[c.id] = id; l[c.registrado_em] = new Date(); l[c.criadoPor] = user;
+    sh.getRange(sh.getLastRow() + 1, 1, 1, l.length).setValues([l]);
+  }
+  return id;
+}
+
+function construirLinhaMatriculaOficina(c, total, dados) {
+  var l = new Array(total).fill(''); l[c.oficina_id] = Number(dados.oficina_id); l[c.socioeducando_id] = Number(dados.socioeducando_id);
+  var realizada = dados.realizada;
+  l[c.realizada] = (realizada === true || String(realizada).toLowerCase() === 'sim') ? 'Sim'
+    : (realizada === false || String(realizada).toLowerCase() === 'não' || String(realizada).toLowerCase() === 'nao' ? 'Não' : '');
+  l[c.observacoes] = String(dados.observacoes || '').trim(); return l;
+}
+
+function validarRealizadaOficinaData(dataOficina, realizada) {
+  var marcouSim = realizada === true || String(realizada).toLowerCase() === 'sim';
+  if (!marcouSim) return;
+  var data = toIso(dataOficina), hoje = toIso(new Date());
+  if (data && data > hoje) throw new Error('Uma oficina em data futura não pode ser marcada como realizada.');
+}
+
+function salvarOficinaLote(vinculos, dados) {
+  validarDadosOficina(dados);
+  var c = getOficinaMatriculasCols(), sh = getSheet(SHEETS.OFICINA_MATRICULAS), user = usuarioAtual(), agora = new Date(), oficinaId = gravarLinhaOficina(dados, user);
+  var itens = (vinculos || []).filter(function(v) { return v && v.id; }); itens.forEach(function(v) { validarSocioeducandoExiste(v.id); });
+  if (!itens.length) return { ok: true, oficina_id: oficinaId, inseridos: 0 };
+  var base = nextId(SHEETS.OFICINA_MATRICULAS), total = sh.getLastColumn();
+  var linhas = itens.map(function(v, i) { var l = construirLinhaMatriculaOficina(c, total, { oficina_id: oficinaId, socioeducando_id: v.id, realizada: v.realizada, observacoes: v.observacoes }); l[c.id] = base + i; l[c.registrado_em] = agora; l[c.criadoPor] = user; return l; });
+  sh.getRange(sh.getLastRow() + 1, 1, linhas.length, total).setValues(linhas);
+  return { ok: true, oficina_id: oficinaId, inseridos: linhas.length };
+}
+
+function salvarOficinaComMatricula(dados) {
+  validarSocioeducandoExiste(dados.socioeducando_id); validarDadosOficina(dados); validarRealizadaOficinaData(dados.data, dados.realizada);
+  var user = usuarioAtual(), oficinaId = gravarLinhaOficina(dados, user), c = getOficinaMatriculasCols(), sh = getSheet(SHEETS.OFICINA_MATRICULAS), rows = getRows(SHEETS.OFICINA_MATRICULAS);
+  var l = construirLinhaMatriculaOficina(c, sh.getLastColumn(), { oficina_id: oficinaId, socioeducando_id: dados.socioeducando_id, realizada: dados.realizada, observacoes: dados.observacoes_matricula });
+  if (dados.matricula_id) {
+    var i = rows.findIndex(function(r) { return String(r[c.id]) === String(dados.matricula_id); }); if (i < 0) throw new Error('Matrícula de oficina não encontrada.');
+    l[c.id] = Number(dados.matricula_id); l[c.registrado_em] = rows[i][c.registrado_em] || new Date(); l[c.criadoPor] = rows[i][c.criadoPor] || user; l[c.atualizadoEm] = new Date(); l[c.atualizadoPor] = user;
+    sh.getRange(i + 2, 1, 1, l.length).setValues([l]);
+  } else { l[c.id] = nextId(SHEETS.OFICINA_MATRICULAS); l[c.registrado_em] = new Date(); l[c.criadoPor] = user; sh.getRange(sh.getLastRow() + 1, 1, 1, l.length).setValues([l]); }
+  return { ok: true, oficina_id: oficinaId };
+}
+
+function atualizarOficina(dados) { validarDadosOficina(dados); return { ok: true, oficina_id: gravarLinhaOficina(dados, usuarioAtual()) }; }
+
+function atualizarMatriculasOficinaLote(oficinaId, edicoes, novos) {
+  var c = getOficinaMatriculasCols(), sh = getSheet(SHEETS.OFICINA_MATRICULAS), rows = getRows(SHEETS.OFICINA_MATRICULAS), user = usuarioAtual(), agora = new Date();
+  var co = getOficinasCols(), oficinaRow = getRowsAtivas(SHEETS.OFICINAS).find(function(r) { return String(r[co.id]) === String(oficinaId); });
+  if (!oficinaRow) throw new Error('Oficina não encontrada.');
+  (edicoes || []).forEach(function(e) {
+    if (!e || !e.matricula_id) return;
+    var i = rows.findIndex(function(r) { return String(r[c.id]) === String(e.matricula_id); });
+    if (i < 0) throw new Error('Matrícula não encontrada.');
+    if (e.remover) { sh.getRange(i + 2, c.deletado_em + 1).setValue(agora); sh.getRange(i + 2, c.deletado_por + 1).setValue(user); return; }
+    validarRealizadaOficinaData(oficinaRow[co.data], e.realizada);
+    var valorRealizada = e.realizada === true || String(e.realizada).toLowerCase() === 'sim' ? 'Sim' : (e.realizada === false || String(e.realizada).toLowerCase() === 'não' || String(e.realizada).toLowerCase() === 'nao' ? 'Não' : '');
+    sh.getRange(i + 2, c.realizada + 1).setValue(valorRealizada); sh.getRange(i + 2, c.observacoes + 1).setValue(String(e.observacoes || '').trim()); sh.getRange(i + 2, c.atualizadoEm + 1).setValue(agora); sh.getRange(i + 2, c.atualizadoPor + 1).setValue(user);
+  });
+  var existentes = {}; getRowsAtivas(SHEETS.OFICINA_MATRICULAS).forEach(function(r) { if (String(r[c.oficina_id]) === String(oficinaId)) existentes[String(r[c.socioeducando_id])] = true; });
+  var itens = (novos || []).filter(function(n) { return n && n.socioeducando_id; }); itens.forEach(function(n) { validarSocioeducandoExiste(n.socioeducando_id); if (existentes[String(n.socioeducando_id)]) throw new Error('Socioeducando já está vinculado a esta oficina.'); existentes[String(n.socioeducando_id)] = true; });
+  if (itens.length) { var base = nextId(SHEETS.OFICINA_MATRICULAS), total = sh.getLastColumn(); itens.forEach(function(n) { validarRealizadaOficinaData(oficinaRow[co.data], n.realizada); }); var linhas = itens.map(function(n, x) { var l = construirLinhaMatriculaOficina(c, total, { oficina_id: oficinaId, socioeducando_id: n.socioeducando_id, realizada: n.realizada, observacoes: n.observacoes }); l[c.id] = base + x; l[c.registrado_em] = agora; l[c.criadoPor] = user; return l; }); sh.getRange(sh.getLastRow() + 1, 1, linhas.length, total).setValues(linhas); }
+  return { ok: true };
+}
+
+function getOficinasBySocioeducando(socioeducandoId, incluirDeletados) {
+  var co = getOficinasCols(), cm = getOficinaMatriculasCols();
+  var oficinas = {}; (incluirDeletados ? getRows(SHEETS.OFICINAS) : getRowsAtivas(SHEETS.OFICINAS)).forEach(function(r) { oficinas[String(r[co.id])] = r; });
+  return (incluirDeletados ? getRows(SHEETS.OFICINA_MATRICULAS) : getRowsAtivas(SHEETS.OFICINA_MATRICULAS)).filter(function(r) { return String(r[cm.socioeducando_id]) === String(socioeducandoId); }).map(function(m) {
+    var o = oficinas[String(m[cm.oficina_id])] || [], deleted = cm.deletado_em >= 0 ? toIso(m[cm.deletado_em]) : '', od = o.length && co.deletado_em >= 0 ? toIso(o[co.deletado_em]) : '';
+    var realizadaTxt = String(m[cm.realizada] || '').trim().toLowerCase();
+    return { matricula_id: String(m[cm.id]), oficina_id: String(m[cm.oficina_id]), id: String(m[cm.id]), socioeducando_id: String(m[cm.socioeducando_id]), nome: String(o[co.nome] || ''), tipo: String(o[co.tipo] || ''), responsavel: String(o[co.responsavel] || ''), data_iso: toIso(o[co.data]), data: fmtDate(o[co.data]), horario_inicio: fmtTime(o[co.horario_inicio]), horario_termino: fmtTime(o[co.horario_termino]), observacoes: String(o[co.observacoes] || ''), realizada: realizadaTxt === 'sim' ? true : (realizadaTxt === 'não' || realizadaTxt === 'nao' ? false : null), observacoes_matricula: String(m[cm.observacoes] || ''), created_at: fmtDate(m[cm.registrado_em]), deletado_em: deleted || od, ativo: !(deleted || od) };
+  }).sort(function(a, b) { return (b.data_iso || '').localeCompare(a.data_iso || ''); });
+}
+
+function carregarOficina(id) {
+  var co = getOficinasCols(), cm = getOficinaMatriculasCols(), r = getRowsAtivas(SHEETS.OFICINAS).find(function(x) { return String(x[co.id]) === String(id); });
+  if (!r) throw new Error('Oficina não encontrada.');
+  var tipos = getTiposOficina(), mats = getRowsAtivas(SHEETS.OFICINA_MATRICULAS).filter(function(x) { return String(x[cm.oficina_id]) === String(id); }), socio = {};
+  getSocioeducandos().forEach(function(j) { socio[String(j.id)] = j.nome; });
+  return { oficina: { oficina_id: String(r[co.id]), nome: String(r[co.nome] || ''), tipo: String(r[co.tipo] || ''), tipo_id: String(r[co.tipo] || ''), responsavel: String(r[co.responsavel] || ''), data_iso: toIso(r[co.data]), horario_inicio: fmtTime(r[co.horario_inicio]), horario_termino: fmtTime(r[co.horario_termino]), observacoes: String(r[co.observacoes] || '') }, tipos_oficina: tipos, socioeducandos: getSocioeducandosAtivos(), matriculas: mats.map(function(m) { var realizadaTxt = String(m[cm.realizada] || '').trim().toLowerCase(); return { matricula_id: String(m[cm.id]), socioeducando_id: String(m[cm.socioeducando_id]), nome: socio[String(m[cm.socioeducando_id])] || ('ID ' + m[cm.socioeducando_id]), realizada: realizadaTxt === 'sim' ? true : (realizadaTxt === 'não' || realizadaTxt === 'nao' ? false : null), observacoes: String(m[cm.observacoes] || '') }; }) };
+}
+
+function carregarPaginaOficinas() {
+  var co = getOficinasCols(), cm = getOficinaMatriculasCols();
+  var nomes = {}; getSocioeducandos().forEach(function(j) { nomes[j.id] = j.nome; });
+  var mats = getRowsAtivas(SHEETS.OFICINA_MATRICULAS), porOficina = {}; mats.forEach(function(m) { var id = String(m[cm.oficina_id]), realizadaTxt = String(m[cm.realizada] || '').trim().toLowerCase(); (porOficina[id] = porOficina[id] || []).push({ matricula_id: String(m[cm.id]), socioeducando_id: String(m[cm.socioeducando_id]), nome: nomes[String(m[cm.socioeducando_id])] || ('ID ' + m[cm.socioeducando_id]), realizada: realizadaTxt === 'sim' ? true : (realizadaTxt === 'não' || realizadaTxt === 'nao' ? false : null), observacoes: String(m[cm.observacoes] || '') }); });
+  var oficinas = getRowsAtivas(SHEETS.OFICINAS).map(function(r) { var id = String(r[co.id]); return { oficina_id: id, id: id, nome: String(r[co.nome] || ''), tipo: String(r[co.tipo] || ''), responsavel: String(r[co.responsavel] || ''), data_iso: toIso(r[co.data]), data: fmtDate(r[co.data]), horario_inicio: fmtTime(r[co.horario_inicio]), horario_termino: fmtTime(r[co.horario_termino]), observacoes: String(r[co.observacoes] || ''), matriculas: porOficina[id] || [] }; }).sort(function(a, b) { return (b.data_iso || '').localeCompare(a.data_iso || ''); });
+  return { oficinas: oficinas, tipos_oficina: getTiposOficina(), socioeducandos: getSocioeducandosAtivos() };
 }

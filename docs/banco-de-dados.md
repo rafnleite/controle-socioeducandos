@@ -20,6 +20,9 @@ Sheets não impõe chaves estrangeiras, `UNIQUE`, nem *constraints*.
   - [Cursos](#cursos)
   - [CursoMatriculas](#cursomatriculas)
   - [CursoEventos](#cursoeventos)
+  - [TiposOficina](#tiposoficina)
+  - [Oficinas](#oficinas)
+  - [OficinaMatriculas](#oficinamatriculas)
   - [Saidas](#saidas)
   - [SaidaMatriculas](#saidamatriculas)
   - [Atendimentos](#atendimentos)
@@ -125,6 +128,43 @@ erDiagram
     number ID_Curso_Matricula FK
     date Data
     boolean Ausente
+    string Observacoes
+    datetime Registrado_em
+    string Criado_por
+    datetime Atualizado_em
+    string Atualizado_por
+    datetime Deletado_em
+    string Deletado_por
+  }
+
+  TIPOSOFICINA {
+    string Tipo_de_Oficina
+    datetime Registrado_em
+    string Criado_por
+  }
+
+  OFICINAS {
+    number ID PK
+    string Nome
+    string Tipo "referência nominal a TiposOficina"
+    string Responsavel
+    date Data
+    string Horario_Inicio
+    string Horario_Termino
+    string Observacoes
+    datetime Registrado_em
+    string Criado_por
+    datetime Atualizado_em
+    string Atualizado_por
+    datetime Deletado_em
+    string Deletado_por
+  }
+
+  OFICINAMATRICULAS {
+    number ID PK
+    number ID_Oficina FK
+    number ID_Socioeducando FK
+    string Realizada "Sim | Nao"
     string Observacoes
     datetime Registrado_em
     string Criado_por
@@ -262,6 +302,9 @@ erDiagram
   SOCIOEDUCANDOS ||--o{ VISITASTERRITORIAIS : "recebe"
   SOCIOEDUCANDOS ||--o{ FAMILIARES : "possui contatos de"
   CURSOS ||--o{ CURSOMATRICULAS : "possui"
+  TIPOSOFICINA ||--o{ OFICINAS : "classifica"
+  OFICINAS ||--o{ OFICINAMATRICULAS : "possui"
+  SOCIOEDUCANDOS ||--o{ OFICINAMATRICULAS : "participa"
   CURSOMATRICULAS ||--o{ CURSOEVENTOS : "tem registro diário"
   SAIDAS ||--o{ SAIDAMATRICULAS : "possui"
   TIPOSATENDIMENTO ||--o{ ATENDIMENTOS : "classifica"
@@ -286,12 +329,13 @@ erDiagram
   `Session.getActiveUser()`). As exceções são `TiposAtendimento` e `InteressesCurso`,
   que usam apenas `Registrado em` e `Criado por`. Não existe um histórico de
   alterações (apenas o último editor é conhecido, não o quê foi alterado).
-- **Colunas de exclusão lógica (reservadas):** a maioria das tabelas também possui,
-  como as duas últimas colunas, `Deletado em` e `Deletado por` — reservadas para uma
-  futura funcionalidade de exclusão lógica (*soft delete*). Atualmente, esse padrão
-  já está ativo em `Familiares` (exclusão lógica com preenchimento de `Deletado em`/
-  `Deletado por`), enquanto nas demais rotinas de exclusão o comportamento predominante
-  ainda é exclusão física (`deleteRow`). As mesmas exceções (`TiposAtendimento` e
+- **Colunas de exclusão lógica:** a maioria das tabelas também possui, como as duas
+  últimas colunas, `Deletado em` e `Deletado por`. Atualmente, esse padrão já está
+  ativo em `Familiares` e `Cursos` (exclusão lógica com preenchimento de
+  `Deletado em`/`Deletado por`), enquanto nas demais rotinas de exclusão o comportamento
+  predominante ainda é exclusão física (`deleteRow`). Em cursos, a operação é feita por
+  `excluirCurso()` e mantém as matrículas vinculadas, que deixam de ser consideradas
+  ativas junto com o curso. As mesmas exceções (`TiposAtendimento` e
   `InteressesCurso`) não reservam essas colunas.
   A migração automática que garante a existência dessas colunas (e da tríade de
   auditoria, quando ainda ausente) é feita por `ensureColunasPadraoAuditoria()`,
@@ -436,7 +480,7 @@ vinculados via `CursoMatriculas`.
 | `Data Limite Inscrição` | date | Usada na página "Cursos" para listar cursos com inscrições próximas do encerramento. |
 | `Observações` | string | Observação do **curso em si** (não confundir com a `Observações` de `CursoMatriculas`, que é por vínculo/aluno). |
 | `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | — | Auditoria. |
-| `Deletado em`, `Deletado por` | — | Reservadas para futura exclusão lógica; não preenchidas atualmente. |
+| `Deletado em`, `Deletado por` | — | Exclusão lógica do curso; preenchidas por `excluirCurso()` e ignoradas nas leituras de cursos ativos. |
 
 > **Migração `Local`:** quando a coluna `Local` foi criada em planilhas antigas
 > (`ensureCursosColunaLocal()`), seu valor inicial foi herdado do antigo campo
@@ -497,6 +541,51 @@ o sistema converte automaticamente cada evento para `ID Curso Matrícula` quando
 única matrícula correspondente. Se houver nenhuma ou mais de uma matrícula para o par,
 a migração é interrompida para evitar vincular um histórico ao registro incorreto.
 
+### Oficinas
+
+`TiposOficina` Ã© o catÃ¡logo administrÃ¡vel dos tipos de oficina.
+
+| Coluna | Tipo | DescriÃ§Ã£o |
+|---|---|---|
+| `Tipo de Oficina` | string (chave nominal) | Nome do tipo, editÃ¡vel na tela de ConfiguraÃ§Ãµes. |
+| `Registrado em` | datetime | Data/hora de cadastro. |
+| `Criado por` | string | UsuÃ¡rio que cadastrou o tipo. |
+
+`Oficinas` representa o evento pontual.
+
+| Coluna | Tipo | DescriÃ§Ã£o |
+|---|---|---|
+| `ID` | number (PK) | |
+| `Nome` | string | Nome da oficina. |
+| `Tipo` | string (referÃªncia nominal â†’ TiposOficina) | Tipo selecionado no catÃ¡logo. |
+| `ResponsÃ¡vel` | string | Pessoa responsÃ¡vel pela oficina. |
+| `Data` | date | Data da realizaÃ§Ã£o prevista. |
+| `HorÃ¡rio InÃ­cio` / `HorÃ¡rio TÃ©rmino` | string `HH:mm` | HorÃ¡rio do evento; ambos podem ficar vazios, mas devem ser informados juntos. |
+| `ObservaÃ§Ãµes` | string | ObservaÃ§Ã£o geral da oficina. |
+| `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | â€” | Auditoria. |
+| `Deletado em`, `Deletado por` | â€” | ExclusÃ£o lÃ³gica. |
+
+### OficinaMatriculas
+
+Tabela de junÃ§Ã£o **N:N** entre `Oficinas` e `Socioeducandos`.
+
+| Coluna | Tipo | DescriÃ§Ã£o |
+|---|---|---|
+| `ID` | number (PK) | |
+| `ID Oficina` | number (FK â†’ Oficinas) | Evento ao qual o socioeducando estÃ¡ vinculado. |
+| `ID Socioeducando` | number (FK â†’ Socioeducandos) | Participante da oficina. |
+| `Realizada` | string | `Sim` ou `NÃ£o`, individual por participante. |
+| `ObservaÃ§Ãµes` | string | ObservaÃ§Ã£o especÃ­fica da matrÃ­cula. |
+| `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | â€” | Auditoria. |
+| `Deletado em`, `Deletado por` | â€” | ExclusÃ£o lÃ³gica. |
+
+O cadastro em lote cria um evento em `Oficinas` e uma matrÃ­cula para cada
+socioeducando selecionado; perfil e resumo do dia fazem o *join* dessas tabelas.
+Os intervalos de `Oficinas` participam de `verificarConflitosAgenda`, tanto como
+atividade existente quanto como nova atividade submetida para confirmação.
+No cadastro, `Realizada` permanece nulo até que a matrícula seja atualizada; o
+backend rejeita `Sim` quando a data da oficina ainda estiver no futuro.
+
 ### Saidas
 
 Entidade **compartilhada** (evento) representando uma saída externa (ex.: consulta
@@ -527,6 +616,7 @@ um com seu próprio status e observação).
 | `ID Saída` | number (FK → Saidas) | |
 | `ID Socioeducando` | number (FK → Socioeducandos) | |
 | `Status` | string | `"Prevista"`, `"Realizada"` ou `"Cancelada"`. |
+| `Retorno` | string / nulo | `Sim` ou `Não`, informado individualmente somente após o horário de saída. Fica nulo no cadastro e também pode permanecer nulo enquanto não houver confirmação. |
 | `Observações` | string | Observação específica deste socioeducando na saída. |
 | `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | — | Auditoria. |
 | `Deletado em`, `Deletado por` | — | Reservadas para futura exclusão lógica; não preenchidas atualmente. |
@@ -534,6 +624,18 @@ um com seu próprio status e observação).
 **Regra de negócio:** vínculos com status cancelada são ignorados pela verificação de
 conflitos de agenda (`verificarConflitosAgenda`), com normalização de texto
 (sem diferença por maiúsculas/minúsculas e acentuação).
+
+O campo `Retorno` não é inferido pela existência de `Data/Hora Volta`, pois esse
+horário pode ser apenas previsto e é compartilhado pelo evento. O resumo do dia
+exibe a data/hora de saída e a data/hora de retorno sem rótulos; abaixo delas só
+exibe `Retornou` quando `Retorno = Sim` ou `Não retornou` quando `Retorno = Não`.
+Quando o valor é nulo, nenhuma situação é exibida. O backend rejeita a gravação
+de `Sim` ou `Não` antes do horário da saída.
+
+O painel geral também verifica saídas cuja `Data/Hora Volta` já passou e cria uma
+pendência por evento quando há matrículas sem `Retorno`. A rotina
+`carregarPendenciasRetornoSaida` lista esses vínculos e `atualizarRetornosSaidaLote`
+grava o retorno e as observações individualmente.
 
 ### Atendimentos
 

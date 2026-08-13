@@ -43,6 +43,7 @@ var EMAIL_USUARIO  = '<?= emailUsuario ?>';
   <div class="nav-right">
     <button class="tab-btn" onclick="mostrarOverview()" id="btn-nav-ov">Painel Geral</button>
     <button class="tab-btn" onclick="mostrarPaginaCursos()" id="btn-nav-cursos">Cursos</button>
+    <button class="tab-btn" onclick="mostrarPaginaOficinas()" id="btn-nav-oficinas">Oficinas</button>
     <button class="tab-btn" onclick="mostrarMenuImportar()" id="btn-nav-imp">Importar dados</button>
     <div class="tab-dropdown" id="cad-dropdown">
       <button class="tab-btn" id="btn-nav-cad" onclick="toggleMenuCadastrar()">Cadastrar <i class="fa-solid fa-caret-down"></i></button>
@@ -51,6 +52,7 @@ var EMAIL_USUARIO  = '<?= emailUsuario ?>';
         <button onclick="fecharMenuCadastrar();mostrarDocumentosSocioeducandos()"><i class="fa-solid fa-id-card"></i>Documentos</button>
         <button onclick="fecharMenuCadastrar();abrirCadastroAtendimento()"><i class="fa-solid fa-user-group"></i>Atendimentos</button>
         <button onclick="fecharMenuCadastrar();abrirCadastroCurso()"><i class="fa-solid fa-book-open"></i>Cursos</button>
+        <button onclick="fecharMenuCadastrar();abrirCadastroOficina()"><i class="fa-solid fa-palette"></i>Oficinas</button>
         <button onclick="fecharMenuCadastrar();abrirCadastroTrabalho()"><i class="fa-solid fa-briefcase"></i>Trabalho</button>
         <button onclick="fecharMenuCadastrar();mostrarFormInteressesLote()"><i class="fa-solid fa-bullseye"></i>Interesses de Curso</button>
         <button onclick="fecharMenuCadastrar();abrirCadastroSaida()"><i class="fa-solid fa-bus"></i>Saídas</button>
@@ -60,6 +62,7 @@ var EMAIL_USUARIO  = '<?= emailUsuario ?>';
       <button class="tab-btn" id="btn-nav-config" onclick="toggleMenuConfig()">Configurações <i class="fa-solid fa-caret-down"></i></button>
       <div class="dropdown-menu">
         <button onclick="fecharMenuConfig();mostrarConfigTiposAtendimento()"><i class="fa-solid fa-list-check"></i>Tipos de Atendimento</button>
+        <button onclick="fecharMenuConfig();mostrarConfigTiposOficina()"><i class="fa-solid fa-swatchbook"></i>Tipos de Oficina</button>
       </div>
     </div>
   </div>

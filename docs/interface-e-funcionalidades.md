@@ -48,14 +48,15 @@ Barra superior (`Main.html`):
 |---|---|
 | **Painel Geral** | `mostrarOverview()` — dashboard com indicadores e resumo do dia. |
 | **Cursos** | `mostrarPaginaCursos()` — página dedicada com cursos próximos do encerramento de inscrição e socioeducandos sem curso recente. |
+| **Oficinas** | `mostrarPaginaOficinas()` — lista de oficinas pontuais, com edição do evento e das matrículas. |
 | **Importar dados** | `mostrarMenuImportar()` — menu de importação de CSV. |
-| **Cadastrar ▾** | menu suspenso: Socioeducandos, Atendimentos, Cursos, Trabalho, Interesses de Curso, Saídas. |
-| **Configurações ▾** | menu suspenso: Tipos de Atendimento — CRUD (`mostrarConfigTiposAtendimento()`) do catálogo de tipos e duração padrão. Separado do menu "Cadastrar" por um divisor na barra. |
+| **Cadastrar ▾** | menu suspenso: Socioeducandos, Atendimentos, Cursos, Oficinas, Trabalho, Interesses de Curso, Saídas. |
+| **Configurações ▾** | menu suspenso: Tipos de Atendimento e Tipos de Oficina — CRUD dos catálogos auxiliares. Separado do menu "Cadastrar" por um divisor na barra. |
 | **Busca (topo)** | campo de busca *live* por nome/ID que abre um menu de resultados navegando direto para `mostrarPerfil(id)`. |
 
 A aplicação também aceita parâmetros de URL (`doGet`) para abrir direto em uma tela
 específica: `?page=perfil&id=...`, `?page=atendimento[&id=...]`, `?page=saida`,
-`?page=curso`, `?page=importar`.
+`?page=curso`, `?page=oficina`, `?page=importar`.
 
 ---
 
@@ -65,8 +66,15 @@ específica: `?page=perfil&id=...`, `?page=atendimento[&id=...]`, `?page=saida`,
 
 - Cartões de indicadores: total de socioeducandos, internados ativos, cursos em
   andamento, fugas nos últimos 30 dias.
-- **Resumo do dia**: lista de atendimentos, saídas, retornos e fugas/evasões do dia,
+- **Resumo do dia**: lista de atendimentos, saídas e fugas/evasões do dia,
   aniversariantes e navegação entre dias (setas ◀▶, seletor de data, botão "Hoje").
+- **Alertas de encerramento no topo**: quando existem pendências em cursos, saídas
+  ou oficinas já encerrados, o painel exibe uma navegação no formato `Alerta 1 de N`.
+  Cursos direcionam para a edição em lote das matrículas; oficinas direcionam para
+  a edição das matrículas da oficina; saídas abrem um modal com os socioeducandos
+  sem `Retorno` para preencher `Sim`/`Não` e observações em lote.
+- **Oficinas no resumo do dia**: exibe as oficinas agendadas para a data selecionada,
+  com nome, tipo, horÃ¡rio, participante e indicaÃ§Ã£o de realizaÃ§Ã£o.
 - Listagem de socioeducandos com status (internado/ausente/desligado) e atalho para o
   perfil.
 - A tabela também exibe o atributo **E-mail profissional** e permite ordenação por
@@ -136,8 +144,8 @@ o primeiro paint da tela.
 - **Visitas Territoriais (aba)**: tabela com data, técnico responsável,
   atendido por, sinalizadores `CREAS`, `CAPS` e `Ameaça` (sim/não),
   além de observações. Ações: nova visita e editar registro.
-- **Saídas (aba)**: tabela com local, tipo, ida/volta, condução, acompanhante,
-  observações do evento, situação (retornou?) e status do vínculo
+- **Saídas (aba)**: tabela com local, tipo, ida/volta, confirmação individual de
+  retorno, condução, acompanhante, observações do evento e status do vínculo
   (Prevista/Realizada/Cancelada). Ações: registrar volta (↩️), editar vínculo (✏️).
 - **Fugas/Evasões (aba)**: histórico com ação de registrar retorno (↩️) e editar (✏️).
 
@@ -161,6 +169,31 @@ o primeiro paint da tela.
   já registrado para aquele socioeducando — vale tanto no cadastro/edição pelo
   formulário de Admissões quanto no fluxo de readmissão acima.
 
+### Oficinas
+
+- **Tipos de oficina**: catálogo administrável em Configurações, permitindo cadastrar,
+  editar e excluir tipos como Oficina Esportiva, Oficina de Profissionalização,
+  Macramê, Jurídica ou Horticultura. O catálogo segue o padrão de Tipos de
+  Atendimento: não possui ID próprio nem colunas de atualização/exclusão lógica.
+- **Cadastro em lote** (`mostrarFormOficinaLote`): define nome, tipo, responsável,
+  data, horários e observações da oficina e permite selecionar os socioeducandos,
+  com busca por nome/ID e indicação individual de `Sim` ou `Não` para realizada.
+- **Página Oficinas** (`mostrarPaginaOficinas`): lista os eventos cadastrados e oferece
+  as ações de editar a oficina e editar matrículas.
+- **Matrículas**: cada vínculo possui `ID Oficina`, `ID Socioeducando`, `Realizada`
+  (`Sim`/`Não`) e observações próprias. No perfil do socioeducando é possível criar
+  uma nova oficina e editar somente a matrícula individual; os dados gerais do evento
+  são editados na página "Oficinas".
+- **Conflitos de agenda**: oficinas entram no motor central de conflitos. O cadastro
+  de uma oficina, a edição do evento e a inclusão de novas matrículas verificam
+  sobreposições com cursos, trabalhos, saídas, atendimentos e outras oficinas;
+  quando encontradas, o sistema exibe a confirmação padrão para revisar ou salvar
+  mesmo assim.
+- **Realização da oficina**: no cadastro, a matrícula começa sem informação de
+  realização; uma oficina com data futura não permite marcar a matrícula como
+  realizada.
+- Oficinas pontuais aparecem no resumo de atividades do dia e na agenda visual do perfil.
+
 ### Cursos
 
 - Cadastro individual vinculado a um socioeducando (`mostrarFormCurso`), com status do
@@ -181,7 +214,11 @@ o primeiro paint da tela.
   calendário do perfil como o último dia de frequência do socioeducando no curso,
   mesmo em caso de desistência.
 - Página "Cursos" dedicada: cursos com inscrição prestes a encerrar (com contagem de
-  vagas ocupadas/disponíveis) e socioeducandos internados sem curso recente.
+  vagas ocupadas/disponíveis), cursos em andamento, não iniciados e encerrados, além
+  de socioeducandos internados sem curso recente. A aba de encerrados possui busca,
+  filtros, paginação e acesso às ações de edição, matrículas e detalhes.
+- Cada curso também pode ser excluído pela ação `Excluir`, com confirmação. A operação
+  é lógica: preenche `Deletado em` e `Deletado por`, sem remover fisicamente o curso.
 - **Gerar relatórios** (página "Cursos"): baixa um arquivo `.xlsx` com duas abas:
   - `Socioeducandos em cursos`: somente matrículas ativas em cursos cujo período está
     em andamento, com socioeducando, curso, instituição, datas, horário semanal e
@@ -229,9 +266,14 @@ o primeiro paint da tela.
   a data de retorno vazia, a data de retorno é preenchida automaticamente com a mesma data.
 - Registro de volta (`mostrarFormVolta`) — atualiza a data/hora de volta do evento
   (compartilhada por todos os vinculados àquela saída).
+- **Retorno individual**: no formulário da matrícula, o campo começa nulo e pode
+  receber `Sim` ou `Não` somente após o horário da saída. A existência da data/hora
+  de volta não confirma o retorno, pois ela pode ser apenas prevista. No resumo do
+  dia são exibidas as duas datas/horas sem rótulos; `Retornou` ou `Não retornou`
+  aparece somente quando o campo foi confirmado.
 - **Verificação de conflitos de agenda** (`verificarConflitosAgenda`): ao preencher
   datas em formulários de saída (individual ou lote), o sistema consulta em tempo real
-  se o(s) socioeducando(s) já tem curso, outra saída ou atendimento no mesmo intervalo,
+  se o(s) socioeducando(s) já tem curso, oficina, outra saída ou atendimento no mesmo intervalo,
   e exibe um alerta com os conflitos antes de salvar. No lote, ao clicar em
   "Cadastrar saídas", o sistema abre um **modal de confirmação detalhado** com
   os conflitos e as ações "Revisar horários" ou "Cadastrar saídas mesmo assim".
@@ -291,6 +333,9 @@ exista no backend).
 
 | Entidade | Create | Read | Update | Delete |
 |---|---|---|---|---|
+| TiposOficina | ✅ Configurações | ✅ Configurações + formulários | ✅ Configurações | ✅ Configurações (confirma se estiver em uso) |
+| Oficinas (evento) | ✅ individual e em lote | ✅ perfil + página "Oficinas" + resumo do dia | ✅ modal de edição | ❌ |
+| OficinaMatriculas (vínculo) | ✅ individual e em lote | ✅ perfil + página "Oficinas" | ✅ realizada, observações, adicionar/remover vínculo | ✅ lógico |
 | Socioeducandos | ✅ formulário (nome/data de nascimento/admissão validados; readmissão de desligados oferece nova admissão em vez de duplicar; credenciais com permissão restrita) | ✅ perfil/listagem/busca (e-mail visível; senha só por modal restrito) | ✅ formulário (exceto ID, exibido como texto; credenciais apenas por usuário autorizado) | ❌ |
 | Admissões | ✅ formulário próprio (`mostrarFormAdmissao`) + automático no cadastro do socioeducando + readmissão de socioeducando desligado | ✅ histórico no perfil | ✅ formulário de edição (`Data Admissão`/`Data Desligamento`) + "desligar" | ❌ |
 | Fugas/Evasões | ✅ formulário | ✅ histórico no perfil | ✅ formulário + registrar retorno | ❌ |
@@ -298,7 +343,7 @@ exista no backend).
 | CursoMatriculas (vínculo) | ✅ individual e em lote | ✅ perfil | ✅ status, conclusão, certificado | ❌ |
 | CursoEventos (dia de uma matrícula de curso) | ✅ modal no calendário do perfil | ✅ clique na ocorrência do curso no calendário | ✅ modal no calendário do perfil | ✅ modal no calendário do perfil |
 | Saídas (evento) | ✅ individual e em lote | ✅ perfil | ✅ (via edição do vínculo) | ❌ |
-| SaidaMatriculas (vínculo) | ✅ individual e em lote | ✅ perfil | ✅ status, observações, volta | ❌ |
+| SaidaMatriculas (vínculo) | ✅ individual e em lote | ✅ perfil | ✅ status, retorno, observações, volta | ❌ |
 | Atendimentos | ✅ em lote | ✅ perfil | ✅ formulário de edição (tipo, responsável, horários, observações) + "marcar não realizado" | ❌ |
 | Trabalhos | ✅ individual | ✅ perfil | ✅ formulário de edição | ❌ |
 | Familiares | ✅ individual (modal no perfil) | ✅ perfil (cards) | ✅ edição por modal | ✅ exclusão lógica (card) |
@@ -312,7 +357,7 @@ exista no backend).
 - Modelagem N:N consistente e bem padronizada entre `Cursos` e `Saidas` (mesma
   convenção de nomes, mesma estratégia de migração aditiva/não destrutiva).
 - Verificação de conflitos de agenda centralizada num único motor, cruzando cursos,
-  saídas e atendimentos, com UX de
+  oficinas, saídas, trabalhos e atendimentos, com UX de
   confirmação explícita em vez de bloqueio rígido.
 - Ajuste fino de conflitos para cursos: ausências diárias registradas em eventos de
   curso (`CursoEventos`, vinculados a `CursoMatriculas`) retiram aquela ocorrência específica do cálculo de conflito.
@@ -331,9 +376,9 @@ exista no backend).
   presente na maioria das tabelas, sempre como os últimos atributos "principais".
   `TiposAtendimento` e `InteressesCurso` usam apenas `Registrado em`/`Criado por`.
   A maioria das tabelas também reserva, como últimas colunas, `Deletado em`/
-  `Deletado por` para exclusão lógica. Esse padrão já está ativo em `Familiares`;
-  nas demais rotinas de exclusão, o comportamento predominante ainda é exclusão
-  física. As mesmas duas tabelas são a exceção e não reservam essas colunas.
+  `Deletado por` para exclusão lógica. Esse padrão já está ativo em `Familiares` e
+  `Cursos`; nas demais rotinas de exclusão, o comportamento predominante ainda é
+  exclusão física. As mesmas duas tabelas são a exceção e não reservam essas colunas.
 - **Ícones consistentes**: toda a interface usa ícones Font Awesome (`fa-solid`) em vez
   de emojis, inclusive nas mensagens de alerta/erro exibidas diretamente via
   `innerHTML` (que não passam pela conversão automática de `iconifyHtml()`).
@@ -346,9 +391,9 @@ exista no backend).
 ## Lacunas e comandos de CRUD faltando
 
 1. **Exclusão (Delete) ainda é limitada na UI.** Hoje há exclusão apenas em alguns
-  fluxos específicos (ex.: interesses de curso e familiares). Ainda não existe um
-  padrão amplo de exclusão para a maioria das entidades principais (admissões, fugas,
-  cursos, saídas, atendimentos, trabalhos).
+  fluxos específicos (ex.: interesses de curso, familiares e cursos). Ainda não existe
+  um padrão amplo de exclusão para a maioria das entidades principais (admissões, fugas,
+  saídas, atendimentos, trabalhos).
 2. **Sem exclusão em cascata / verificação de dependências**: mesmo que a exclusão seja
    implementada, apagar um `Curso`/`Saida` deixaria matrículas "órfãs" em
    `CursoMatriculas`/`SaidaMatriculas` se não houver tratamento explícito.
@@ -406,9 +451,6 @@ exista no backend).
    morto para reduzir superfície de manutenção.
 4. **Novos importadores** para Fugas/Evasões e Oficinas, já que os exemplos de CSV já
    existem no repositório e sugerem um caso de uso real do Portal SUASE.
-6. **Estender a verificação de conflitos de agenda** para considerar também os
-    horários de `Cursos` (hoje só cruza Saídas × Atendimentos), evitando que um
-    socioeducando fique escalado para uma saída no mesmo horário de uma aula.
 7. **Indicar visualmente as abas legadas** (ex.: página de administração dentro do
     próprio Web App listando abas legadas e permitindo exportar/arquivar).
 
