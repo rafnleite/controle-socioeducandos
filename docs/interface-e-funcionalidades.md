@@ -51,7 +51,7 @@ Barra superior (`Main.html`):
 | **Oficinas** | `mostrarPaginaOficinas()` — lista de oficinas pontuais, com edição do evento e das matrículas. |
 | **Importar dados** | `mostrarMenuImportar()` — menu de importação de CSV. |
 | **Cadastrar ▾** | menu suspenso: Socioeducandos, Atendimentos, Cursos, Oficinas, Trabalho, Interesses de Curso, Saídas. |
-| **Configurações ▾** | menu suspenso: Tipos de Atendimento e Tipos de Oficina — CRUD dos catálogos auxiliares. Separado do menu "Cadastrar" por um divisor na barra. |
+| **Configurações ▾** | menu suspenso: Tipos de Atendimento e Tipos de Oficina — cadastro e consulta dos catálogos auxiliares. Esses tipos não possuem edição/exclusão pela aplicação. Separado do menu "Cadastrar" por um divisor na barra. |
 | **Busca (topo)** | campo de busca *live* por nome/ID que abre um menu de resultados navegando direto para `mostrarPerfil(id)`. |
 
 A aplicação também aceita parâmetros de URL (`doGet`) para abrir direto em uma tela
@@ -106,6 +106,17 @@ Primeiro renderiza cartões, filtros e tabela principal; depois busca o bloco
 `Resumo do dia` de forma assíncrona. Isso reduz o tempo percebido de abertura do
 painel e evita que a leitura de `Atendimentos`, `Saidas` e `SaidaMatriculas` bloqueie
 o primeiro paint da tela.
+
+**Visibilidade por status de unidade:** o overview, o resumo de atividades do dia,
+os alertas de pendências e as telas de consulta de Cursos e Oficinas mostram somente
+socioeducandos ativos na unidade. Um desligamento não apaga nem oculta o histórico
+do socioeducando em seu próprio perfil; cursos, oficinas, atendimentos, saídas e
+demais registros continuam disponíveis no perfil para consulta histórica.
+
+Nos fluxos de manutenção — edição de matrículas de cursos/oficinas e preenchimento
+de retorno de saídas — a lista inclui também socioeducandos desligados. Nesses casos,
+o nome recebe a indicação **Desligado atualmente**, para deixar claro que o vínculo
+está sendo editado apenas como histórico.
 
 ### Perfil do Socioeducando
 
@@ -171,13 +182,15 @@ o primeiro paint da tela.
 
 ### Oficinas
 
-- **Tipos de oficina**: catálogo administrável em Configurações, permitindo cadastrar,
-  editar e excluir tipos como Oficina Esportiva, Oficina de Profissionalização,
-  Macramê, Jurídica ou Horticultura. O catálogo segue o padrão de Tipos de
-  Atendimento: não possui ID próprio nem colunas de atualização/exclusão lógica.
+- **Tipos de oficina**: catálogo em Configurações para cadastrar tipos como Oficina
+  Esportiva, Oficina de Profissionalização, Oficina de Macramê, Oficina Jurídica e
+  Oficina de Horticultura. Segue o padrão de Tipos de Atendimento: não permite
+  edição/exclusão pela aplicação, não possui ID próprio e não possui colunas de
+  atualização ou exclusão lógica.
 - **Cadastro em lote** (`mostrarFormOficinaLote`): define nome, tipo, responsável,
   data, horários e observações da oficina e permite selecionar os socioeducandos,
-  com busca por nome/ID e indicação individual de `Sim` ou `Não` para realizada.
+  com busca por nome/ID. As matrículas são criadas com `Realizada` nulo; a situação
+  é preenchida posteriormente na edição da matrícula.
 - **Página Oficinas** (`mostrarPaginaOficinas`): lista os eventos cadastrados e oferece
   as ações de editar a oficina e editar matrículas.
 - **Matrículas**: cada vínculo possui `ID Oficina`, `ID Socioeducando`, `Realizada`
@@ -192,7 +205,8 @@ o primeiro paint da tela.
 - **Realização da oficina**: no cadastro, a matrícula começa sem informação de
   realização; uma oficina com data futura não permite marcar a matrícula como
   realizada.
-- Oficinas pontuais aparecem no resumo de atividades do dia e na agenda visual do perfil.
+- Oficinas pontuais aparecem no resumo de atividades do dia somente para participantes
+  ativos e continuam aparecendo no histórico/agenda visual do perfil após desligamento.
 
 ### Cursos
 
@@ -215,8 +229,9 @@ o primeiro paint da tela.
   mesmo em caso de desistência.
 - Página "Cursos" dedicada: cursos com inscrição prestes a encerrar (com contagem de
   vagas ocupadas/disponíveis), cursos em andamento, não iniciados e encerrados, além
-  de socioeducandos internados sem curso recente. A aba de encerrados possui busca,
-  filtros, paginação e acesso às ações de edição, matrículas e detalhes.
+  de socioeducandos internados sem curso recente. Os detalhes dos cursos exibem
+  somente matrículas de socioeducandos ativos na unidade. A aba de encerrados possui
+  busca, filtros, paginação e acesso às ações de edição, matrículas e detalhes.
 - Cada curso também pode ser excluído pela ação `Excluir`, com confirmação. A operação
   é lógica: preenche `Deletado em` e `Deletado por`, sem remover fisicamente o curso.
 - **Gerar relatórios** (página "Cursos"): baixa um arquivo `.xlsx` com duas abas:
@@ -271,6 +286,9 @@ o primeiro paint da tela.
   de volta não confirma o retorno, pois ela pode ser apenas prevista. No resumo do
   dia são exibidas as duas datas/horas sem rótulos; `Retornou` ou `Não retornou`
   aparece somente quando o campo foi confirmado.
+- No resumo do dia e nos demais painéis de consulta, saídas e seus participantes são
+  filtrados para socioeducandos ativos. O modal de preenchimento de retornos mantém
+  também os desligados na lista e sinaliza esses vínculos com **Desligado atualmente**.
 - **Verificação de conflitos de agenda** (`verificarConflitosAgenda`): ao preencher
   datas em formulários de saída (individual ou lote), o sistema consulta em tempo real
   se o(s) socioeducando(s) já tem curso, oficina, outra saída ou atendimento no mesmo intervalo,
@@ -287,6 +305,8 @@ o primeiro paint da tela.
   de término (com base na duração padrão do tipo).
 - **Marcar como não realizado**: modal que exige motivo e nova data/hora, criando
   automaticamente um atendimento de reposição encadeado ao original.
+- No resumo do dia, atendimentos de socioeducandos desligados não são exibidos; o
+  histórico completo permanece disponível na aba Atendimentos do perfil.
 
 ### Trabalhos
 
@@ -333,7 +353,7 @@ exista no backend).
 
 | Entidade | Create | Read | Update | Delete |
 |---|---|---|---|---|
-| TiposOficina | ✅ Configurações | ✅ Configurações + formulários | ✅ Configurações | ✅ Configurações (confirma se estiver em uso) |
+| TiposOficina | ✅ Configurações | ✅ Configurações + formulários | ❌ | ❌ |
 | Oficinas (evento) | ✅ individual e em lote | ✅ perfil + página "Oficinas" + resumo do dia | ✅ modal de edição | ❌ |
 | OficinaMatriculas (vínculo) | ✅ individual e em lote | ✅ perfil + página "Oficinas" | ✅ realizada, observações, adicionar/remover vínculo | ✅ lógico |
 | Socioeducandos | ✅ formulário (nome/data de nascimento/admissão validados; readmissão de desligados oferece nova admissão em vez de duplicar; credenciais com permissão restrita) | ✅ perfil/listagem/busca (e-mail visível; senha só por modal restrito) | ✅ formulário (exceto ID, exibido como texto; credenciais apenas por usuário autorizado) | ❌ |

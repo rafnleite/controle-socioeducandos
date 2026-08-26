@@ -20,7 +20,11 @@ var SHEETS = {
   SAIDA_MATRICULAS: 'SaidaMatriculas',
   ATENDIMENTOS: 'Atendimentos',
   TIPOS_ATENDIMENTO: 'TiposAtendimento',
-  INTERESSES_CURSO: 'InteressesCurso'
+  INTERESSES_CURSO: 'InteressesCurso',
+  ESPECIALIDADES: 'Especialidades',
+  EQUIPES: 'Equipes',
+  EQUIPE_ESPECIALISTAS: 'EquipeEspecialistas',
+  SOCIOEDUCANDO_EQUIPES: 'SocioeducandoEquipes'
 };
 
 var TIPOS_ATENDIMENTO_PADRAO = [
@@ -48,6 +52,7 @@ var _HEADER_CACHE = {};
 var _ROWS_CACHE = {};
 var _ACTIVE_ROWS_CACHE = {};
 var _COLS_CACHE = {};
+var _EQUIPE_TABELAS_PRONTAS = false;
 var EXECUTAR_GARANTIAS_ESTRUTURAIS_EM_LEITURAS = false;
 
 function maybeEnsureOnRead(fn) {
@@ -210,6 +215,26 @@ function inicializarPlanilha() {
       nome: SHEETS.INTERESSES_CURSO,
       headers: ['ID', 'ID Socioeducando', 'Interesse', 'Registrado em', 'Criado por'],
       widths:  [50, 70, 220, 130, 180]
+    },
+    {
+      nome: SHEETS.ESPECIALIDADES,
+      headers: ['ID', 'Nome', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
+      widths:  [50, 240, 130, 180, 130, 180, 130, 180]
+    },
+    {
+      nome: SHEETS.EQUIPES,
+      headers: ['ID', 'Nome', 'Cor', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
+      widths:  [50, 240, 100, 130, 180, 130, 180, 130, 180]
+    },
+    {
+      nome: SHEETS.EQUIPE_ESPECIALISTAS,
+      headers: ['ID', 'ID Equipe', 'ID Especialidade', 'Nome Especialista', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
+      widths:  [50, 80, 110, 240, 130, 180, 130, 180, 130, 180]
+    },
+    {
+      nome: SHEETS.SOCIOEDUCANDO_EQUIPES,
+      headers: ['ID', 'ID Socioeducando', 'ID Equipe', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'],
+      widths:  [50, 110, 80, 130, 180, 130, 180, 130, 180]
     }
   ];
   var totalEtapasInicializacao = configs.length * 2 + 3;
@@ -303,6 +328,10 @@ function inicializarPlanilha() {
   getFamiliaresCols();
   getTiposAtendimentoCols();
   getInteressesCursoCols();
+  getEspecialidadesCols();
+  getEquipesCols();
+  getEquipeEspecialistasCols();
+  getSocioeducandoEquipesCols();
 
   Logger.log('[Inicialização] Planilha inicializada com sucesso.');
   ss.toast('██████████ 100%\nPlanilha inicializada e colunas reorganizadas. Clique no X para fechar.', 'Inicialização concluída', -1);
@@ -1136,6 +1165,314 @@ function excluirTipoAtendimento(tipo, forcar) {
 
   sh.deleteRow(idx + 2);
   return { ok: true, atendimentos_afetados: emUso };
+}
+
+// ── Equipes, especialidades e responsáveis ────────────────────
+
+function ensureEquipeTabelas() {
+  if (_EQUIPE_TABELAS_PRONTAS) return;
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var configs = [
+    { nome: SHEETS.ESPECIALIDADES, headers: ['ID', 'Nome', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'], widths: [50, 240, 130, 180, 130, 180, 130, 180] },
+    { nome: SHEETS.EQUIPES, headers: ['ID', 'Nome', 'Cor', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'], widths: [50, 240, 100, 130, 180, 130, 180, 130, 180] },
+    { nome: SHEETS.EQUIPE_ESPECIALISTAS, headers: ['ID', 'ID Equipe', 'ID Especialidade', 'Nome Especialista', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'], widths: [50, 80, 110, 240, 130, 180, 130, 180, 130, 180] },
+    { nome: SHEETS.SOCIOEDUCANDO_EQUIPES, headers: ['ID', 'ID Socioeducando', 'ID Equipe', 'Registrado em', 'Criado por', 'Atualizado em', 'Atualizado por', 'Deletado em', 'Deletado por'], widths: [50, 110, 80, 130, 180, 130, 180, 130, 180] }
+  ];
+  var precisaManutencao = false;
+  configs.forEach(function(cfg) {
+    var sh = ss.getSheetByName(cfg.nome);
+    if (!sh) {
+      sh = ss.insertSheet(cfg.nome);
+      sh.getRange(1, 1, 1, cfg.headers.length).setValues([cfg.headers]);
+      sh.getRange(1, 1, 1, cfg.headers.length).setFontWeight('bold').setBackground('#3c3c7a').setFontColor('white');
+      sh.setFrozenRows(1);
+      cfg.widths.forEach(function(w, i) { sh.setColumnWidth(i + 1, w); });
+      return;
+    }
+    if (sh.getLastRow() === 0) {
+      sh.getRange(1, 1, 1, cfg.headers.length).setValues([cfg.headers]);
+      sh.getRange(1, 1, 1, cfg.headers.length).setFontWeight('bold').setBackground('#3c3c7a').setFontColor('white');
+      sh.setFrozenRows(1);
+      cfg.widths.forEach(function(w, i) { sh.setColumnWidth(i + 1, w); });
+      return;
+    }
+    var atuais = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function(h) {
+      return String(h || '').trim().toLowerCase();
+    });
+    if (cfg.headers.some(function(h) { return atuais.indexOf(String(h).toLowerCase()) < 0; })) precisaManutencao = true;
+  });
+  if (precisaManutencao) {
+    configs.forEach(function(cfg) {
+      var sh = ss.getSheetByName(cfg.nome);
+      if (sh) {
+        ensureSheetEstruturaByConfig(sh, cfg.headers, cfg.widths);
+        ensureColunasPadraoAuditoria(cfg.nome);
+      }
+    });
+  }
+  _EQUIPE_TABELAS_PRONTAS = true;
+}
+
+function getEspecialidadesCols() {
+  if (_COLS_CACHE[SHEETS.ESPECIALIDADES]) return _COLS_CACHE[SHEETS.ESPECIALIDADES];
+  ensureEquipeTabelas();
+  var h = getHeadersLower(SHEETS.ESPECIALIDADES);
+  function idx(n, f) { var i = h.indexOf(n); return i >= 0 ? i : f; }
+  return _COLS_CACHE[SHEETS.ESPECIALIDADES] = {
+    id: idx('id', 0), nome: idx('nome', 1), registrado_em: idx('registrado em', 2), criadoPor: idx('criado por', 3),
+    atualizadoEm: idx('atualizado em', 4), atualizadoPor: idx('atualizado por', 5), deletado_em: idx('deletado em', 6), deletado_por: idx('deletado por', 7)
+  };
+}
+
+function getEquipesCols() {
+  if (_COLS_CACHE[SHEETS.EQUIPES]) return _COLS_CACHE[SHEETS.EQUIPES];
+  ensureEquipeTabelas();
+  var h = getHeadersLower(SHEETS.EQUIPES);
+  function idx(n, f) { var i = h.indexOf(n); return i >= 0 ? i : f; }
+  return _COLS_CACHE[SHEETS.EQUIPES] = {
+    id: idx('id', 0), nome: idx('nome', 1), cor: idx('cor', 2), registrado_em: idx('registrado em', 3), criadoPor: idx('criado por', 4),
+    atualizadoEm: idx('atualizado em', 5), atualizadoPor: idx('atualizado por', 6), deletado_em: idx('deletado em', 7), deletado_por: idx('deletado por', 8)
+  };
+}
+
+function getEquipeEspecialistasCols() {
+  if (_COLS_CACHE[SHEETS.EQUIPE_ESPECIALISTAS]) return _COLS_CACHE[SHEETS.EQUIPE_ESPECIALISTAS];
+  ensureEquipeTabelas();
+  var h = getHeadersLower(SHEETS.EQUIPE_ESPECIALISTAS);
+  function idx(n, f) { var i = h.indexOf(n); return i >= 0 ? i : f; }
+  return _COLS_CACHE[SHEETS.EQUIPE_ESPECIALISTAS] = {
+    id: idx('id', 0), equipe_id: idx('id equipe', 1), especialidade_id: idx('id especialidade', 2), nome: idx('nome especialista', 3),
+    registrado_em: idx('registrado em', 4), criadoPor: idx('criado por', 5), atualizadoEm: idx('atualizado em', 6), atualizadoPor: idx('atualizado por', 7),
+    deletado_em: idx('deletado em', 8), deletado_por: idx('deletado por', 9)
+  };
+}
+
+function getSocioeducandoEquipesCols() {
+  if (_COLS_CACHE[SHEETS.SOCIOEDUCANDO_EQUIPES]) return _COLS_CACHE[SHEETS.SOCIOEDUCANDO_EQUIPES];
+  ensureEquipeTabelas();
+  var h = getHeadersLower(SHEETS.SOCIOEDUCANDO_EQUIPES);
+  function idx(n, f) { var i = h.indexOf(n); return i >= 0 ? i : f; }
+  return _COLS_CACHE[SHEETS.SOCIOEDUCANDO_EQUIPES] = {
+    id: idx('id', 0), socioeducando_id: idx('id socioeducando', 1), equipe_id: idx('id equipe', 2), registrado_em: idx('registrado em', 3), criadoPor: idx('criado por', 4),
+    atualizadoEm: idx('atualizado em', 5), atualizadoPor: idx('atualizado por', 6), deletado_em: idx('deletado em', 7), deletado_por: idx('deletado por', 8)
+  };
+}
+
+function _limparCachesEquipes() {
+  [SHEETS.ESPECIALIDADES, SHEETS.EQUIPES, SHEETS.EQUIPE_ESPECIALISTAS, SHEETS.SOCIOEDUCANDO_EQUIPES].forEach(clearSheetCaches);
+}
+
+function getEspecialidadesConfig() {
+  var c = getEspecialidadesCols();
+  var uso = {};
+  var ce = getEquipeEspecialistasCols();
+  getRowsAtivas(SHEETS.EQUIPE_ESPECIALISTAS).forEach(function(r) {
+    var id = String(r[ce.especialidade_id] || '');
+    if (id) uso[id] = (uso[id] || 0) + 1;
+  });
+  return getRowsAtivas(SHEETS.ESPECIALIDADES).map(function(r) {
+    var id = String(r[c.id]);
+    return { id: id, nome: String(r[c.nome] || ''), em_uso: uso[id] || 0 };
+  }).filter(function(x) { return x.nome; }).sort(function(a, b) { return a.nome.localeCompare(b.nome, 'pt-BR'); });
+}
+
+function salvarEspecialidade(dados) {
+  var nome = String(dados && dados.nome || '').trim();
+  if (!nome) throw new Error('Nome da especialidade é obrigatório.');
+  var c = getEspecialidadesCols(), sh = getSheet(SHEETS.ESPECIALIDADES), rows = getRows(SHEETS.ESPECIALIDADES), user = usuarioAtual();
+  var idOriginal = dados && dados.id ? String(dados.id) : '';
+  var especialidadeId = idOriginal;
+  var duplicada = rows.find(function(r) { return String(r[c.nome] || '').trim().toLowerCase() === nome.toLowerCase() && String(r[c.id]) !== idOriginal && !(c.deletado_em >= 0 && toIso(r[c.deletado_em])); });
+  if (duplicada) throw new Error('Já existe uma especialidade chamada "' + nome + '".');
+  if (idOriginal) {
+    var idx = rows.findIndex(function(r) { return String(r[c.id]) === idOriginal; });
+    if (idx < 0) throw new Error('Especialidade não encontrada para edição.');
+    sh.getRange(idx + 2, c.nome + 1).setValue(nome);
+    if (c.atualizadoEm >= 0) sh.getRange(idx + 2, c.atualizadoEm + 1).setValue(new Date());
+    if (c.atualizadoPor >= 0) sh.getRange(idx + 2, c.atualizadoPor + 1).setValue(user);
+  } else {
+    var linha = new Array(sh.getLastColumn()).fill('');
+    especialidadeId = String(nextId(SHEETS.ESPECIALIDADES));
+    linha[c.id] = Number(especialidadeId); linha[c.nome] = nome; linha[c.registrado_em] = new Date(); linha[c.criadoPor] = user;
+    sh.getRange(sh.getLastRow() + 1, 1, 1, linha.length).setValues([linha]);
+  }
+  _limparCachesEquipes();
+  return { ok: true, especialidade_id: especialidadeId };
+}
+
+function excluirEspecialidade(id, forcar) {
+  var c = getEspecialidadesCols(), sh = getSheet(SHEETS.ESPECIALIDADES), rows = getRows(SHEETS.ESPECIALIDADES);
+  var idx = rows.findIndex(function(r) { return String(r[c.id]) === String(id) && !(c.deletado_em >= 0 && toIso(r[c.deletado_em])); });
+  if (idx < 0) throw new Error('Especialidade não encontrada.');
+  var ce = getEquipeEspecialistasCols(), rel = getRowsAtivas(SHEETS.EQUIPE_ESPECIALISTAS);
+  var uso = rel.filter(function(r) { return String(r[ce.especialidade_id]) === String(id); }).length;
+  if (uso && !forcar) throw new Error('Esta especialidade está em uso em ' + uso + ' equipe(s). Deseja excluí-la mesmo assim?');
+  if (forcar && uso) {
+    var todos = getRows(SHEETS.EQUIPE_ESPECIALISTAS), indices = [];
+    todos.forEach(function(r, i) { if (String(r[ce.especialidade_id]) === String(id)) indices.push(i); });
+    indices.sort(function(a, b) { return b - a; }).forEach(function(i) { getSheet(SHEETS.EQUIPE_ESPECIALISTAS).deleteRow(i + 2); });
+  }
+  sh.deleteRow(idx + 2);
+  _limparCachesEquipes();
+  return { ok: true };
+}
+
+function getEquipesConfig() {
+  var cq = getEquipesCols(), ce = getEquipeEspecialistasCols(), cs = getEspecialidadesCols(), cv = getSocioeducandoEquipesCols();
+  var especialidades = {};
+  getRowsAtivas(SHEETS.ESPECIALIDADES).forEach(function(r) { especialidades[String(r[cs.id])] = String(r[cs.nome] || ''); });
+  var especialistas = {};
+  getRowsAtivas(SHEETS.EQUIPE_ESPECIALISTAS).forEach(function(r) {
+    var equipeId = String(r[ce.equipe_id]), espId = String(r[ce.especialidade_id]);
+    if (!especialistas[equipeId]) especialistas[equipeId] = [];
+    especialistas[equipeId].push({ id: String(r[ce.id]), especialidade_id: espId, especialidade: especialidades[espId] || '', nome: String(r[ce.nome] || '') });
+  });
+  var qtdSocios = {};
+  var elegiveis = getSocioeducandoIdsElegiveisEquipes_();
+  getRowsAtivas(SHEETS.SOCIOEDUCANDO_EQUIPES).forEach(function(r) {
+    var socioId = String(r[cv.socioeducando_id] || ''), equipeId = String(r[cv.equipe_id] || '');
+    if (equipeId && elegiveis[socioId]) qtdSocios[equipeId] = (qtdSocios[equipeId] || 0) + 1;
+  });
+  return getRowsAtivas(SHEETS.EQUIPES).map(function(r) {
+    var id = String(r[cq.id]);
+    return { id: id, nome: String(r[cq.nome] || ''), cor: String(r[cq.cor] || '#3C3C7A'), especialistas: especialistas[id] || [], socioeducandos_count: qtdSocios[id] || 0 };
+  }).filter(function(x) { return x.nome; }).sort(function(a, b) { return a.nome.localeCompare(b.nome, 'pt-BR'); });
+}
+
+function salvarEquipe(dados) {
+  var nome = String(dados && dados.nome || '').trim();
+  var cor = String(dados && dados.cor || '#3C3C7A').trim();
+  if (!nome) throw new Error('Nome da equipe é obrigatório.');
+  if (!/^#[0-9a-f]{6}$/i.test(cor)) throw new Error('A cor da equipe deve estar no formato hexadecimal, por exemplo #3C3C7A.');
+  var c = getEquipesCols(), sh = getSheet(SHEETS.EQUIPES), rows = getRows(SHEETS.EQUIPES), user = usuarioAtual(), idOriginal = dados && dados.id ? String(dados.id) : '';
+  var duplicada = rows.find(function(r) { return String(r[c.nome] || '').trim().toLowerCase() === nome.toLowerCase() && String(r[c.id]) !== idOriginal && !(c.deletado_em >= 0 && toIso(r[c.deletado_em])); });
+  if (duplicada) throw new Error('Já existe uma equipe chamada "' + nome + '".');
+  var equipeId;
+  if (idOriginal) {
+    var idx = rows.findIndex(function(r) { return String(r[c.id]) === idOriginal; });
+    if (idx < 0) throw new Error('Equipe não encontrada para edição.');
+    equipeId = idOriginal;
+    sh.getRange(idx + 2, c.nome + 1).setValue(nome); sh.getRange(idx + 2, c.cor + 1).setValue(cor.toUpperCase());
+    if (c.atualizadoEm >= 0) sh.getRange(idx + 2, c.atualizadoEm + 1).setValue(new Date());
+    if (c.atualizadoPor >= 0) sh.getRange(idx + 2, c.atualizadoPor + 1).setValue(user);
+  } else {
+    equipeId = String(nextId(SHEETS.EQUIPES));
+    var linha = new Array(sh.getLastColumn()).fill('');
+    linha[c.id] = Number(equipeId); linha[c.nome] = nome; linha[c.cor] = cor.toUpperCase(); linha[c.registrado_em] = new Date(); linha[c.criadoPor] = user;
+    sh.getRange(sh.getLastRow() + 1, 1, 1, linha.length).setValues([linha]);
+  }
+  _limparCachesEquipes();
+  return { ok: true, equipe_id: equipeId };
+}
+
+function salvarEquipeEspecialistas(equipeId, itens) {
+  var cq = getEquipesCols(), ce = getEquipeEspecialistasCols(), cs = getEspecialidadesCols(), sh = getSheet(SHEETS.EQUIPE_ESPECIALISTAS), rows = getRows(SHEETS.EQUIPE_ESPECIALISTAS), user = usuarioAtual();
+  if (!getRowsAtivas(SHEETS.EQUIPES).some(function(r) { return String(r[cq.id]) === String(equipeId); })) throw new Error('Equipe não encontrada.');
+  var espValidas = {}; getRowsAtivas(SHEETS.ESPECIALIDADES).forEach(function(r) { espValidas[String(r[cs.id])] = true; });
+  var vistos = {};
+  (itens || []).forEach(function(item) {
+    var espId = String(item && item.especialidade_id || ''), nome = String(item && item.nome || '').trim();
+    if (!espId || !nome) return;
+    if (!espValidas[espId]) throw new Error('Especialidade não encontrada.');
+    if (vistos[espId]) throw new Error('A mesma especialidade não pode ser repetida na equipe.');
+    vistos[espId] = true;
+  });
+  var indices = []; rows.forEach(function(r, i) { if (String(r[ce.equipe_id]) === String(equipeId) && !(ce.deletado_em >= 0 && toIso(r[ce.deletado_em]))) indices.push(i); });
+  indices.sort(function(a, b) { return b - a; }).forEach(function(i) { sh.deleteRow(i + 2); });
+  var validos = (itens || []).filter(function(item) { return item && item.especialidade_id && String(item.nome || '').trim(); });
+  if (validos.length) {
+    var base = nextId(SHEETS.EQUIPE_ESPECIALISTAS), total = sh.getLastColumn();
+    var novas = validos.map(function(item, i) { var linha = new Array(total).fill(''); linha[ce.id] = base + i; linha[ce.equipe_id] = Number(equipeId); linha[ce.especialidade_id] = Number(item.especialidade_id); linha[ce.nome] = String(item.nome).trim(); linha[ce.registrado_em] = new Date(); linha[ce.criadoPor] = user; return linha; });
+    sh.getRange(sh.getLastRow() + 1, 1, novas.length, total).setValues(novas);
+  }
+  _limparCachesEquipes();
+  return { ok: true };
+}
+
+function excluirEquipe(id, forcar) {
+  var cq = getEquipesCols(), sh = getSheet(SHEETS.EQUIPES), rows = getRows(SHEETS.EQUIPES), idx = rows.findIndex(function(r) { return String(r[cq.id]) === String(id) && !(cq.deletado_em >= 0 && toIso(r[cq.deletado_em])); });
+  if (idx < 0) throw new Error('Equipe não encontrada.');
+  var ce = getEquipeEspecialistasCols(), cv = getSocioeducandoEquipesCols();
+  var usoEspecialistas = getRowsAtivas(SHEETS.EQUIPE_ESPECIALISTAS).filter(function(r) { return String(r[ce.equipe_id]) === String(id); }).length;
+  var usoSocios = getRowsAtivas(SHEETS.SOCIOEDUCANDO_EQUIPES).filter(function(r) { return String(r[cv.equipe_id]) === String(id); }).length;
+  if ((usoEspecialistas || usoSocios) && !forcar) throw new Error('Esta equipe possui ' + usoSocios + ' socioeducando(s) e ' + usoEspecialistas + ' responsável(is). Deseja excluí-la mesmo assim?');
+  if (forcar) {
+    [SHEETS.EQUIPE_ESPECIALISTAS, SHEETS.SOCIOEDUCANDO_EQUIPES].forEach(function(nome) {
+      var c = nome === SHEETS.EQUIPE_ESPECIALISTAS ? ce : cv, rel = getRows(nome), sheet = getSheet(nome), indices = [];
+      rel.forEach(function(r, i) { if (String(r[c.equipe_id]) === String(id)) indices.push(i); });
+      indices.sort(function(a, b) { return b - a; }).forEach(function(i) { sheet.deleteRow(i + 2); });
+    });
+  }
+  sh.deleteRow(idx + 2);
+  _limparCachesEquipes();
+  return { ok: true };
+}
+
+function getSocioeducandoEquipesConfig() {
+  var cv = getSocioeducandoEquipesCols(), map = {};
+  getRowsAtivas(SHEETS.SOCIOEDUCANDO_EQUIPES).forEach(function(r) { map[String(r[cv.socioeducando_id])] = String(r[cv.equipe_id] || ''); });
+  return map;
+}
+
+function getSocioeducandoIdsElegiveisEquipes_() {
+  var internados = {}, evadidos = {}, ca = getAdmissoesCols(), cf = getFugasCols();
+  getRowsAtivas(SHEETS.ADMISSOES).forEach(function(r) {
+    if (!toIso(r[ca.data_desligamento])) internados[String(r[ca.socioeducando_id])] = true;
+  });
+  getRowsAtivas(SHEETS.FUGAS).forEach(function(r) {
+    if (!toIso(r[cf.data_retorno])) evadidos[String(r[cf.socioeducando_id])] = true;
+  });
+  Object.keys(internados).forEach(function(id) { if (evadidos[id]) delete internados[id]; });
+  return internados;
+}
+
+function getDadosFormEquipes() {
+  // A tela precisa somente de ID, nome e situação. Evita montar e enviar
+  // documentos, datas e demais dados cadastrais de todos os socioeducandos.
+  var cs = getSocioeducandosCols();
+  var socio = getRowsAtivas(SHEETS.SOCIOEDUCANDOS)
+    .filter(function(r) { return r[cs.id] !== '' && r[cs.id] !== null; })
+    .map(function(r) { return { id: String(r[cs.id]), nome: String(r[cs.nome] || ''), unidade_ativa: false }; })
+    .sort(function(a, b) { return a.nome.localeCompare(b.nome, 'pt-BR'); });
+  var elegiveis = getSocioeducandoIdsElegiveisEquipes_();
+  socio.forEach(function(j) { j.unidade_ativa = !!elegiveis[String(j.id)]; });
+  socio = socio.filter(function(j) { return j.unidade_ativa; });
+  var vinculos = getSocioeducandoEquipesConfig();
+  socio.forEach(function(j) { j.equipe_id = vinculos[String(j.id)] || ''; });
+  return { equipes: getEquipesConfig(), especialidades: getEspecialidadesConfig(), socioeducandos: socio };
+}
+
+function salvarEquipesSocioeducandos(vinculos) {
+  var socioMap = {}; getSocioeducandos().forEach(function(j) { socioMap[String(j.id)] = true; });
+  var equipeMap = {}; getRowsAtivas(SHEETS.EQUIPES).forEach(function(r) { equipeMap[String(r[0])] = true; });
+  var vistos = {}, itens = (vinculos || []).filter(function(v) { return v && v.socioeducando_id && !vistos[String(v.socioeducando_id)] && (vistos[String(v.socioeducando_id)] = true); });
+  itens.forEach(function(v) {
+    if (!socioMap[String(v.socioeducando_id)]) throw new Error('Socioeducando não encontrado.');
+    if (v.equipe_id && !equipeMap[String(v.equipe_id)]) throw new Error('Equipe não encontrada.');
+  });
+  var cv = getSocioeducandoEquipesCols(), sh = getSheet(SHEETS.SOCIOEDUCANDO_EQUIPES), rows = getRows(SHEETS.SOCIOEDUCANDO_EQUIPES), user = usuarioAtual(), desejados = {};
+  itens.forEach(function(v) { desejados[String(v.socioeducando_id)] = String(v.equipe_id || ''); });
+  var existentes = {}, remover = [];
+  rows.forEach(function(r, i) {
+    if (cv.deletado_em >= 0 && toIso(r[cv.deletado_em])) return;
+    var sid = String(r[cv.socioeducando_id]);
+    if (!Object.prototype.hasOwnProperty.call(desejados, sid)) return;
+    if (existentes[sid]) { remover.push(i); return; }
+    existentes[sid] = true;
+    if (!desejados[sid]) { remover.push(i); return; }
+    sh.getRange(i + 2, cv.equipe_id + 1).setValue(Number(desejados[sid]));
+    if (cv.atualizadoEm >= 0) sh.getRange(i + 2, cv.atualizadoEm + 1).setValue(new Date());
+    if (cv.atualizadoPor >= 0) sh.getRange(i + 2, cv.atualizadoPor + 1).setValue(user);
+  });
+  remover.sort(function(a, b) { return b - a; }).forEach(function(i) { sh.deleteRow(i + 2); });
+  var novas = itens.filter(function(v) { return v.equipe_id && !existentes[String(v.socioeducando_id)]; });
+  if (novas.length) {
+    var base = nextId(SHEETS.SOCIOEDUCANDO_EQUIPES), total = sh.getLastColumn();
+    var linhas = novas.map(function(v, i) { var linha = new Array(total).fill(''); linha[cv.id] = base + i; linha[cv.socioeducando_id] = Number(v.socioeducando_id); linha[cv.equipe_id] = Number(v.equipe_id); linha[cv.registrado_em] = new Date(); linha[cv.criadoPor] = user; return linha; });
+    sh.getRange(sh.getLastRow() + 1, 1, linhas.length, total).setValues(linhas);
+  }
+  _limparCachesEquipes();
+  return { ok: true };
 }
 
 // ── Interesses de Curso ────────────────────────────────────────
@@ -2235,15 +2572,16 @@ function carregarPendenciasRetornoSaida(saidaId) {
   var cm = getSaidaMatriculasCols();
   var saida = getRowsAtivas(SHEETS.SAIDAS).find(function(r) { return String(r[cs.id]) === String(saidaId); });
   if (!saida) throw new Error('Saída não encontrada.');
-  var nomes = {};
-  getSocioeducandos(true).forEach(function(j) { nomes[String(j.id)] = String(j.nome || 'ID ' + j.id); });
+  var nomes = {}, socioeducandos = getSocioeducandosComStatusUnidade();
+  socioeducandos.forEach(function(j) { nomes[String(j.id)] = j; });
   var matriculas = getRowsAtivas(SHEETS.SAIDA_MATRICULAS).filter(function(m) {
     return String(m[cm.saida_id]) === String(saidaId) && !normalizarRetornoSaida(m[cm.retorno]) && !_statusSaidaEhCancelada(m[cm.status]);
   }).map(function(m) {
     return {
       matricula_id: String(m[cm.id]),
       socioeducando_id: String(m[cm.socioeducando_id]),
-      nome: nomes[String(m[cm.socioeducando_id])] || ('ID ' + m[cm.socioeducando_id]),
+      nome: nomes[String(m[cm.socioeducando_id])] ? nomes[String(m[cm.socioeducando_id])].nome : ('ID ' + m[cm.socioeducando_id]),
+      unidade_ativa: nomes[String(m[cm.socioeducando_id])] ? nomes[String(m[cm.socioeducando_id])].unidade_ativa !== false : false,
       observacoes: String(m[cm.observacoes] || '')
     };
   });
@@ -2483,9 +2821,24 @@ function getSocioeducandosAtivos() {
   return socioeducandos.filter(function(j) { return !!ativoPorSocioeducando[j.id]; });
 }
 
+// Retorna todos os socioeducandos não excluídos logicamente, identificando
+// quais ainda possuem vínculo ativo com a unidade. Esse conjunto é usado nas
+// telas de edição, que precisam permitir a manutenção do histórico de quem já
+// foi desligado.
+function getSocioeducandosComStatusUnidade() {
+  var ativos = {};
+  getSocioeducandosAtivos().forEach(function(j) { ativos[String(j.id)] = true; });
+  return getSocioeducandos().map(function(j) {
+    j.unidade_ativa = !!ativos[String(j.id)];
+    return j;
+  });
+}
+
 function getCursosBySocioeducando(socioeducandoId, incluirDeletados) {
   var cm = getCursoMatriculasCols();
   var cc = getCursosCols();
+  var socioeducandoAtivo = {};
+  getSocioeducandosAtivos().forEach(function(j) { socioeducandoAtivo[String(j.id)] = true; });
 
   var matriculas = (incluirDeletados ? getRows(SHEETS.CURSO_MATRICULAS) : getRowsAtivas(SHEETS.CURSO_MATRICULAS))
     .filter(function(r) { return String(r[cm.socioeducando_id]) === String(socioeducandoId); });
@@ -2525,6 +2878,7 @@ function getCursosBySocioeducando(socioeducandoId, incluirDeletados) {
       observacoes:           String(m[cm.observacoes]            || ''),
       matriculado:           boolVal(m[cm.matriculado]),
       tipo_termino:          String(m[cm.tipo_termino]           || ''),
+      unidade_ativa:         !!socioeducandoAtivo[String(m[cm.socioeducando_id])],
       created_at:            fmtDate(m[cm.registrado_em]),
       deletado_em:           matriculaDeletada || cursoDeletado,
       ativo:                 ativo
@@ -2583,7 +2937,9 @@ function getFugasBySocioeducando(socioeducandoId, incluirDeletados) {
 function carregarAlertasPendenciasOverview() {
   var agora = new Date();
   var hojeIso = toIso(agora);
-  var socioeducandos = getSocioeducandos(true);
+  var socioeducandos = getSocioeducandosAtivos();
+  var idsSocioeducandosAtivos = {};
+  socioeducandos.forEach(function(j) { idsSocioeducandosAtivos[String(j.id)] = true; });
   var nomes = {};
   socioeducandos.forEach(function(j) { nomes[String(j.id)] = String(j.nome || 'ID ' + j.id); });
   var alertas = [];
@@ -2597,6 +2953,7 @@ function carregarAlertasPendenciasOverview() {
     if (!dataTerminoIso || dataTerminoIso >= hojeIso) return;
     var pendentes = matriculasCurso.filter(function(m) {
       if (String(m[cm.curso_id]) !== String(curso[cc.id])) return false;
+      if (!idsSocioeducandosAtivos[String(m[cm.socioeducando_id])]) return false;
       if (cm.deletado_em >= 0 && toIso(m[cm.deletado_em])) return false;
       if (cm.matriculado >= 0 && !boolVal(m[cm.matriculado])) return false;
       return !String(m[cm.tipo_termino] || '').trim() || !toIso(m[cm.data_termino]);
@@ -2623,6 +2980,7 @@ function carregarAlertasPendenciasOverview() {
   matriculasSaida.forEach(function(m) {
     var s = saidasMap[String(m[csm.saida_id])];
     if (!s || normalizarRetornoSaida(m[csm.retorno])) return;
+    if (!idsSocioeducandosAtivos[String(m[csm.socioeducando_id])]) return;
     if (csm.deletado_em >= 0 && toIso(m[csm.deletado_em])) return;
     if (_statusSaidaEhCancelada(m[csm.status])) return;
     var volta = _toDateSafe(s[cs.data_hora_volta]);
@@ -2656,6 +3014,7 @@ function carregarAlertasPendenciasOverview() {
     if (!fim || fim.getTime() > agora.getTime()) return;
     var pendentes = matriculasOficina.filter(function(m) {
       if (String(m[com.oficina_id]) !== String(oficina[co.id])) return false;
+      if (!idsSocioeducandosAtivos[String(m[com.socioeducando_id])]) return false;
       if (com.deletado_em >= 0 && toIso(m[com.deletado_em])) return false;
       return !String(m[com.realizada] == null ? '' : m[com.realizada]).trim();
     });
@@ -2685,7 +3044,10 @@ function carregarOverview() {
   perf.preparacao_schema_ms = Date.now() - t0;
 
   var tLeitura = Date.now();
-  var socioeducandos = getSocioeducandos(true);
+  // O painel precisa receber tambÃ©m os desligados para que o filtro de
+  // status consiga exibi-los. A lista continua restrita a cadastros nÃ£o
+  // excluÃ­dos logicamente e o status Ã© derivado abaixo pela admissÃ£o/fuga.
+  var socioeducandos = getSocioeducandosComStatusUnidade();
   var csm = getSaidaMatriculasCols();
   var allAdm = getRowsAtivas(SHEETS.ADMISSOES);
   var allFugas = getRowsAtivas(SHEETS.FUGAS);
@@ -2693,6 +3055,10 @@ function carregarOverview() {
   var allVisitasTerritoriais = getRowsAtivas(SHEETS.VISITAS_TERRITORIAIS);
   var allSaidas = getRowsAtivas(SHEETS.SAIDAS);
   var allSaidaMatriculas = getRowsAtivas(SHEETS.SAIDA_MATRICULAS);
+  var vinculosEquipes = getSocioeducandoEquipesConfig();
+  var equipesOverview = getEquipesConfig();
+  var equipesOverviewMap = {};
+  equipesOverview.forEach(function(e) { equipesOverviewMap[String(e.id)] = e; });
   perf.leitura_abas_ms = Date.now() - tLeitura;
 
   var hoje = new Date();
@@ -2910,6 +3276,8 @@ function carregarOverview() {
     var trabalhosAIniciarDetalhes = trabalhosAIniciarDetalhesPorSocioeducando[j.id] || [];
     var visitasTerritoriaisQtd = Number(visitasTerritoriaisPorSocioeducando[j.id] || 0);
     var fezSaidaCultural = !!fezSaidaCulturalPorSocioeducando[j.id];
+    var equipeId = vinculosEquipes[String(j.id)] || '';
+    var equipe = equipesOverviewMap[String(equipeId)] || null;
 
     var status = 'desligado';
     if (ausenteAtual) status = 'ausente';
@@ -2918,6 +3286,9 @@ function carregarOverview() {
     return {
       id: j.id,
       nome: j.nome,
+      equipe_id: equipeId,
+      equipe_nome: equipe ? equipe.nome : '',
+      equipe_cor: equipe ? equipe.cor : '',
       email_profissional: j.email_profissional || '',
       data_nascimento_iso: j.data_nascimento_iso,
       escolaridade: j.escolaridade,
@@ -2947,6 +3318,7 @@ function carregarOverview() {
     internados_ativos: internadosAtivos,
     cursos_andamento:  cursosAndamento,
     fugas_30dias:      fugas30,
+    equipes: equipesOverview.map(function(e) { return { id: String(e.id), nome: e.nome, cor: e.cor, especialistas: e.especialistas || [] }; }),
     socioeducandos:            socioeducandosData,
     atividades_dia:    {
       data_iso: hojeIso,
@@ -2974,7 +3346,9 @@ function carregarAtividadesDia(dataIso, contexto) {
   var diaIso = Utilities.formatDate(dRef, tz, 'yyyy-MM-dd');
 
   var tBase = Date.now();
-  var socioeducandos = (contexto && contexto.socioeducandos) || getSocioeducandos();
+  var socioeducandos = (contexto && contexto.socioeducandos) || getSocioeducandosAtivos();
+  var idsSocioeducandosAtivos = {};
+  socioeducandos.forEach(function(j) { idsSocioeducandosAtivos[String(j.id)] = true; });
   var nomes = {};
   socioeducandos.forEach(function(j) { nomes[j.id] = j.nome; });
   var ca = (contexto && contexto.atendimentosCols) || getAtendimentosCols();
@@ -3015,7 +3389,7 @@ function carregarAtividadesDia(dataIso, contexto) {
   // Atendimentos do dia
   var tAt = Date.now();
   var atendimentosHoje = atendimentosRows
-    .filter(function(r) { return toIsoDateTime(r[4]).substring(0, 10) === diaIso; })
+    .filter(function(r) { return idsSocioeducandosAtivos[String(r[ca.socioeducando_id])] && toIsoDateTime(r[4]).substring(0, 10) === diaIso; })
     .map(function(r) {
       return {
         id: String(r[0]),
@@ -3041,6 +3415,7 @@ function carregarAtividadesDia(dataIso, contexto) {
   var cursosHoje = cursoMatriculasRows
     .filter(function(m) {
       if (!boolVal(m[cm.matriculado])) return false;
+      if (!idsSocioeducandosAtivos[String(m[cm.socioeducando_id])]) return false;
       var dataTerminoMatriculaIso = toIso(m[cm.data_termino]);
       if (dataTerminoMatriculaIso && dataTerminoMatriculaIso < diaIso) return false;
 
@@ -3084,6 +3459,7 @@ function carregarAtividadesDia(dataIso, contexto) {
   var oficinasMap = {};
   oficinasRows.forEach(function(r) { oficinasMap[String(r[co.id])] = r; });
   var oficinasHoje = oficinaMatriculasRows.filter(function(m) {
+    if (!idsSocioeducandosAtivos[String(m[com.socioeducando_id])]) return false;
     var o = oficinasMap[String(m[com.oficina_id])];
     return !!o && toIso(o[co.data]) === diaIso;
   }).map(function(m) {
@@ -3097,6 +3473,7 @@ function carregarAtividadesDia(dataIso, contexto) {
   var tTrabalhos = Date.now();
   var trabalhosHoje = trabalhosRows
     .filter(function(t) {
+      if (!idsSocioeducandosAtivos[String(t[ct.socioeducando_id])]) return false;
       var inicioIso = toIso(t[ct.data_inicio]);
       var fimIso = toIso(t[ct.data_fim]);
       if (!diaNoIntervalo(diaIso, inicioIso, fimIso)) return false;
@@ -3136,7 +3513,7 @@ function carregarAtividadesDia(dataIso, contexto) {
   }).filter(function(x) { return !!x; });
 
   var saidasHoje = saidaMatriculasJuntas
-    .filter(function(x) { return toIsoDateTime(x.s[csA.data_hora_ida]).substring(0, 10) === diaIso; })
+    .filter(function(x) { return idsSocioeducandosAtivos[String(x.m[cmA.socioeducando_id])] && toIsoDateTime(x.s[csA.data_hora_ida]).substring(0, 10) === diaIso; })
     .map(function(x) {
       var sid = String(x.m[cmA.socioeducando_id]);
       return {
@@ -3162,7 +3539,7 @@ function carregarAtividadesDia(dataIso, contexto) {
   // Fugas/evasões do dia
   var tFugas = Date.now();
   var fugasHoje = fugasRows
-    .filter(function(r) { return toIso(r[3]) === diaIso; })
+    .filter(function(r) { return idsSocioeducandosAtivos[String(r[1])] && toIso(r[3]) === diaIso; })
     .map(function(r) {
       return {
         id: String(r[0]),
@@ -3217,6 +3594,30 @@ function carregarAtividadesDia(dataIso, contexto) {
   };
 }
 
+function getEquipeSocioeducandoResumo_(socioeducandoId) {
+  var cv = getSocioeducandoEquipesCols();
+  var vinculo = getRowsAtivas(SHEETS.SOCIOEDUCANDO_EQUIPES).find(function(r) {
+    return String(r[cv.socioeducando_id]) === String(socioeducandoId);
+  });
+  if (!vinculo) return null;
+  var cq = getEquipesCols();
+  var equipe = getRowsAtivas(SHEETS.EQUIPES).find(function(r) { return String(r[cq.id]) === String(vinculo[cv.equipe_id]); });
+  if (!equipe) return null;
+  var especialidades = {}, cs = getEspecialidadesCols(), ce = getEquipeEspecialistasCols();
+  getRowsAtivas(SHEETS.ESPECIALIDADES).forEach(function(r) { especialidades[String(r[cs.id])] = String(r[cs.nome] || ''); });
+  var especialistas = getRowsAtivas(SHEETS.EQUIPE_ESPECIALISTAS)
+    .filter(function(r) { return String(r[ce.equipe_id]) === String(equipe[cq.id]) && String(r[ce.nome] || '').trim(); })
+    .map(function(r) { return { especialidade_id: String(r[ce.especialidade_id]), especialidade: especialidades[String(r[ce.especialidade_id])] || '', nome: String(r[ce.nome] || '') }; });
+  var elegiveis = getSocioeducandoIdsElegiveisEquipes_(), idsEquipe = {};
+  getRowsAtivas(SHEETS.SOCIOEDUCANDO_EQUIPES).forEach(function(r) {
+    if (String(r[cv.equipe_id]) === String(equipe[cq.id])) idsEquipe[String(r[cv.socioeducando_id])] = true;
+  });
+  var socioeducandos = getSocioeducandos().filter(function(j) { return elegiveis[String(j.id)] && idsEquipe[String(j.id)]; })
+    .map(function(j) { return { id: String(j.id), nome: String(j.nome || '') }; })
+    .sort(function(a, b) { return a.nome.localeCompare(b.nome, 'pt-BR'); });
+  return { id: String(equipe[cq.id]), nome: String(equipe[cq.nome] || ''), cor: String(equipe[cq.cor] || '#3C3C7A'), especialistas: especialistas, socioeducandos: socioeducandos };
+}
+
 function carregarPerfil(socioeducandoId) {
   var socioeducandos = getSocioeducandos(true);
   var socioeducando = socioeducandos.find(function(j) { return j.id === String(socioeducandoId); });
@@ -3233,6 +3634,7 @@ function carregarPerfil(socioeducandoId) {
   var familiares = getFamiliaresBySocioeducando(socioeducandoId, true);
   var interesses = getInteressesCursoPorSocioeducando(socioeducandoId);
   var cursoEventos = getCursoEventosBySocioeducando(socioeducandoId);
+  var equipe = getEquipeSocioeducandoResumo_(socioeducandoId);
 
   var internadoAtivo = admissoes.find(function(a) { return !a.data_desligamento_iso; }) || null;
   var ausenteAtual   = fugas.find(function(f) { return !f.data_retorno_iso; }) || null;
@@ -3243,6 +3645,7 @@ function carregarPerfil(socioeducandoId) {
 
   return {
     socioeducando:           socioeducando,
+    equipe:                  equipe,
     status:          status,
     internado_ativo: internadoAtivo,
     ausente_atual:   ausenteAtual,
@@ -3271,6 +3674,7 @@ function carregarPerfilResumo(socioeducandoId) {
 
   var admissoes = getAdmissoesBySocioeducando(socioeducandoId, true);
   var fugas = getFugasBySocioeducando(socioeducandoId, true);
+  var equipe = getEquipeSocioeducandoResumo_(socioeducandoId);
 
   var internadoAtivo = admissoes.find(function(a) { return !a.data_desligamento_iso; }) || null;
   var ausenteAtual = fugas.find(function(f) { return !f.data_retorno_iso; }) || null;
@@ -3281,6 +3685,7 @@ function carregarPerfilResumo(socioeducandoId) {
 
   return {
     socioeducando: socioeducando,
+    equipe: equipe,
     status: status,
     internado_ativo: internadoAtivo,
     ausente_atual: ausenteAtual
@@ -4210,6 +4615,7 @@ function salvarAdmissao(dados) {
     linha[ca.atualizadoEm] = new Date();
     linha[ca.atualizadoPor] = user;
     sh.getRange(idx + 2, 1, 1, linha.length).setValues([linha]);
+    clearSheetCaches(SHEETS.ADMISSOES);
     return { ok: true };
   }
 
@@ -4218,6 +4624,7 @@ function salvarAdmissao(dados) {
     dados.data_admissao, dados.data_desligamento || '',
     new Date(), user, '', '', '', ''
   ]);
+  clearSheetCaches(SHEETS.ADMISSOES);
   return { ok: true };
 }
 
@@ -4237,6 +4644,7 @@ function registrarDesligamento(admissaoId, dataDesligamento, socioeducandoId) {
   sh.getRange(idx + 2, ca.data_desligamento + 1).setValue(dataDesligamento);
   sh.getRange(idx + 2, ca.atualizadoEm + 1).setValue(new Date());
   sh.getRange(idx + 2, ca.atualizadoPor + 1).setValue(usuarioAtual());
+  clearSheetCaches(SHEETS.ADMISSOES);
   return { ok: true };
 }
 
@@ -6050,6 +6458,206 @@ function gerarRelatoriosCursosXlsx() {
   }
 }
 
+/**
+ * Gera a planilha de acompanhamento diário dos cursos.
+ * Cada curso ocupa uma aba e cada combinação socioeducando/data de aula
+ * ocupa uma linha na tabela de acompanhamento.
+ */
+function gerarAcompanhamentoCursosXlsx() {
+  var cursos = montarDadosAcompanhamentoCursos();
+  var arquivoTemporario = SpreadsheetApp.create('Acompanhamento de curso - temporario');
+  var arquivoId = arquivoTemporario.getId();
+  try {
+    var nomesAbasUsados = {};
+
+    cursos.forEach(function(curso, indice) {
+      var aba = indice === 0
+        ? arquivoTemporario.getSheets()[0]
+        : arquivoTemporario.insertSheet();
+      aba.setName(nomeAbaAcompanhamentoCurso(curso.nome_curso, curso.id, nomesAbasUsados));
+      preencherAbaAcompanhamentoCurso(aba, curso);
+    });
+
+    // Uma planilha sem cursos ainda deve ser exportável e identificável.
+    if (!cursos.length) {
+      preencherAbaAcompanhamentoCurso(arquivoTemporario.getSheets()[0], {
+        id: '', nome_curso: 'Nenhum curso cadastrado', local: '',
+        data_inicio: '', data_termino: '', horario_inicio: '', horario_termino: '',
+        linhas: []
+      });
+    }
+
+    SpreadsheetApp.flush();
+    var nome = 'Acompanhamento_de_curso_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd') + '.xlsx';
+    var mimeXlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    var resposta = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + arquivoId + '/export?format=xlsx', {
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+      muteHttpExceptions: true
+    });
+    if (resposta.getResponseCode() !== 200) {
+      throw new Error('Não foi possível converter o acompanhamento para XLSX (código ' + resposta.getResponseCode() + ').');
+    }
+    var blob = resposta.getBlob().setContentType(mimeXlsx).setName(nome);
+    return {
+      nome: nome,
+      mime_type: mimeXlsx,
+      base64: Utilities.base64Encode(blob.getBytes())
+    };
+  } finally {
+    DriveApp.getFileById(arquivoId).setTrashed(true);
+  }
+}
+
+function montarDadosAcompanhamentoCursos() {
+  var cc = getCursosCols();
+  var cm = getCursoMatriculasCols();
+  var cs = getSocioeducandosCols();
+  var cursos = getRowsAtivas(SHEETS.CURSOS);
+  var matriculas = getRowsAtivas(SHEETS.CURSO_MATRICULAS);
+  var socioeducandos = getRowsAtivas(SHEETS.SOCIOEDUCANDOS);
+  var socioMap = {};
+
+  socioeducandos.forEach(function(socio) {
+    socioMap[String(socio[cs.id])] = String(socio[cs.nome] || '');
+  });
+
+  return cursos.map(function(curso) {
+    var cursoId = String(curso[cc.id]);
+    var datas = datasAulasAcompanhamentoCurso(curso[cc.data_inicio], curso[cc.data_termino], curso[cc.dias_semana]);
+    var inscritos = matriculas
+      .filter(function(matricula) {
+        return String(matricula[cm.curso_id]) === cursoId
+          && boolVal(matricula[cm.matriculado])
+          && socioMap[String(matricula[cm.socioeducando_id])] !== undefined;
+      })
+      .map(function(matricula) {
+        return {
+          nome: socioMap[String(matricula[cm.socioeducando_id])],
+          id: String(matricula[cm.socioeducando_id])
+        };
+      })
+      .sort(function(a, b) {
+        return a.nome.localeCompare(b.nome, 'pt-BR') || a.id.localeCompare(b.id);
+      });
+
+    var linhas = [];
+    inscritos.forEach(function(socio) {
+      datas.forEach(function(data) {
+        linhas.push([socio.nome, '', data, '']);
+      });
+    });
+
+    return {
+      id: cursoId,
+      nome_curso: String(curso[cc.nome_curso] || ''),
+      local: cc.local >= 0 ? String(curso[cc.local] || '') : '',
+      data_inicio: valorDataRelatorio(curso[cc.data_inicio]),
+      data_termino: valorDataRelatorio(curso[cc.data_termino]),
+      horario_inicio: fmtTime(curso[cc.horario_inicio]),
+      horario_termino: fmtTime(curso[cc.horario_termino]),
+      linhas: linhas
+    };
+  }).sort(function(a, b) {
+    return a.nome_curso.localeCompare(b.nome_curso, 'pt-BR') || a.id.localeCompare(b.id);
+  });
+}
+
+function diasSemanaNumerosAcompanhamentoCurso(valor) {
+  var nomes = {
+    domingo: 0, dom: 0,
+    segunda: 1, 'segunda-feira': 1, seg: 1,
+    terca: 2, 'terca-feira': 2, ter: 2,
+    quarta: 3, 'quarta-feira': 3, qua: 3,
+    quinta: 4, 'quinta-feira': 4, qui: 4,
+    sexta: 5, 'sexta-feira': 5, sex: 5,
+    sabado: 6, 'sabado-feira': 6, sab: 6
+  };
+  return String(valor || '').split(/[;,|]/).map(function(item) {
+    var original = String(item || '').trim();
+    if (!original) return null;
+    if (/^[0-6]$/.test(original)) return Number(original);
+    var chave = removerAcentos(original).toLowerCase();
+    return Object.prototype.hasOwnProperty.call(nomes, chave) ? nomes[chave] : null;
+  }).filter(function(dia, indice, lista) {
+    return dia !== null && lista.indexOf(dia) === indice;
+  });
+}
+
+function datasAulasAcompanhamentoCurso(dataInicio, dataTermino, diasSemana) {
+  var inicioIso = toIso(dataInicio);
+  var terminoIso = toIso(dataTermino);
+  var dias = diasSemanaNumerosAcompanhamentoCurso(diasSemana);
+  if (!inicioIso || !terminoIso || !dias.length || terminoIso < inicioIso) return [];
+
+  var inicioPartes = inicioIso.split('-').map(Number);
+  var terminoPartes = terminoIso.split('-').map(Number);
+  var inicio = new Date(inicioPartes[0], inicioPartes[1] - 1, inicioPartes[2], 12, 0, 0, 0);
+  var termino = new Date(terminoPartes[0], terminoPartes[1] - 1, terminoPartes[2], 12, 0, 0, 0);
+  if (isNaN(inicio.getTime()) || isNaN(termino.getTime())) return [];
+
+  var datas = [];
+  for (var data = inicio; data.getTime() <= termino.getTime(); data = new Date(data.getFullYear(), data.getMonth(), data.getDate() + 1, 12, 0, 0, 0)) {
+    if (dias.indexOf(data.getDay()) >= 0) {
+      datas.push(new Date(data.getFullYear(), data.getMonth(), data.getDate(), 12, 0, 0, 0));
+    }
+  }
+  return datas;
+}
+
+function nomeAbaAcompanhamentoCurso(nome, cursoId, nomesUsados) {
+  var base = String(nome || '').trim().replace(/[\r\n]/g, ' ').replace(/[:\\\/\?\*\[\]]/g, '-');
+  if (!base) base = 'Curso ' + (cursoId || 'sem nome');
+  base = base.substring(0, 100).trim() || 'Curso ' + (cursoId || 'sem nome');
+
+  var candidato = base;
+  var numero = 2;
+  while (nomesUsados[candidato.toLowerCase()]) {
+    var sufixo = ' (' + numero + ')';
+    candidato = base.substring(0, 100 - sufixo.length).trim() + sufixo;
+    numero++;
+  }
+  nomesUsados[candidato.toLowerCase()] = true;
+  return candidato;
+}
+
+function preencherAbaAcompanhamentoCurso(aba, curso) {
+  var horario = [curso.horario_inicio, curso.horario_termino].filter(String).join(' às ');
+  var metadados = [
+    ['Nome do curso', curso.nome_curso],
+    ['Local', curso.local],
+    ['Data de início', curso.data_inicio || ''],
+    ['Data de término', curso.data_termino || ''],
+    ['Horário', horario]
+  ];
+  var cabecalhosRegistros = ['Nome do socioeducando', 'Documento', 'Data', 'Observações'];
+
+  aba.clear();
+  aba.getRange(1, 1, metadados.length, 2).setValues(metadados);
+  aba.getRange(7, 1, 1, cabecalhosRegistros.length).setValues([cabecalhosRegistros]);
+  if (curso.linhas.length) {
+    aba.getRange(8, 1, curso.linhas.length, cabecalhosRegistros.length).setValues(curso.linhas);
+  }
+
+  aba.getRange(1, 1, metadados.length, 1)
+    .setBackground('#3c3c7a').setFontColor('#ffffff').setFontWeight('bold');
+  aba.getRange(7, 1, 1, cabecalhosRegistros.length)
+    .setBackground('#3c3c7a').setFontColor('#ffffff').setFontWeight('bold')
+    .setWrap(true).setVerticalAlignment('middle');
+  aba.getRange(1, 1, metadados.length, 2).setVerticalAlignment('middle');
+  aba.getRange(3, 2, 2, 1).setNumberFormat('dd/mm/yyyy');
+  if (curso.linhas.length) {
+    aba.getRange(8, 1, curso.linhas.length, cabecalhosRegistros.length)
+      .setVerticalAlignment('top').setWrap(true);
+    aba.getRange(8, 3, curso.linhas.length, 1).setNumberFormat('dd/mm/yyyy');
+    aba.getRange(7, 1, curso.linhas.length + 1, cabecalhosRegistros.length).createFilter();
+  }
+  aba.setFrozenRows(7);
+  aba.setColumnWidth(1, 260);
+  aba.setColumnWidth(2, 150);
+  aba.setColumnWidth(3, 110);
+  aba.setColumnWidth(4, 400);
+}
+
 function montarDadosRelatoriosCursos() {
   var hoje = toIso(new Date());
   var cc = getCursosCols(), cm = getCursoMatriculasCols();
@@ -6165,7 +6773,8 @@ function preencherAbaRelatorioCursos(aba, cabecalhos, linhas, colunasData) {
   aba.autoResizeRows(1, linhas.length + 1);
 }
 
-function carregarPaginaCursos() {
+function carregarPaginaCursos(incluirDesligados) {
+  incluirDesligados = !!incluirDesligados;
   var cc  = getCursosCols();
   var cm  = getCursoMatriculasCols();
   var hoje = toIso(new Date());
@@ -6173,11 +6782,18 @@ function carregarPaginaCursos() {
   var rowsCursos    = getRowsAtivas(SHEETS.CURSOS);
   var rowsMatriculas = getRowsAtivas(SHEETS.CURSO_MATRICULAS);
   var rowsAdmissoes  = getRowsAtivas(SHEETS.ADMISSOES);
-  var socioeducandos = getSocioeducandos();
+  var socioeducandos = incluirDesligados ? getSocioeducandosComStatusUnidade() : getSocioeducandosAtivos();
 
   // Mapas rápidos
   var socioMap = {};
-  socioeducandos.forEach(function(j) { socioMap[j.id] = j; });
+  socioeducandos.forEach(function(j) { socioMap[String(j.id)] = j; });
+
+  function matriculasVisiveisCurso(cursoId) {
+    return rowsMatriculas.filter(function(m) {
+      if (String(m[cm.curso_id]) !== String(cursoId)) return false;
+      return incluirDesligados || !!socioMap[String(m[cm.socioeducando_id])];
+    });
+  }
 
   var cursosMap = {};
   rowsCursos.forEach(function(r) { cursosMap[String(r[cc.id])] = r; });
@@ -6190,7 +6806,7 @@ function carregarPaginaCursos() {
     })
     .map(function(r) {
       var cursoId = String(r[cc.id]);
-      var matriculasCurso = rowsMatriculas.filter(function(m) { return String(m[cm.curso_id]) === cursoId; });
+      var matriculasCurso = matriculasVisiveisCurso(cursoId);
       // Só ocupa vaga quem está efetivamente "Matriculado" — interessados e desistentes não contam.
       var matriculados = matriculasCurso.filter(function(m) {
         return m[cm.matriculado] === true;
@@ -6226,6 +6842,7 @@ function carregarPaginaCursos() {
             id:             sid,
             matricula_id:   String(m[cm.id]),
             nome:           socio ? socio.nome : ('ID ' + sid),
+            unidade_ativa:  socio ? socio.unidade_ativa !== false : false,
             matriculado:    m[cm.matriculado] === true,
             tipo_termino:   String(m[cm.tipo_termino] || ''),
             data_termino:   fmtDate(m[cm.data_termino]),
@@ -6248,7 +6865,7 @@ function carregarPaginaCursos() {
     })
     .map(function(r) {
       var cursoId = String(r[cc.id]);
-      var matriculasCurso = rowsMatriculas.filter(function(m) { return String(m[cm.curso_id]) === cursoId; });
+    var matriculasCurso = matriculasVisiveisCurso(cursoId);
       var matriculados = matriculasCurso.filter(function(m) {
         return m[cm.matriculado] === true;
       });
@@ -6279,6 +6896,7 @@ function carregarPaginaCursos() {
             id:             sid,
             matricula_id:   String(m[cm.id]),
             nome:           socio ? socio.nome : ('ID ' + sid),
+            unidade_ativa:  socio ? socio.unidade_ativa !== false : false,
             matriculado:    m[cm.matriculado] === true,
             tipo_termino:   String(m[cm.tipo_termino] || ''),
             data_termino:   fmtDate(m[cm.data_termino]),
@@ -6298,7 +6916,7 @@ function carregarPaginaCursos() {
     })
     .map(function(r) {
       var cursoId = String(r[cc.id]);
-      var matriculasCurso = rowsMatriculas.filter(function(m) { return String(m[cm.curso_id]) === cursoId; });
+      var matriculasCurso = matriculasVisiveisCurso(cursoId);
       var matriculados = matriculasCurso.filter(function(m) { return boolVal(m[cm.matriculado]); });
       var vagas = r[cc.vagas] !== '' && r[cc.vagas] !== null && r[cc.vagas] !== undefined ? Number(r[cc.vagas]) : null;
       return {
@@ -6314,7 +6932,7 @@ function carregarPaginaCursos() {
         matriculas: matriculasCurso.map(function(m) {
           var sid = String(m[cm.socioeducando_id]), socio = socioMap[sid];
           return {
-            id: sid, matricula_id: String(m[cm.id]), nome: socio ? socio.nome : ('ID ' + sid),
+            id: sid, matricula_id: String(m[cm.id]), nome: socio ? socio.nome : ('ID ' + sid), unidade_ativa: socio ? socio.unidade_ativa !== false : false,
             matriculado: boolVal(m[cm.matriculado]), tipo_termino: String(m[cm.tipo_termino] || ''),
             data_termino: fmtDate(m[cm.data_termino]), data_termino_iso: toIso(m[cm.data_termino]),
             certificado: boolVal(m[cm.certificado]), observacoes: String(m[cm.observacoes] || '')
@@ -6386,7 +7004,7 @@ function carregarPaginaCursos() {
     if (calcularStatusCurso(dataInicioIso, dataTerminoIso, hoje) !== 'Em andamento') return;
 
     var cursoId = String(c[cc.id]);
-    var matriculasCurso = rowsMatriculas.filter(function(m) { return String(m[cm.curso_id]) === cursoId; });
+      var matriculasCurso = matriculasVisiveisCurso(cursoId);
     var matriculados = matriculasCurso.filter(function(m) {
       return m[cm.matriculado] === true && !toIso(m[cm.data_termino]);
     });
@@ -6415,6 +7033,7 @@ function carregarPaginaCursos() {
         return {
           id:             sid,
           nome:           socio.nome,
+          unidade_ativa:  socio.unidade_ativa !== false,
           matricula_id:   String(m[cm.id]),
           matriculado:    m[cm.matriculado] === true,
           tipo_termino:   String(m[cm.tipo_termino] || ''),
@@ -6435,7 +7054,8 @@ function carregarPaginaCursos() {
     nao_iniciados:         naoIniciados,
     cursos_encerrados:     cursosEncerrados,
     sem_curso_recente:     semCursoRecente,
-    cursos_andamento:      cursosAndamento
+    cursos_andamento:      cursosAndamento,
+    socioeducandos:        socioeducandos
   };
 }
 
@@ -6738,11 +7358,13 @@ function atualizarMatriculasOficinaLote(oficinaId, edicoes, novos) {
 
 function getOficinasBySocioeducando(socioeducandoId, incluirDeletados) {
   var co = getOficinasCols(), cm = getOficinaMatriculasCols();
+  var socioeducandoAtivo = {};
+  getSocioeducandosAtivos().forEach(function(j) { socioeducandoAtivo[String(j.id)] = true; });
   var oficinas = {}; (incluirDeletados ? getRows(SHEETS.OFICINAS) : getRowsAtivas(SHEETS.OFICINAS)).forEach(function(r) { oficinas[String(r[co.id])] = r; });
   return (incluirDeletados ? getRows(SHEETS.OFICINA_MATRICULAS) : getRowsAtivas(SHEETS.OFICINA_MATRICULAS)).filter(function(r) { return String(r[cm.socioeducando_id]) === String(socioeducandoId); }).map(function(m) {
     var o = oficinas[String(m[cm.oficina_id])] || [], deleted = cm.deletado_em >= 0 ? toIso(m[cm.deletado_em]) : '', od = o.length && co.deletado_em >= 0 ? toIso(o[co.deletado_em]) : '';
     var realizadaTxt = String(m[cm.realizada] || '').trim().toLowerCase();
-    return { matricula_id: String(m[cm.id]), oficina_id: String(m[cm.oficina_id]), id: String(m[cm.id]), socioeducando_id: String(m[cm.socioeducando_id]), nome: String(o[co.nome] || ''), tipo: String(o[co.tipo] || ''), responsavel: String(o[co.responsavel] || ''), data_iso: toIso(o[co.data]), data: fmtDate(o[co.data]), horario_inicio: fmtTime(o[co.horario_inicio]), horario_termino: fmtTime(o[co.horario_termino]), observacoes: String(o[co.observacoes] || ''), realizada: realizadaTxt === 'sim' ? true : (realizadaTxt === 'não' || realizadaTxt === 'nao' ? false : null), observacoes_matricula: String(m[cm.observacoes] || ''), created_at: fmtDate(m[cm.registrado_em]), deletado_em: deleted || od, ativo: !(deleted || od) };
+    return { matricula_id: String(m[cm.id]), oficina_id: String(m[cm.oficina_id]), id: String(m[cm.id]), socioeducando_id: String(m[cm.socioeducando_id]), unidade_ativa: !!socioeducandoAtivo[String(m[cm.socioeducando_id])], nome: String(o[co.nome] || ''), tipo: String(o[co.tipo] || ''), responsavel: String(o[co.responsavel] || ''), data_iso: toIso(o[co.data]), data: fmtDate(o[co.data]), horario_inicio: fmtTime(o[co.horario_inicio]), horario_termino: fmtTime(o[co.horario_termino]), observacoes: String(o[co.observacoes] || ''), realizada: realizadaTxt === 'sim' ? true : (realizadaTxt === 'não' || realizadaTxt === 'nao' ? false : null), observacoes_matricula: String(m[cm.observacoes] || ''), created_at: fmtDate(m[cm.registrado_em]), deletado_em: deleted || od, ativo: !(deleted || od) };
   }).sort(function(a, b) { return (b.data_iso || '').localeCompare(a.data_iso || ''); });
 }
 
@@ -6750,14 +7372,16 @@ function carregarOficina(id) {
   var co = getOficinasCols(), cm = getOficinaMatriculasCols(), r = getRowsAtivas(SHEETS.OFICINAS).find(function(x) { return String(x[co.id]) === String(id); });
   if (!r) throw new Error('Oficina não encontrada.');
   var tipos = getTiposOficina(), mats = getRowsAtivas(SHEETS.OFICINA_MATRICULAS).filter(function(x) { return String(x[cm.oficina_id]) === String(id); }), socio = {};
-  getSocioeducandos().forEach(function(j) { socio[String(j.id)] = j.nome; });
-  return { oficina: { oficina_id: String(r[co.id]), nome: String(r[co.nome] || ''), tipo: String(r[co.tipo] || ''), tipo_id: String(r[co.tipo] || ''), responsavel: String(r[co.responsavel] || ''), data_iso: toIso(r[co.data]), horario_inicio: fmtTime(r[co.horario_inicio]), horario_termino: fmtTime(r[co.horario_termino]), observacoes: String(r[co.observacoes] || '') }, tipos_oficina: tipos, socioeducandos: getSocioeducandosAtivos(), matriculas: mats.map(function(m) { var realizadaTxt = String(m[cm.realizada] || '').trim().toLowerCase(); return { matricula_id: String(m[cm.id]), socioeducando_id: String(m[cm.socioeducando_id]), nome: socio[String(m[cm.socioeducando_id])] || ('ID ' + m[cm.socioeducando_id]), realizada: realizadaTxt === 'sim' ? true : (realizadaTxt === 'não' || realizadaTxt === 'nao' ? false : null), observacoes: String(m[cm.observacoes] || '') }; }) };
+  var socioeducandos = getSocioeducandosComStatusUnidade();
+  socioeducandos.forEach(function(j) { socio[String(j.id)] = j; });
+  return { oficina: { oficina_id: String(r[co.id]), nome: String(r[co.nome] || ''), tipo: String(r[co.tipo] || ''), tipo_id: String(r[co.tipo] || ''), responsavel: String(r[co.responsavel] || ''), data_iso: toIso(r[co.data]), horario_inicio: fmtTime(r[co.horario_inicio]), horario_termino: fmtTime(r[co.horario_termino]), observacoes: String(r[co.observacoes] || '') }, tipos_oficina: tipos, socioeducandos: socioeducandos, matriculas: mats.map(function(m) { var realizadaTxt = String(m[cm.realizada] || '').trim().toLowerCase(), s = socio[String(m[cm.socioeducando_id])]; return { matricula_id: String(m[cm.id]), socioeducando_id: String(m[cm.socioeducando_id]), nome: s ? s.nome : ('ID ' + m[cm.socioeducando_id]), unidade_ativa: s ? s.unidade_ativa !== false : false, realizada: realizadaTxt === 'sim' ? true : (realizadaTxt === 'não' || realizadaTxt === 'nao' ? false : null), observacoes: String(m[cm.observacoes] || '') }; }) };
 }
 
 function carregarPaginaOficinas() {
   var co = getOficinasCols(), cm = getOficinaMatriculasCols();
+  var ativos = {}; getSocioeducandosAtivos().forEach(function(j) { ativos[String(j.id)] = true; });
   var nomes = {}; getSocioeducandos().forEach(function(j) { nomes[j.id] = j.nome; });
-  var mats = getRowsAtivas(SHEETS.OFICINA_MATRICULAS), porOficina = {}; mats.forEach(function(m) { var id = String(m[cm.oficina_id]), realizadaTxt = String(m[cm.realizada] || '').trim().toLowerCase(); (porOficina[id] = porOficina[id] || []).push({ matricula_id: String(m[cm.id]), socioeducando_id: String(m[cm.socioeducando_id]), nome: nomes[String(m[cm.socioeducando_id])] || ('ID ' + m[cm.socioeducando_id]), realizada: realizadaTxt === 'sim' ? true : (realizadaTxt === 'não' || realizadaTxt === 'nao' ? false : null), observacoes: String(m[cm.observacoes] || '') }); });
+  var mats = getRowsAtivas(SHEETS.OFICINA_MATRICULAS).filter(function(m) { return !!ativos[String(m[cm.socioeducando_id])]; }), porOficina = {}; mats.forEach(function(m) { var id = String(m[cm.oficina_id]), realizadaTxt = String(m[cm.realizada] || '').trim().toLowerCase(); (porOficina[id] = porOficina[id] || []).push({ matricula_id: String(m[cm.id]), socioeducando_id: String(m[cm.socioeducando_id]), nome: nomes[String(m[cm.socioeducando_id])] || ('ID ' + m[cm.socioeducando_id]), unidade_ativa: true, realizada: realizadaTxt === 'sim' ? true : (realizadaTxt === 'não' || realizadaTxt === 'nao' ? false : null), observacoes: String(m[cm.observacoes] || '') }); });
   var oficinas = getRowsAtivas(SHEETS.OFICINAS).map(function(r) { var id = String(r[co.id]); return { oficina_id: id, id: id, nome: String(r[co.nome] || ''), tipo: String(r[co.tipo] || ''), responsavel: String(r[co.responsavel] || ''), data_iso: toIso(r[co.data]), data: fmtDate(r[co.data]), horario_inicio: fmtTime(r[co.horario_inicio]), horario_termino: fmtTime(r[co.horario_termino]), observacoes: String(r[co.observacoes] || ''), matriculas: porOficina[id] || [] }; }).sort(function(a, b) { return (b.data_iso || '').localeCompare(a.data_iso || ''); });
   return { oficinas: oficinas, tipos_oficina: getTiposOficina(), socioeducandos: getSocioeducandosAtivos() };
 }

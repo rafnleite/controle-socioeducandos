@@ -14,6 +14,9 @@
 - [ ] Coluna **Resumo** mostra pill de cursos com ícone + quantidade de cursos ativos.
 - [ ] Ao clicar na pill de cursos, abre modal com os cursos ativos do socioeducando (tipo, curso, local, período e horário).
 - [ ] No modal de cursos do overview, não existe ação de edição (modal somente leitura/consulta).
+- [ ] Após registrar o desligamento de um socioeducando que possui atividades, ele deixa de aparecer nos resumos do overview, nos cards de atividades do dia e nos detalhes consultivos de cursos/oficinas.
+- [ ] O perfil do socioeducando desligado continua exibindo o histórico de cursos, oficinas, atendimentos e saídas.
+- [ ] Na edição de matrículas de curso/oficina e no modal de retornos de saída, o socioeducando desligado continua listado e aparece com o aviso **Desligado atualmente**.
 - [ ] Quando houver vínculos de trabalho ativos, a coluna **Resumo** mostra uma pill por empresa empregadora.
 - [ ] Ao clicar em uma pill de trabalho, abre modal com os detalhes do vínculo selecionado (tipo, empresa, curso, contrato, início/fim e horário).
 - [ ] No modal de trabalho, a ação **Abrir vínculo** abre a edição do trabalho correto (mesmo ID do pill clicado).
@@ -159,6 +162,7 @@
 - [ ] Alerta de curso abre a edição em lote das matrículas do curso.
 - [ ] Alerta de oficina abre a edição das matrículas da oficina.
 - [ ] Alerta de saída abre modal com todos os socioeducandos pendentes e permite salvar `Retorno` e observações em lote.
+- [ ] Os alertas de curso, oficina e saída não são gerados somente por pendências de socioeducandos já desligados; quando houver pendência ativa, os desligados ainda aparecem no respectivo fluxo de manutenção com aviso.
 
 ### 5.1 Cadastro individual (Saída + Vínculo, a partir do perfil)
 - [ ] Criar nova saída vinculando um socioeducando (Local, **Tipo**, Data de saída, Horário de saída, Data de retorno, Horário de retorno, Condução, **Nome do acompanhante**, Status) → cria linha em `Saidas` e `SaidaMatriculas`.

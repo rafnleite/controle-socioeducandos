@@ -30,6 +30,10 @@ Sheets não impõe chaves estrangeiras, `UNIQUE`, nem *constraints*.
   - [VisitasTerritoriais](#visitasterritoriais)
   - [Familiares](#familiares)
   - [TiposAtendimento](#tiposatendimento)
+  - [Especialidades](#especialidades)
+  - [Equipes](#equipes)
+  - [EquipeEspecialistas](#equipeespecialistas)
+  - [SocioeducandoEquipes](#socioeducandoequipes)
   - [InteressesCurso](#interessescurso)
 - [Abas legadas (histórico de migrações)](#abas-legadas-histórico-de-migrações)
 - [Padrões de relacionamento N:N](#padrões-de-relacionamento-nn)
@@ -230,6 +234,54 @@ erDiagram
     string Criado_por
   }
 
+  ESPECIALIDADES {
+    number ID PK
+    string Nome
+    datetime Registrado_em
+    string Criado_por
+    datetime Atualizado_em
+    string Atualizado_por
+    datetime Deletado_em
+    string Deletado_por
+  }
+
+  EQUIPES {
+    number ID PK
+    string Nome
+    string Cor "hexadecimal #RRGGBB"
+    datetime Registrado_em
+    string Criado_por
+    datetime Atualizado_em
+    string Atualizado_por
+    datetime Deletado_em
+    string Deletado_por
+  }
+
+  EQUIPEESPECIALISTAS {
+    number ID PK
+    number ID_Equipe FK
+    number ID_Especialidade FK
+    string Nome_Especialista
+    datetime Registrado_em
+    string Criado_por
+    datetime Atualizado_em
+    string Atualizado_por
+    datetime Deletado_em
+    string Deletado_por
+  }
+
+  SOCIOEDUCANDOEQUIPES {
+    number ID PK
+    number ID_Socioeducando FK
+    number ID_Equipe FK
+    datetime Registrado_em
+    string Criado_por
+    datetime Atualizado_em
+    string Atualizado_por
+    datetime Deletado_em
+    string Deletado_por
+  }
+
   INTERESSESCURSO {
     number ID PK
     number ID_Socioeducando FK
@@ -308,6 +360,10 @@ erDiagram
   CURSOMATRICULAS ||--o{ CURSOEVENTOS : "tem registro diário"
   SAIDAS ||--o{ SAIDAMATRICULAS : "possui"
   TIPOSATENDIMENTO ||--o{ ATENDIMENTOS : "classifica"
+  EQUIPES ||--o{ EQUIPEESPECIALISTAS : "tem responsaveis"
+  ESPECIALIDADES ||--o{ EQUIPEESPECIALISTAS : "classifica"
+  EQUIPES ||--o{ SOCIOEDUCANDOEQUIPES : "agrupa"
+  SOCIOEDUCANDOS ||--o| SOCIOEDUCANDOEQUIPES : "pertence a"
   ATENDIMENTOS ||--o| ATENDIMENTOS : "reposição de"
 ```
 
@@ -445,6 +501,18 @@ pode entrar e saltar várias vezes ao longo do tempo — cada ciclo é uma linha
 `ausente`) é derivado combinando a admissão ativa (`Admissoes`) com a existência de uma
 fuga/evasão em aberto (`Fugas`).
 
+**Regra de visibilidade:** `getSocioeducandosAtivos()` identifica os socioeducandos
+que ainda possuem vínculo ativo com a unidade. O overview, os resumos de atividades,
+os alertas e as páginas de consulta de cursos/oficinas usam essa lista para não
+exibir participantes desligados. Essa filtragem é apenas de apresentação: o perfil
+usa os registros históricos completos de cursos, oficinas, atendimentos, saídas e
+demais atividades.
+
+Nas telas de manutenção de matrículas e no preenchimento de retornos de saídas, o
+backend usa todos os socioeducandos não excluídos logicamente e informa o atributo
+derivado `unidade_ativa`. O frontend sinaliza os registros cujo valor é falso como
+**Desligado atualmente**, sem remover o vínculo histórico da tabela.
+
 ### Fugas
 
 Registra fugas e evasões (saída não autorizada) durante o período de internação.
@@ -543,48 +611,52 @@ a migração é interrompida para evitar vincular um histórico ao registro inco
 
 ### Oficinas
 
-`TiposOficina` Ã© o catÃ¡logo administrÃ¡vel dos tipos de oficina.
+`TiposOficina` é o catálogo de tipos de oficina. Ele segue o padrão de
+`TiposAtendimento`: não possui ID próprio, não permite edição/exclusão pela aplicação
+e possui somente `Registrado em` e `Criado por`. A inicialização inclui os tipos padrão
+de Oficina Esportiva, Oficina de Profissionalização, Oficina de Macramê, Oficina
+Jurídica e Oficina de Horticultura.
 
-| Coluna | Tipo | DescriÃ§Ã£o |
+| Coluna | Tipo | Descrição |
 |---|---|---|
-| `Tipo de Oficina` | string (chave nominal) | Nome do tipo, editÃ¡vel na tela de ConfiguraÃ§Ãµes. |
+| `Tipo de Oficina` | string (chave nominal) | Nome do tipo selecionado nos formulários. |
 | `Registrado em` | datetime | Data/hora de cadastro. |
-| `Criado por` | string | UsuÃ¡rio que cadastrou o tipo. |
+| `Criado por` | string | Usuário que cadastrou o tipo. |
 
 `Oficinas` representa o evento pontual.
 
-| Coluna | Tipo | DescriÃ§Ã£o |
+| Coluna | Tipo | Descrição |
 |---|---|---|
 | `ID` | number (PK) | |
 | `Nome` | string | Nome da oficina. |
-| `Tipo` | string (referÃªncia nominal â†’ TiposOficina) | Tipo selecionado no catÃ¡logo. |
-| `ResponsÃ¡vel` | string | Pessoa responsÃ¡vel pela oficina. |
-| `Data` | date | Data da realizaÃ§Ã£o prevista. |
-| `HorÃ¡rio InÃ­cio` / `HorÃ¡rio TÃ©rmino` | string `HH:mm` | HorÃ¡rio do evento; ambos podem ficar vazios, mas devem ser informados juntos. |
-| `ObservaÃ§Ãµes` | string | ObservaÃ§Ã£o geral da oficina. |
-| `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | â€” | Auditoria. |
-| `Deletado em`, `Deletado por` | â€” | ExclusÃ£o lÃ³gica. |
+| `Tipo` | string (referência nominal → TiposOficina) | Tipo selecionado no catálogo. |
+| `Responsável` | string | Pessoa responsável pela oficina. |
+| `Data` | date | Data da realização prevista. |
+| `Horário Início` / `Horário Término` | string `HH:mm` | Horário do evento; ambos podem ficar vazios, mas devem ser informados juntos. |
+| `Observações` | string | Observação geral da oficina. |
+| `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | — | Auditoria. |
+| `Deletado em`, `Deletado por` | — | Exclusão lógica. |
 
 ### OficinaMatriculas
 
-Tabela de junÃ§Ã£o **N:N** entre `Oficinas` e `Socioeducandos`.
+Tabela de junção **N:N** entre `Oficinas` e `Socioeducandos`.
 
-| Coluna | Tipo | DescriÃ§Ã£o |
+| Coluna | Tipo | Descrição |
 |---|---|---|
 | `ID` | number (PK) | |
-| `ID Oficina` | number (FK â†’ Oficinas) | Evento ao qual o socioeducando estÃ¡ vinculado. |
-| `ID Socioeducando` | number (FK â†’ Socioeducandos) | Participante da oficina. |
-| `Realizada` | string | `Sim` ou `NÃ£o`, individual por participante. |
-| `ObservaÃ§Ãµes` | string | ObservaÃ§Ã£o especÃ­fica da matrÃ­cula. |
-| `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | â€” | Auditoria. |
-| `Deletado em`, `Deletado por` | â€” | ExclusÃ£o lÃ³gica. |
+| `ID Oficina` | number (FK → Oficinas) | Evento ao qual o socioeducando está vinculado. |
+| `ID Socioeducando` | number (FK → Socioeducandos) | Participante da oficina. |
+| `Realizada` | string / nulo | `Sim` ou `Não`, individual por participante; começa nulo no cadastro. |
+| `Observações` | string | Observação específica da matrícula. |
+| `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | — | Auditoria. |
+| `Deletado em`, `Deletado por` | — | Exclusão lógica. |
 
-O cadastro em lote cria um evento em `Oficinas` e uma matrÃ­cula para cada
+O cadastro em lote cria um evento em `Oficinas` e uma matrícula para cada
 socioeducando selecionado; perfil e resumo do dia fazem o *join* dessas tabelas.
 Os intervalos de `Oficinas` participam de `verificarConflitosAgenda`, tanto como
 atividade existente quanto como nova atividade submetida para confirmação.
-No cadastro, `Realizada` permanece nulo até que a matrícula seja atualizada; o
-backend rejeita `Sim` quando a data da oficina ainda estiver no futuro.
+`Realizada` permanece nulo até que a matrícula seja atualizada; o backend rejeita
+`Sim` quando a data da oficina ainda estiver no futuro.
 
 ### Saidas
 
@@ -735,6 +807,57 @@ tipo.
 
 A aba é populada automaticamente com os 6 tipos padrão (`TIPOS_ATENDIMENTO_PADRAO`) na
 primeira inicialização (`ensureTiposAtendimentoPadrao`), caso esteja vazia.
+
+### Especialidades
+
+Cat&aacute;logo de especialidades que podem ter um profissional respons&aacute;vel em cada equipe.
+
+| Coluna | Tipo | Descri&ccedil;&atilde;o |
+|---|---|---|
+| `ID` | number (PK) | Gerado por `nextId()`. |
+| `Nome` | string | Nome &uacute;nico da especialidade. |
+| `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | &mdash; | Auditoria. |
+| `Deletado em`, `Deletado por` | &mdash; | Exclus&atilde;o l&oacute;gica reservada pela estrutura. |
+
+### Equipes
+
+Cadastro das equipes que agrupam os socioeducandos.
+
+| Coluna | Tipo | Descri&ccedil;&atilde;o |
+|---|---|---|
+| `ID` | number (PK) | Gerado por `nextId()`. |
+| `Nome` | string | Nome &uacute;nico da equipe. |
+| `Cor` | string | Cor hexadecimal no formato `#RRGGBB`, usada na identifica&ccedil;&atilde;o visual. |
+| `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | &mdash; | Auditoria. |
+| `Deletado em`, `Deletado por` | &mdash; | Exclus&atilde;o l&oacute;gica reservada pela estrutura. |
+
+### EquipeEspecialistas
+
+Tabela de rela&ccedil;&atilde;o entre equipes e especialidades. Uma equipe pode ter no m&aacute;ximo um
+nome de especialista registrado para cada especialidade.
+
+| Coluna | Tipo | Descri&ccedil;&atilde;o |
+|---|---|---|
+| `ID` | number (PK) | Gerado por `nextId()`. |
+| `ID Equipe` | number (FK) | Referencia `Equipes.ID`. |
+| `ID Especialidade` | number (FK) | Referencia `Especialidades.ID`. |
+| `Nome Especialista` | string | Nome do profissional respons&aacute;vel naquela equipe/especialidade. |
+| `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | &mdash; | Auditoria. |
+| `Deletado em`, `Deletado por` | &mdash; | Exclus&atilde;o l&oacute;gica reservada pela estrutura. |
+
+### SocioeducandoEquipes
+
+Tabela de v&iacute;nculo entre socioeducandos e equipes. A regra de neg&oacute;cio exige no m&aacute;ximo
+uma equipe ativa para cada socioeducando; ao escolher outra equipe, o v&iacute;nculo anterior
+&eacute; atualizado.
+
+| Coluna | Tipo | Descri&ccedil;&atilde;o |
+|---|---|---|
+| `ID` | number (PK) | Gerado por `nextId()`. |
+| `ID Socioeducando` | number (FK) | Referencia `Socioeducandos.ID (SUASE)`. |
+| `ID Equipe` | number (FK) | Referencia `Equipes.ID`. |
+| `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | &mdash; | Auditoria. |
+| `Deletado em`, `Deletado por` | &mdash; | Exclus&atilde;o l&oacute;gica reservada pela estrutura. |
 
 ### InteressesCurso
 
