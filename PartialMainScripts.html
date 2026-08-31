@@ -13,6 +13,7 @@ var ESTADO = {
   overviewFiltroSemVisita: 'todos',
   overviewFiltroSemSaidaCultural: 'todos',
   overviewBusca: '',
+  cursosSemCursoFiltroStatus: ['internado'],
   cursosEncFiltroTipo: null,
   cursosEncFiltroLocal: null,
   cursosEncBusca: ''
@@ -535,7 +536,7 @@ function iconifyHtml(html){
   return out;
 }
 function fecharModaisAbertos(){
-  ['modal-confirmacao','modal-detalhes-curso','modal-editar-curso','modal-editar-vinculo','modal-editar-matriculas-lote','modal-readmissao','modal-nao-realizado','modal-curso-evento-dia'].forEach(function(id){
+  ['modal-confirmacao','modal-detalhes-curso','modal-editar-curso','modal-editar-vinculo','modal-editar-matriculas-lote','modal-readmissao','modal-nao-realizado','modal-curso-evento-dia','modal-socioeducandos-cursos-mes'].forEach(function(id){
     var el = document.getElementById(id);
     if (el) el.remove();
   });
@@ -1119,8 +1120,137 @@ function gerarRelatoriosCursos() {
     .gerarRelatoriosCursosXlsx();
 }
 
+function baixarArquivoCursosXlsx(arquivo) {
+  var binario = atob(arquivo.base64);
+  var bytes = new Uint8Array(binario.length);
+  for (var i = 0; i < binario.length; i++) bytes[i] = binario.charCodeAt(i);
+  var url = URL.createObjectURL(new Blob([bytes], { type: arquivo.mime_type }));
+  var link = document.createElement('a');
+  link.href = url;
+  link.download = arquivo.nome;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+}
+
+function exportarHistoricoSocioeducandosCursosPorMes() {
+  setBusyState(true, 'Gerando histórico mensal...');
+  google.script.run
+    .withSuccessHandler(function(arquivo) {
+      try { baixarArquivoCursosXlsx(arquivo); setBusyState(false); }
+      catch (e) { setBusyState(false); showError(e); }
+    })
+    .withFailureHandler(function(e) { setBusyState(false); showError(e); })
+    .exportarHistoricoSocioeducandosCursosPorMesXlsx();
+}
+
+function exportarDetalhesSocioeducandosCursosPorMes(mes) {
+  setBusyState(true, 'Gerando planilha do mês...');
+  google.script.run
+    .withSuccessHandler(function(arquivo) {
+      try { baixarArquivoCursosXlsx(arquivo); setBusyState(false); }
+      catch (e) { setBusyState(false); showError(e); }
+    })
+    .withFailureHandler(function(e) { setBusyState(false); showError(e); })
+    .exportarSocioeducandosCursosPorMesXlsx(mes);
+}
+
+function abrirSocioeducandosCursosPorMes(mes) {
+  setBusyState(true, 'Carregando socioeducandos do mês...');
+  google.script.run
+    .withSuccessHandler(function(dados) {
+      setBusyState(false);
+      var existente = document.getElementById('modal-socioeducandos-cursos-mes');
+      if (existente) existente.remove();
+
+      function tabela(linhas, vazio) {
+        var corpo = linhas.length ? linhas.map(function(linha) {
+          return '<tr>'
+            +'<td><a class="link-btn" onclick="mostrarPerfil(\''+esc(linha.socioeducando_id)+'\')">'+esc(linha.nome)+'</a></td>'
+            +'<td>'+esc(linha.tipo_curso || '—')+'</td>'
+            +'<td>'+esc(linha.nome_curso || '—')+'</td>'
+            +'<td>'+esc(linha.instituicao || '—')+'</td>'
+            +'<td>'+esc(linha.data_inicio || '—')+'</td>'
+            +'<td>'+esc(linha.data_fim || '—')+'</td>'
+            +'<td>'+esc(linha.tipo_termino || '—')+'</td>'
+            +'</tr>';
+        }).join('') : '<tr><td colspan="7" class="no-records">'+vazio+'</td></tr>';
+        return '<div style="overflow-x:auto"><table><thead><tr>'
+          +'<th>Socioeducando</th><th>Tipo de curso</th><th>Nome do curso</th><th>Instituição</th><th>Início</th><th>Data fim</th><th>Motivo do término</th>'
+          +'</tr></thead><tbody>'+corpo+'</tbody></table></div>';
+      }
+
+      var overlay = document.createElement('div');
+      overlay.id = 'modal-socioeducandos-cursos-mes';
+      overlay.className = 'perfil-modal-overlay';
+      overlay.innerHTML = '<div class="perfil-modal-card" style="max-width:1180px;max-height:90vh;overflow:auto">'
+        +'<div class="page-hdr" style="margin-bottom:14px"><div><h4 style="margin:0"><i class="fa-solid fa-calendar-days"></i> Socioeducandos em curso — '+esc(dados.rotulo)+'</h4>'
+        +'<small>Considera qualquer período de frequência dentro do mês.</small></div>'
+        +'<div class="d-flex gap-2"><button class="btn btn-outline btn-xs" onclick="exportarDetalhesSocioeducandosCursosPorMes(\''+esc(dados.mes)+'\')"><i class="fa-solid fa-file-excel"></i> Exportar Excel</button>'
+        +'<button class="modal-close-x" onclick="document.getElementById(\'modal-socioeducandos-cursos-mes\').remove()" title="Fechar"><i class="fa-solid fa-xmark"></i></button></div></div>'
+        +'<h5 style="margin:0 0 8px"><i class="fa-solid fa-building"></i> Cursos externos ('+dados.externo.length+')</h5>'
+        +tabela(dados.externo, 'Nenhum socioeducando em curso externo neste mês.')
+        +'<h5 style="margin:20px 0 8px"><i class="fa-solid fa-house"></i> Cursos internos ('+dados.interno.length+')</h5>'
+        +tabela(dados.interno, 'Nenhum socioeducando em curso interno neste mês.')
+        +'</div>';
+      overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+      document.body.appendChild(overlay);
+    })
+    .withFailureHandler(function(e) { setBusyState(false); showError(e); })
+    .getSocioeducandosCursosPorMes(mes);
+}
+
+var ACOMPANHAMENTO_PROGRESS_TIMER = null;
+var ACOMPANHAMENTO_PROGRESS_STARTED_AT = 0;
+
+function iniciarProgressoAcompanhamentoCursos() {
+  if (ACOMPANHAMENTO_PROGRESS_TIMER) clearInterval(ACOMPANHAMENTO_PROGRESS_TIMER);
+  ACOMPANHAMENTO_PROGRESS_STARTED_AT = Date.now();
+
+  var el = document.getElementById('busy-overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'busy-overlay';
+    el.className = 'busy-overlay';
+    el.innerHTML = '<div class="busy-card busy-progress-card">'
+      +'<div class="busy-progress-head"><i class="fa-solid fa-file-excel"></i><span id="busy-export-text">Preparando dados dos cursos...</span></div>'
+      +'<div class="busy-progress-track"><div class="busy-progress-bar"></div></div>'
+      +'<div id="busy-export-meta" class="busy-progress-meta">Tempo decorrido: 0s · progresso do servidor indisponível durante a execução</div>'
+      +'</div>';
+    document.body.appendChild(el);
+  }
+
+  var etapas = [
+    { apos: 0, texto: 'Preparando dados dos cursos...' },
+    { apos: 2500, texto: 'Montando registros de acompanhamento...' },
+    { apos: 6000, texto: 'Criando as abas da planilha...' },
+    { apos: 12000, texto: 'Convertendo o arquivo para XLSX...' },
+    { apos: 22000, texto: 'Finalizando o arquivo para download...' }
+  ];
+  function atualizar() {
+    var decorrido = Date.now() - ACOMPANHAMENTO_PROGRESS_STARTED_AT;
+    var etapa = etapas[0];
+    etapas.forEach(function(item) { if (decorrido >= item.apos) etapa = item; });
+    var texto = document.getElementById('busy-export-text');
+    var meta = document.getElementById('busy-export-meta');
+    if (texto) texto.textContent = etapa.texto;
+    if (meta) meta.textContent = 'Tempo decorrido: ' + Math.floor(decorrido / 1000) + 's · progresso do servidor indisponível durante a execução';
+  }
+  atualizar();
+  ACOMPANHAMENTO_PROGRESS_TIMER = setInterval(atualizar, 500);
+}
+
+function finalizarProgressoAcompanhamentoCursos() {
+  if (ACOMPANHAMENTO_PROGRESS_TIMER) {
+    clearInterval(ACOMPANHAMENTO_PROGRESS_TIMER);
+    ACOMPANHAMENTO_PROGRESS_TIMER = null;
+  }
+  setBusyState(false);
+}
+
 function gerarAcompanhamentoCursos() {
-  setBusyState(true, 'Gerando acompanhamento de cursos...');
+  iniciarProgressoAcompanhamentoCursos();
   google.script.run
     .withSuccessHandler(function(arquivo) {
       try {
@@ -1135,10 +1265,10 @@ function gerarAcompanhamentoCursos() {
         link.click();
         link.remove();
         setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
-        setBusyState(false);
-      } catch (e) { setBusyState(false); showError(e); }
+        finalizarProgressoAcompanhamentoCursos();
+      } catch (e) { finalizarProgressoAcompanhamentoCursos(); showError(e); }
     })
-    .withFailureHandler(function(e) { setBusyState(false); showError(e); })
+    .withFailureHandler(function(e) { finalizarProgressoAcompanhamentoCursos(); showError(e); })
     .gerarAcompanhamentoCursosXlsx();
 }
 
@@ -1430,17 +1560,50 @@ function renderPaginaCursos(d) {
     + '</div>'
     +'</div>';
 
+  var mesesCursos = d.socioeducandos_por_mes || [];
+  var linhasMesesCursos = mesesCursos.length
+    ? mesesCursos.map(function(item) {
+        var mesRotulo = String(item.rotulo || item.mes || '');
+        mesRotulo = mesRotulo ? mesRotulo.charAt(0).toUpperCase() + mesRotulo.slice(1) : '—';
+        return '<tr><td class="fw-bold">'+esc(mesRotulo)+'</td>'
+          +'<td style="text-align:center">'+esc(String(item.internos || 0))+'</td>'
+          +'<td style="text-align:center">'+esc(String(item.externos || 0))+'</td>'
+          +'<td style="text-align:center" class="fw-bold">'+esc(String(item.quantidade || 0))+'</td>'
+          +'<td style="text-align:right"><button class="btn btn-outline btn-xs" onclick="abrirSocioeducandosCursosPorMes(\''+esc(item.mes)+'\')"><i class="fa-solid fa-users"></i> Detalhar</button></td></tr>';
+      }).join('')
+    : '<tr><td colspan="5" class="no-records">Nenhum socioeducando matriculado em curso foi encontrado.</td></tr>';
+  var secSocioeducandosPorMes = '<div class="card">'
+    +'<div class="sec-hdr"><div><h5><i class="fa-solid fa-chart-column"></i> Socioeducandos em curso por mês</h5></div>'
+    +'<button class="btn btn-outline btn-xs" onclick="exportarHistoricoSocioeducandosCursosPorMes()"><i class="fa-solid fa-file-excel"></i> Exportar Excel</button></div>'
+    +'<div style="overflow-x:auto"><table><thead><tr><th>Mês</th><th style="text-align:center">Internos</th><th style="text-align:center">Externos</th><th style="text-align:center">Total</th><th></th></tr></thead><tbody>'+linhasMesesCursos+'</tbody></table></div>'
+    +'<small class="text-muted" style="display:block;margin-top:10px">O total pode ser diferente da soma de internos e externos, pois o mesmo socioeducando pode ter feito cursos nas duas modalidades no mesmo mês.</small>'
+    +'</div>';
+
   // ── Seção 3: Internados sem curso recente ────────────────────
-  var semAtivos = d.sem_curso_recente.filter(function(s){ return !s.tem_curso_ativo; });
+  if (!ESTADO.cursosSemCursoFiltroStatus) ESTADO.cursosSemCursoFiltroStatus = ['internado'];
+  var statusSemCurso = ESTADO.cursosSemCursoFiltroStatus;
+  var semAtivos = d.sem_curso_recente.filter(function(s) {
+    return !s.tem_curso_ativo && statusSemCurso.indexOf(s.status) >= 0;
+  });
+  var statusSemCursoBtns = ['internado','ausente','desligado'].map(function(status) {
+    var rotulo = {internado:'Internado',ausente:'Evadido',desligado:'Desligado'}[status];
+    return '<button class="seg-btn'+(statusSemCurso.indexOf(status) >= 0 ? ' active' : '')+'" onclick="toggleCursosSemCursoFiltroStatus(\''+status+'\')">'+rotulo+'</button>';
+  }).join('');
   var linhasSem = semAtivos.length === 0
-    ? '<tr><td colspan="6" class="no-records">Todos os internados ativos estão em algum curso.</td></tr>'
+    ? '<tr><td colspan="7" class="no-records">Nenhum socioeducando encontrado com os filtros aplicados.</td></tr>'
     : semAtivos.slice(0, 30).map(function(s) {
         var origem = s.total_cursos > 0 ? 'Último curso' : 'Admissão';
         var interesses = (s.interesses && s.interesses.length)
           ? s.interesses.map(function(i){ return esc(i); }).join(', ')
           : '<span class="text-muted">—</span>';
+        var statusHtml = s.status === 'internado'
+          ? '<span class="badge b-green">Internado</span>'
+          : s.status === 'ausente'
+            ? '<span class="badge b-red">Evadido</span>'
+            : '<span class="badge b-grey">Desligado</span>';
         return '<tr>'
           +'<td><a class="link-btn" onclick="mostrarPerfil(\''+esc(s.id)+'\')">'+esc(s.nome)+'</a></td>'
+          +'<td>'+statusHtml+'</td>'
           +'<td class="text-muted" style="font-size:11px">'+esc(origem)+'</td>'
           +'<td>'+esc(s.ultima_atividade)+'</td>'
           +'<td>'+diasSemCursoTag(s.dias_sem_curso)+'</td>'
@@ -1450,9 +1613,10 @@ function renderPaginaCursos(d) {
       }).join('');
 
   var secSemCurso = '<div class="card">'
-    +'<div class="sec-hdr"><h5><i class="fa-solid fa-clipboard-list"></i> Internados sem curso ativo — por tempo sem atividade ('+semAtivos.length+')</h5></div>'
+    +'<div class="sec-hdr"><h5><i class="fa-solid fa-clipboard-list"></i> Socioeducandos sem curso ativo — por tempo sem atividade ('+semAtivos.length+')</h5></div>'
+    +'<div class="filters"><div><span class="fw-bold">Status:</span> <div class="segmented">'+statusSemCursoBtns+'</div></div></div>'
     +'<div style="overflow-x:auto"><table>'
-    +'<thead><tr><th>Socioeducando</th><th>Referência</th><th>Última atividade</th><th>Tempo sem curso</th><th>Total cursos</th><th>Interesses</th></tr></thead>'
+    +'<thead><tr><th>Socioeducando</th><th>Status</th><th>Referência</th><th>Última atividade</th><th>Tempo sem curso</th><th>Total cursos</th><th>Interesses</th></tr></thead>'
     +'<tbody>'+linhasSem+'</tbody></table></div>'
     +'</div>';
 
@@ -1466,6 +1630,7 @@ function renderPaginaCursos(d) {
     +'</div>'
     + stats
     + secCursos
+    + secSocioeducandosPorMes
     + secSemCurso;
 
   setContent(html);
@@ -1577,6 +1742,15 @@ function toggleCursosAndFiltroLocal(v) {
 
 function mudarCursosTab(aba) {
   ESTADO.cursosTab = aba;
+  if (CURSOS_PAGINA_DATA) renderPaginaCursos(CURSOS_PAGINA_DATA);
+}
+
+function toggleCursosSemCursoFiltroStatus(status) {
+  var filtros = ESTADO.cursosSemCursoFiltroStatus || [];
+  var indice = filtros.indexOf(status);
+  if (indice >= 0) filtros.splice(indice, 1);
+  else filtros.push(status);
+  ESTADO.cursosSemCursoFiltroStatus = filtros;
   if (CURSOS_PAGINA_DATA) renderPaginaCursos(CURSOS_PAGINA_DATA);
 }
 
@@ -3959,6 +4133,8 @@ function carregarSecoesPerfil(reqId, socioeducandoId){
       maybeRenderAgendaPerfilChunks(reqId, socioeducandoId);
     })
     .withFailureHandler(function(err){ if(isPerfilRequestAtivo(reqId, socioeducandoId)) renderPerfilSecaoErro('perfil-pane-cursos', err); })
+    // Inclui o curso-mestre para que o servidor possa identificar se ele foi
+    // excluído logicamente; desistências de cursos ativos seguem visíveis.
     .getCursosBySocioeducando(socioeducandoId, true);
 
   google.script.run

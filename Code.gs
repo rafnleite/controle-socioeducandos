@@ -4370,6 +4370,7 @@ function atualizarCurso(dados) {
 function excluirCurso(cursoId) {
   if (!cursoId) throw new Error('Curso não identificado.');
   var cc = getCursosCols();
+  var cm = getCursoMatriculasCols();
   var sh = getSheet(SHEETS.CURSOS);
   var rows = getRows(SHEETS.CURSOS);
   var idx = rows.findIndex(function(r) { return String(r[cc.id]) === String(cursoId); });
@@ -4383,6 +4384,24 @@ function excluirCurso(cursoId) {
   sh.getRange(idx + 2, cc.deletado_por + 1).setValue(usuario);
   if (cc.atualizadoEm >= 0) sh.getRange(idx + 2, cc.atualizadoEm + 1).setValue(agora);
   if (cc.atualizadoPor >= 0) sh.getRange(idx + 2, cc.atualizadoPor + 1).setValue(usuario);
+
+  // Um vínculo não pode permanecer visível sem o respectivo curso. A exclusão
+  // lógica do curso é propagada às suas matrículas ainda ativas.
+  if (cm.deletado_em >= 0 && cm.deletado_por >= 0) {
+    var shMatriculas = getSheet(SHEETS.CURSO_MATRICULAS);
+    var matriculas = getRows(SHEETS.CURSO_MATRICULAS);
+    matriculas.forEach(function(matricula, indice) {
+      if (String(matricula[cm.curso_id]) !== String(cursoId)) return;
+      if (toIso(matricula[cm.deletado_em])) return;
+      var linha = indice + 2;
+      shMatriculas.getRange(linha, cm.deletado_em + 1).setValue(agora);
+      shMatriculas.getRange(linha, cm.deletado_por + 1).setValue(usuario);
+      if (cm.atualizadoEm >= 0) shMatriculas.getRange(linha, cm.atualizadoEm + 1).setValue(agora);
+      if (cm.atualizadoPor >= 0) shMatriculas.getRange(linha, cm.atualizadoPor + 1).setValue(usuario);
+    });
+    clearSheetCaches(SHEETS.CURSO_MATRICULAS);
+  }
+  clearSheetCaches(SHEETS.CURSOS);
   return { ok: true, curso_id: String(cursoId) };
 }
 
@@ -6454,7 +6473,9 @@ function gerarRelatoriosCursosXlsx() {
       base64: Utilities.base64Encode(blob.getBytes())
     };
   } finally {
-    DriveApp.getFileById(arquivoId).setTrashed(true);
+    // Não usa DriveApp para limpar o arquivo temporário: usuários leitores
+    // podem criar/exportar a planilha com os escopos do app, mas não possuem
+    // necessariamente o escopo amplo do Drive exigido por getFileById.
   }
 }
 
@@ -6481,8 +6502,9 @@ function gerarAcompanhamentoCursosXlsx() {
     // Uma planilha sem cursos ainda deve ser exportável e identificável.
     if (!cursos.length) {
       preencherAbaAcompanhamentoCurso(arquivoTemporario.getSheets()[0], {
-        id: '', nome_curso: 'Nenhum curso cadastrado', local: '',
+        id: '', nome_curso: 'Nenhum curso em andamento', tipo_curso: '', local: '',
         data_inicio: '', data_termino: '', horario_inicio: '', horario_termino: '',
+        dias_semana: '',
         linhas: []
       });
     }
@@ -6504,7 +6526,7 @@ function gerarAcompanhamentoCursosXlsx() {
       base64: Utilities.base64Encode(blob.getBytes())
     };
   } finally {
-    DriveApp.getFileById(arquivoId).setTrashed(true);
+    // Ver observação em gerarRelatoriosCursosXlsx sobre escopos de leitores.
   }
 }
 
@@ -6512,19 +6534,33 @@ function montarDadosAcompanhamentoCursos() {
   var cc = getCursosCols();
   var cm = getCursoMatriculasCols();
   var cs = getSocioeducandosCols();
-  var cursos = getRowsAtivas(SHEETS.CURSOS);
+  var hojeIso = toIso(new Date());
+  // Acompanhamento deve conter somente cursos com status "Em andamento":
+  // nem cursos futuros nem cursos já encerrados entram na exportação.
+  var cursos = getRowsAtivas(SHEETS.CURSOS).filter(function(curso) {
+    var inicioIso = toIso(curso[cc.data_inicio]);
+    var terminoIso = toIso(curso[cc.data_termino]);
+    return inicioIso && terminoIso && calcularStatusCurso(inicioIso, terminoIso, hojeIso) === 'Em andamento';
+  });
   var matriculas = getRowsAtivas(SHEETS.CURSO_MATRICULAS);
   var socioeducandos = getRowsAtivas(SHEETS.SOCIOEDUCANDOS);
   var socioMap = {};
+  var matriculasPorCurso = {};
 
   socioeducandos.forEach(function(socio) {
     socioMap[String(socio[cs.id])] = String(socio[cs.nome] || '');
   });
+  matriculas.forEach(function(matricula) {
+    var cursoId = String(matricula[cm.curso_id]);
+    if (!matriculasPorCurso[cursoId]) matriculasPorCurso[cursoId] = [];
+    matriculasPorCurso[cursoId].push(matricula);
+  });
 
   return cursos.map(function(curso) {
     var cursoId = String(curso[cc.id]);
-    var datas = datasAulasAcompanhamentoCurso(curso[cc.data_inicio], curso[cc.data_termino], curso[cc.dias_semana]);
-    var inscritos = matriculas
+    var dataInicioCursoIso = toIso(curso[cc.data_inicio]);
+    var dataTerminoCursoIso = toIso(curso[cc.data_termino]);
+    var inscritos = (matriculasPorCurso[cursoId] || [])
       .filter(function(matricula) {
         return String(matricula[cm.curso_id]) === cursoId
           && boolVal(matricula[cm.matriculado])
@@ -6533,32 +6569,46 @@ function montarDadosAcompanhamentoCursos() {
       .map(function(matricula) {
         return {
           nome: socioMap[String(matricula[cm.socioeducando_id])],
-          id: String(matricula[cm.socioeducando_id])
+          id: String(matricula[cm.socioeducando_id]),
+          data_termino_iso: toIso(matricula[cm.data_termino])
         };
       })
       .sort(function(a, b) {
         return a.nome.localeCompare(b.nome, 'pt-BR') || a.id.localeCompare(b.id);
       });
 
+    // A ordenação dos registros é primeiro pela data da aula e, depois,
+    // pelo nome do socioeducando.
+    var datasCurso = datasAulasAcompanhamentoCurso(dataInicioCursoIso, dataTerminoCursoIso, curso[cc.dias_semana]);
     var linhas = [];
-    inscritos.forEach(function(socio) {
-      datas.forEach(function(data) {
-        linhas.push([socio.nome, '', data, '']);
+    datasCurso.forEach(function(data) {
+      var dataIso = _formatIsoDateLocal(data);
+      inscritos.forEach(function(socio) {
+        // Em caso de abandono/conclusão antecipada, não cria chamadas depois
+        // do término da matrícula. O próprio dia do término continua válido.
+        if (!socio.data_termino_iso || socio.data_termino_iso >= dataIso) {
+          linhas.push([socio.nome, '', data, '']);
+        }
       });
     });
 
     return {
       id: cursoId,
+      data_inicio_iso: dataInicioCursoIso,
       nome_curso: String(curso[cc.nome_curso] || ''),
+      tipo_curso: String(curso[cc.tipo_curso] || ''),
       local: cc.local >= 0 ? String(curso[cc.local] || '') : '',
       data_inicio: valorDataRelatorio(curso[cc.data_inicio]),
       data_termino: valorDataRelatorio(curso[cc.data_termino]),
+      dias_semana: diasSemanaTextuaisRelatorio(curso[cc.dias_semana]),
       horario_inicio: fmtTime(curso[cc.horario_inicio]),
       horario_termino: fmtTime(curso[cc.horario_termino]),
       linhas: linhas
     };
   }).sort(function(a, b) {
-    return a.nome_curso.localeCompare(b.nome_curso, 'pt-BR') || a.id.localeCompare(b.id);
+    return a.data_inicio_iso.localeCompare(b.data_inicio_iso)
+      || a.nome_curso.localeCompare(b.nome_curso, 'pt-BR')
+      || a.id.localeCompare(b.id);
   });
 }
 
@@ -6624,34 +6674,36 @@ function preencherAbaAcompanhamentoCurso(aba, curso) {
   var horario = [curso.horario_inicio, curso.horario_termino].filter(String).join(' às ');
   var metadados = [
     ['Nome do curso', curso.nome_curso],
+    ['Tipo de curso', curso.tipo_curso || ''],
     ['Local', curso.local],
     ['Data de início', curso.data_inicio || ''],
     ['Data de término', curso.data_termino || ''],
+    ['Dias da semana', curso.dias_semana || ''],
     ['Horário', horario]
   ];
   var cabecalhosRegistros = ['Nome do socioeducando', 'Documento', 'Data', 'Observações'];
 
   aba.clear();
   aba.getRange(1, 1, metadados.length, 2).setValues(metadados);
-  aba.getRange(7, 1, 1, cabecalhosRegistros.length).setValues([cabecalhosRegistros]);
+  aba.getRange(9, 1, 1, cabecalhosRegistros.length).setValues([cabecalhosRegistros]);
   if (curso.linhas.length) {
-    aba.getRange(8, 1, curso.linhas.length, cabecalhosRegistros.length).setValues(curso.linhas);
+    aba.getRange(10, 1, curso.linhas.length, cabecalhosRegistros.length).setValues(curso.linhas);
   }
 
   aba.getRange(1, 1, metadados.length, 1)
     .setBackground('#3c3c7a').setFontColor('#ffffff').setFontWeight('bold');
-  aba.getRange(7, 1, 1, cabecalhosRegistros.length)
+  aba.getRange(9, 1, 1, cabecalhosRegistros.length)
     .setBackground('#3c3c7a').setFontColor('#ffffff').setFontWeight('bold')
     .setWrap(true).setVerticalAlignment('middle');
   aba.getRange(1, 1, metadados.length, 2).setVerticalAlignment('middle');
-  aba.getRange(3, 2, 2, 1).setNumberFormat('dd/mm/yyyy');
+  aba.getRange(4, 2, 2, 1).setNumberFormat('dd/mm/yyyy');
   if (curso.linhas.length) {
-    aba.getRange(8, 1, curso.linhas.length, cabecalhosRegistros.length)
+    aba.getRange(10, 1, curso.linhas.length, cabecalhosRegistros.length)
       .setVerticalAlignment('top').setWrap(true);
-    aba.getRange(8, 3, curso.linhas.length, 1).setNumberFormat('dd/mm/yyyy');
-    aba.getRange(7, 1, curso.linhas.length + 1, cabecalhosRegistros.length).createFilter();
+    aba.getRange(10, 3, curso.linhas.length, 1).setNumberFormat('dd/mm/yyyy');
+    aba.getRange(9, 1, curso.linhas.length + 1, cabecalhosRegistros.length).createFilter();
   }
-  aba.setFrozenRows(7);
+  aba.setFrozenRows(9);
   aba.setColumnWidth(1, 260);
   aba.setColumnWidth(2, 150);
   aba.setColumnWidth(3, 110);
@@ -6773,15 +6825,183 @@ function preencherAbaRelatorioCursos(aba, cabecalhos, linhas, colunasData) {
   aba.autoResizeRows(1, linhas.length + 1);
 }
 
+/**
+ * Monta o histórico mensal de socioeducandos que efetivamente frequentaram
+ * cursos. Uma matrícula só entra quando está marcada como "Matriculado".
+ * O intervalo considerado vai do início do curso até a menor data entre o
+ * término previsto do curso e o término registrado na matrícula.
+ */
+function montarHistoricoSocioeducandosCursosPorMes() {
+  var cc = getCursosCols();
+  var cm = getCursoMatriculasCols();
+  var cs = getSocioeducandosCols();
+  var cursosMap = {};
+  var socioMap = {};
+  var nomesMeses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+  function rotuloMes(chave) {
+    var partes = String(chave).split('-');
+    return nomesMeses[Number(partes[1]) - 1] + '/' + partes[0];
+  }
+
+  getRowsAtivas(SHEETS.CURSOS).forEach(function(curso) {
+    cursosMap[String(curso[cc.id])] = curso;
+  });
+  getRowsAtivas(SHEETS.SOCIOEDUCANDOS).forEach(function(socio) {
+    socioMap[String(socio[cs.id])] = String(socio[cs.nome] || '');
+  });
+
+  var registros = getRowsAtivas(SHEETS.CURSO_MATRICULAS).map(function(matricula) {
+    if (!boolVal(matricula[cm.matriculado])) return null;
+    var curso = cursosMap[String(matricula[cm.curso_id])];
+    if (!curso) return null;
+
+    var inicioIso = toIso(curso[cc.data_inicio]);
+    var fimCursoIso = toIso(curso[cc.data_termino]);
+    var fimMatriculaIso = toIso(matricula[cm.data_termino]);
+    var fimIso = fimCursoIso;
+    if (fimMatriculaIso && (!fimIso || fimMatriculaIso < fimIso)) fimIso = fimMatriculaIso;
+    if (!inicioIso || !fimIso || fimIso < inicioIso) return null;
+
+    var socioId = String(matricula[cm.socioeducando_id]);
+    return {
+      socioeducando_id: socioId,
+      nome: socioMap[socioId] || ('ID ' + socioId),
+      tipo_curso: String(curso[cc.tipo_curso] || ''),
+      nome_curso: String(curso[cc.nome_curso] || ''),
+      instituicao: String(curso[cc.instituicao] || ''),
+      local: String(curso[cc.local] || '').toLowerCase() === 'interno' ? 'Interno' : 'Externo',
+      data_inicio_iso: inicioIso,
+      data_inicio: fmtDate(curso[cc.data_inicio]),
+      data_fim_iso: fimIso,
+      data_fim: fimIso.substring(8, 10) + '/' + fimIso.substring(5, 7) + '/' + fimIso.substring(0, 4),
+      tipo_termino: String(matricula[cm.tipo_termino] || '')
+    };
+  }).filter(function(registro) { return registro; });
+
+  var hojeIso = toIso(new Date());
+  var mesAtual = hojeIso.substring(0, 7);
+  var primeiroMes = registros.reduce(function(menor, registro) {
+    var mes = registro.data_inicio_iso.substring(0, 7);
+    return !menor || mes < menor ? mes : menor;
+  }, '');
+  var meses = [];
+  if (primeiroMes) {
+    var cursor = new Date(mesAtual + '-01T12:00:00');
+    var limite = new Date(primeiroMes + '-01T12:00:00');
+    while (cursor >= limite) {
+      var chave = Utilities.formatDate(cursor, Session.getScriptTimeZone(), 'yyyy-MM');
+      var inicioMes = chave + '-01';
+      var fimMes = Utilities.formatDate(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0, 12), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      var ids = {}, idsInternos = {}, idsExternos = {};
+      registros.forEach(function(registro) {
+        if (registro.data_inicio_iso <= fimMes && registro.data_fim_iso >= inicioMes) {
+          ids[registro.socioeducando_id] = true;
+          if (registro.local === 'Interno') idsInternos[registro.socioeducando_id] = true;
+          else idsExternos[registro.socioeducando_id] = true;
+        }
+      });
+      meses.push({
+        mes: chave,
+        rotulo: rotuloMes(chave),
+        internos: Object.keys(idsInternos).length,
+        externos: Object.keys(idsExternos).length,
+        quantidade: Object.keys(ids).length
+      });
+      cursor.setMonth(cursor.getMonth() - 1);
+    }
+  }
+  return { meses: meses, registros: registros };
+}
+
+function getSocioeducandosCursosPorMes(mes) {
+  if (!/^\d{4}-\d{2}$/.test(String(mes || ''))) throw new Error('Mês inválido. Informe no formato AAAA-MM.');
+  var dados = montarHistoricoSocioeducandosCursosPorMes();
+  var inicioMes = mes + '-01';
+  var partes = String(mes).split('-');
+  var fimMes = Utilities.formatDate(new Date(Number(partes[0]), Number(partes[1]), 0, 12), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  var linhas = dados.registros.filter(function(registro) {
+    return registro.data_inicio_iso <= fimMes && registro.data_fim_iso >= inicioMes;
+  }).sort(function(a, b) {
+    return a.nome.localeCompare(b.nome, 'pt-BR') || a.nome_curso.localeCompare(b.nome_curso, 'pt-BR');
+  });
+  return {
+    mes: mes,
+    rotulo: (dados.meses.filter(function(item) { return item.mes === mes; })[0] || {}).rotulo || mes,
+    externo: linhas.filter(function(linha) { return linha.local === 'Externo'; }),
+    interno: linhas.filter(function(linha) { return linha.local === 'Interno'; })
+  };
+}
+
+function preencherAbaSocioeducandosCursosMes(aba, linhas) {
+  var cabecalhos = ['Nome do socioeducando', 'Tipo de curso', 'Nome do curso', 'Instituição', 'Data de início do curso', 'Data fim', 'Motivo do término'];
+  aba.clear();
+  aba.getRange(1, 1, 1, cabecalhos.length).setValues([cabecalhos]);
+  if (linhas.length) {
+    aba.getRange(2, 1, linhas.length, cabecalhos.length).setValues(linhas.map(function(linha) {
+      return [linha.nome, linha.tipo_curso, linha.nome_curso, linha.instituicao, linha.data_inicio, linha.data_fim, linha.tipo_termino];
+    }));
+  }
+  aba.setFrozenRows(1);
+  aba.getRange(1, 1, 1, cabecalhos.length).setBackground('#2f356b').setFontColor('#ffffff').setFontWeight('bold');
+  aba.autoResizeColumns(1, cabecalhos.length);
+  aba.setColumnWidth(1, 220); aba.setColumnWidth(3, 220); aba.setColumnWidth(4, 180); aba.setColumnWidth(7, 150);
+}
+
+function exportarHistoricoSocioeducandosCursosPorMesXlsx() {
+  var dados = montarHistoricoSocioeducandosCursosPorMes();
+  return criarArquivoHistoricoCursosXlsx('Historico_mensal_de_cursos', function(arquivo) {
+    var aba = arquivo.getSheets()[0];
+    aba.setName('Por mês');
+    aba.getRange(1, 1, 1, 4).setValues([['Mês', 'Internos', 'Externos', 'Total de socioeducandos']]);
+    if (dados.meses.length) aba.getRange(2, 1, dados.meses.length, 4).setValues(dados.meses.map(function(item) { return [item.rotulo, item.internos, item.externos, item.quantidade]; }));
+    aba.setFrozenRows(1); aba.getRange(1, 1, 1, 4).setBackground('#2f356b').setFontColor('#ffffff').setFontWeight('bold');
+    aba.autoResizeColumns(1, 4);
+  });
+}
+
+function exportarSocioeducandosCursosPorMesXlsx(mes) {
+  var dados = getSocioeducandosCursosPorMes(mes);
+  return criarArquivoHistoricoCursosXlsx('Socioeducandos_em_cursos_' + mes, function(arquivo) {
+    var externa = arquivo.getSheets()[0];
+    externa.setName('Externo');
+    preencherAbaSocioeducandosCursosMes(externa, dados.externo);
+    var interna = arquivo.insertSheet('Interno');
+    preencherAbaSocioeducandosCursosMes(interna, dados.interno);
+  });
+}
+
+function criarArquivoHistoricoCursosXlsx(baseNome, preencher) {
+  var arquivo = SpreadsheetApp.create(baseNome + ' - temporário');
+  var arquivoId = arquivo.getId();
+  try {
+    preencher(arquivo);
+    SpreadsheetApp.flush();
+    var mimeXlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    var resposta = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + arquivoId + '/export?format=xlsx', {
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true
+    });
+    if (resposta.getResponseCode() !== 200) throw new Error('Não foi possível converter o arquivo para XLSX (código ' + resposta.getResponseCode() + ').');
+    var nome = baseNome + '_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd') + '.xlsx';
+    var blob = resposta.getBlob().setContentType(mimeXlsx).setName(nome);
+    return { nome: nome, mime_type: mimeXlsx, base64: Utilities.base64Encode(blob.getBytes()) };
+  } finally {
+    // A exportação precisa funcionar também para usuários com perfil Leitor.
+  }
+}
+
 function carregarPaginaCursos(incluirDesligados) {
   incluirDesligados = !!incluirDesligados;
   var cc  = getCursosCols();
   var cm  = getCursoMatriculasCols();
+  var ca  = getAdmissoesCols();
+  var cf  = getFugasCols();
   var hoje = toIso(new Date());
 
   var rowsCursos    = getRowsAtivas(SHEETS.CURSOS);
   var rowsMatriculas = getRowsAtivas(SHEETS.CURSO_MATRICULAS);
   var rowsAdmissoes  = getRowsAtivas(SHEETS.ADMISSOES);
+  var rowsFugas      = getRowsAtivas(SHEETS.FUGAS);
   var socioeducandos = incluirDesligados ? getSocioeducandosComStatusUnidade() : getSocioeducandosAtivos();
 
   // Mapas rápidos
@@ -6943,47 +7163,70 @@ function carregarPaginaCursos(incluirDesligados) {
     .sort(function(a, b) { return b.data_termino_iso.localeCompare(a.data_termino_iso); });
 
   // ── 2. Socioeducandos sem curso recente ──────────────────────
-  // Apenas internados ativos
-  var admAtivaPorSocio = {};
+  // Inclui os três status para que a tabela use o mesmo filtro do painel geral.
+  var admissoesPorSocio = {}, fugasPorSocio = {};
   rowsAdmissoes.forEach(function(r) {
-    var sid = String(r[1]);
-    if (!toIso(r[3])) admAtivaPorSocio[sid] = toIso(r[2]);
+    var sid = String(r[ca.socioeducando_id]);
+    if (!admissoesPorSocio[sid]) admissoesPorSocio[sid] = [];
+    admissoesPorSocio[sid].push(r);
+  });
+  rowsFugas.forEach(function(r) {
+    var sid = String(r[cf.socioeducando_id]);
+    if (!fugasPorSocio[sid]) fugasPorSocio[sid] = [];
+    fugasPorSocio[sid].push(r);
   });
 
   var interessesPorSocio = getInteressesCursoResumo().porSocioeducando;
-
+  var todosSocioeducandos = getSocioeducandosComStatusUnidade();
   var semCursoRecente = [];
-  Object.keys(admAtivaPorSocio).forEach(function(sid) {
-    var socio = socioMap[sid];
-    if (!socio) return;
+  todosSocioeducandos.forEach(function(socio) {
+    var sid = String(socio.id);
+    var admSocio = admissoesPorSocio[sid] || [];
+    if (!admSocio.length) return;
+
+    var fugaAtual = (fugasPorSocio[sid] || []).some(function(f) { return !toIso(f[cf.data_retorno]); });
+    var admissaoAtiva = admSocio.some(function(a) { return !toIso(a[ca.data_desligamento]); });
+    var status = fugaAtual ? 'ausente' : (admissaoAtiva ? 'internado' : 'desligado');
+    var ultimaAdmissaoIso = admSocio.reduce(function(maisRecente, admissao) {
+      var data = toIso(admissao[ca.data_admissao]);
+      return data && (!maisRecente || data > maisRecente) ? data : maisRecente;
+    }, '');
+    if (!ultimaAdmissaoIso) return;
 
     var matSocio = rowsMatriculas.filter(function(m) { return String(m[cm.socioeducando_id]) === sid; });
-    var finalizadas = matSocio.filter(function(m) { return !!toIso(m[cm.data_termino]); });
-
-    // Última atividade = data de término do último curso finalizado
-    // Se não houver, usa a data de admissão
-    var ultimaAtividadeIso = admAtivaPorSocio[sid];
-    finalizadas.forEach(function(m) {
+    // Toda matrícula efetivada é curso registrado, inclusive desistências.
+    // Caso seja um cadastro indevido, o vínculo deve ser removido por exclusão
+    // lógica, e não ignorado nos indicadores.
+    var cursosRealizados = matSocio.filter(function(m) {
+      return boolVal(m[cm.matriculado]) && !!cursosMap[String(m[cm.curso_id])];
+    });
+    var ultimaAtividadeIso = ultimaAdmissaoIso;
+    cursosRealizados.forEach(function(m) {
       var c = cursosMap[String(m[cm.curso_id])] || [];
-      var dtTer = toIso(c[cc.data_termino]);
-      if (dtTer && dtTer > ultimaAtividadeIso) ultimaAtividadeIso = dtTer;
+      var fimCurso = toIso(c[cc.data_termino]);
+      var fimMatricula = toIso(m[cm.data_termino]);
+      var fimEfetivo = fimCurso;
+      if (fimMatricula && (!fimEfetivo || fimMatricula < fimEfetivo)) fimEfetivo = fimMatricula;
+      if (fimEfetivo && fimEfetivo > ultimaAtividadeIso) ultimaAtividadeIso = fimEfetivo;
     });
 
     var diasSemCurso = Math.max(0, Math.round((new Date(hoje) - new Date(ultimaAtividadeIso)) / 86400000));
-    // Só conta como "curso ativo" quem está efetivamente Matriculado (e ainda não com término registrado).
-    var cursoAtivo = matSocio.some(function(m) {
-      return m[cm.matriculado] === true && !toIso(m[cm.data_termino]);
+    var cursoAtivo = cursosRealizados.some(function(m) {
+      var c = cursosMap[String(m[cm.curso_id])] || [];
+      var inicio = toIso(c[cc.data_inicio]), fim = toIso(c[cc.data_termino]);
+      return inicio && inicio <= hoje && (!fim || fim >= hoje) && !toIso(m[cm.data_termino]);
     });
 
     semCursoRecente.push({
-      id:                   sid,
-      nome:                 socio.nome,
+      id: sid,
+      nome: socio.nome,
+      status: status,
       ultima_atividade_iso: ultimaAtividadeIso,
-      ultima_atividade:     fmtDate(ultimaAtividadeIso),
-      dias_sem_curso:       diasSemCurso,
-      total_cursos:         matSocio.length,
-      tem_curso_ativo:      cursoAtivo,
-      interesses:           (interessesPorSocio[sid] || []).map(function(it) { return it.interesse; })
+      ultima_atividade: fmtDate(ultimaAtividadeIso),
+      dias_sem_curso: diasSemCurso,
+      total_cursos: cursosRealizados.length,
+      tem_curso_ativo: cursoAtivo,
+      interesses: (interessesPorSocio[sid] || []).map(function(it) { return it.interesse; })
     });
   });
 
@@ -6992,11 +7235,11 @@ function carregarPaginaCursos(incluirDesligados) {
   // ── 3. Cursos em andamento ────────────────────────────────────
   // Um curso só é considerado "em andamento" quando a data atual está entre a
   // data de início e a data de término (calcularStatusCurso). Cursos futuros
-  // ("Previsto") ou já encerrados por data não entram nesta seção. Só ocupa
-  // vaga quem está efetivamente matriculado (booleano true) e sem término
-  // registrado — mas o modal de detalhes deve listar TODOS os vínculos do
-  // curso (interessados, desistentes e concluídos inclusive), não só quem
-  // está ocupando vaga no momento.
+  // ("Previsto") ou já encerrados por data não entram nesta seção. O curso
+  // aparece mesmo sem matriculados; só ocupa vaga quem está efetivamente
+  // matriculado (booleano true) e sem término registrado. O modal de detalhes
+  // lista TODOS os vínculos do curso (interessados, desistentes e concluídos
+  // inclusive), não só quem está ocupando vaga no momento.
   var andamentoMap = {};
   rowsCursos.forEach(function(c) {
     var dataInicioIso = toIso(c[cc.data_inicio]);
@@ -7006,10 +7249,8 @@ function carregarPaginaCursos(incluirDesligados) {
     var cursoId = String(c[cc.id]);
       var matriculasCurso = matriculasVisiveisCurso(cursoId);
     var matriculados = matriculasCurso.filter(function(m) {
-      return m[cm.matriculado] === true && !toIso(m[cm.data_termino]);
+      return boolVal(m[cm.matriculado]) && !toIso(m[cm.data_termino]);
     });
-    if (!matriculados.length) return;
-
     andamentoMap[cursoId] = {
       id:              cursoId,
       tipo_curso:      String(c[cc.tipo_curso]      || ''),
@@ -7035,7 +7276,7 @@ function carregarPaginaCursos(incluirDesligados) {
           nome:           socio.nome,
           unidade_ativa:  socio.unidade_ativa !== false,
           matricula_id:   String(m[cm.id]),
-          matriculado:    m[cm.matriculado] === true,
+          matriculado:    boolVal(m[cm.matriculado]),
           tipo_termino:   String(m[cm.tipo_termino] || ''),
           observacoes:    String(m[cm.observacoes]     || ''),
           data_termino:   fmtDate(m[cm.data_termino]),
@@ -7055,6 +7296,7 @@ function carregarPaginaCursos(incluirDesligados) {
     cursos_encerrados:     cursosEncerrados,
     sem_curso_recente:     semCursoRecente,
     cursos_andamento:      cursosAndamento,
+    socioeducandos_por_mes: montarHistoricoSocioeducandosCursosPorMes().meses,
     socioeducandos:        socioeducandos
   };
 }
