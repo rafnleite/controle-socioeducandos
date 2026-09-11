@@ -536,7 +536,7 @@ function iconifyHtml(html){
   return out;
 }
 function fecharModaisAbertos(){
-  ['modal-confirmacao','modal-detalhes-curso','modal-editar-curso','modal-editar-vinculo','modal-editar-matriculas-lote','modal-readmissao','modal-nao-realizado','modal-curso-evento-dia','modal-socioeducandos-cursos-mes'].forEach(function(id){
+  ['modal-confirmacao','modal-detalhes-curso','modal-editar-curso','modal-editar-vinculo','modal-editar-matriculas-lote','modal-readmissao','modal-nao-realizado','modal-curso-evento-dia','modal-socioeducandos-cursos-mes','modal-ausencias-curso'].forEach(function(id){
     var el = document.getElementById(id);
     if (el) el.remove();
   });
@@ -1097,6 +1097,125 @@ function mostrarPaginaCursos() {
     .carregarPaginaCursos();
 }
 
+var AUSENCIAS_CURSO_ID = null;
+
+function mostrarTelaAusenciasCursos(cursoId, dataIsoInicial) {
+  if (!cursoId) { showError(new Error('Curso não identificado.')); return; }
+  navActive('btn-nav-cursos');
+  setBusyState(true, 'Carregando datas de aula...');
+  google.script.run
+    .withSuccessHandler(function(d) { setBusyState(false); renderTelaAusenciasCursos(d, dataIsoInicial); })
+    .withFailureHandler(function(e) { setBusyState(false); showError(e); })
+    .carregarTelaAusenciasCursos(cursoId);
+}
+
+function renderTelaAusenciasCursos(d, dataIsoInicial) {
+  var curso = d && d.curso;
+  if (!curso) { showError(new Error('Curso não encontrado.')); return; }
+  var existente = document.getElementById('modal-ausencias-curso');
+  if (existente) existente.remove();
+  AUSENCIAS_CURSO_ID = String(curso.id);
+  var datas = curso.datas || [];
+  var dataValida = datas.some(function(item) { return String(item.data_iso) === String(dataIsoInicial || ''); });
+  var opcoesDatas = '<option value="">Selecione uma data...</option>' + datas.map(function(item) {
+    return '<option value="'+esc(item.data_iso)+'"'+(dataValida && String(item.data_iso) === String(dataIsoInicial) ? ' selected' : '')+'>'+esc(item.data)+'</option>';
+  }).join('');
+  var html = '<div class="perfil-modal-card" style="max-width:1000px;width:96%;max-height:90vh;overflow-y:auto">'
+    +'<div class="page-hdr"><div><h4><i class="fa-solid fa-user-clock"></i> Lançar ausências</h4><small><strong>'+esc(curso.nome || ('Curso '+curso.id))+'</strong>'+(curso.tipo ? ' · '+esc(curso.tipo) : '')+' · selecione a data da aula e marque os ausentes.</small></div>'
+    +'<button class="modal-close-x" onclick="fecharModalAusenciasCurso()" title="Fechar"><i class="fa-solid fa-xmark"></i></button></div>'
+    +'<div id="auc-msg"></div>'
+    +'<div class="row2" style="margin-bottom:16px">'
+      +'<div class="form-group"><label>Curso</label><div class="form-control" style="height:auto;min-height:38px;background:#f8f9fc">'+esc(curso.nome || ('Curso '+curso.id))+'</div></div>'
+      +'<div class="form-group"><label>Data da aula</label><select id="auc-data"'+(!datas.length ? ' disabled' : '')+' onchange="carregarDadosAusenciasCursoSelecionado()">'+opcoesDatas+'</select></div>'
+    +'</div>'
+    +'<div id="auc-lista"><p class="no-records">Selecione uma data para listar os matriculados.</p></div>'
+    +'</div>';
+  var overlay = document.createElement('div');
+  overlay.id = 'modal-ausencias-curso';
+  overlay.className = 'perfil-modal-overlay';
+  overlay.innerHTML = html;
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) fecharModalAusenciasCurso(); });
+  document.body.appendChild(overlay);
+  if (dataValida) carregarDadosAusenciasCursoSelecionado();
+}
+
+function fecharModalAusenciasCurso() {
+  var modal = document.getElementById('modal-ausencias-curso');
+  if (modal) modal.remove();
+  AUSENCIAS_CURSO_ID = null;
+}
+
+function carregarDadosAusenciasCursoSelecionado() {
+  var cursoId = AUSENCIAS_CURSO_ID;
+  var dataIso = document.getElementById('auc-data') && document.getElementById('auc-data').value;
+  if (!cursoId || !dataIso) return;
+  setBusyState(true, 'Carregando matriculados...');
+  google.script.run
+    .withSuccessHandler(function(d) { setBusyState(false); renderListaAusenciasCurso(d); })
+    .withFailureHandler(function(e) { setBusyState(false); showError(e); })
+    .carregarAusenciasCursoData(cursoId, dataIso);
+}
+
+function renderListaAusenciasCurso(d) {
+  var lista = document.getElementById('auc-lista');
+  if (!lista) return;
+  var matriculados = d && d.matriculados || [];
+  if (!matriculados.length) {
+    lista.innerHTML = '<p class="no-records">Nenhum socioeducando matriculado nesta data.</p>';
+    return;
+  }
+  var linhas = matriculados.map(function(m) {
+    return '<tr class="auc-row" data-matricula-id="'+esc(m.matricula_id)+'">'
+      +'<td><strong>'+esc(m.nome)+'</strong>'+(m.unidade_ativa === false ? '<div style="margin-top:4px"><span class="badge b-red">Desligado atualmente</span></div>' : '')+'<br><small class="text-muted">ID SUASE #'+esc(m.socioeducando_id)+'</small></td>'
+      +'<td style="text-align:center"><label style="display:inline-flex;align-items:center;gap:7px;font-weight:600"><input type="checkbox" class="auc-ausente"'+(m.ausente ? ' checked' : '')+'> Ausente</label></td>'
+      +'<td><textarea class="auc-obs" rows="2" placeholder="Observações" style="resize:vertical">'+esc(m.observacoes || '')+'</textarea></td>'
+      +'</tr>';
+  }).join('');
+  lista.innerHTML = '<div class="d-flex gap-2" style="margin-bottom:10px">'
+    +'<button class="btn btn-outline btn-xs" onclick="marcarAusenciasCursoTodas(true)"><i class="fa-solid fa-check-double"></i> Marcar todos como ausentes</button>'
+    +'<button class="btn btn-outline btn-xs" onclick="marcarAusenciasCursoTodas(false)"><i class="fa-solid fa-rotate-left"></i> Limpar ausências</button></div>'
+    +'<div style="overflow-x:auto"><table><thead><tr><th>Socioeducando</th><th style="text-align:center">Presença</th><th>Observações</th></tr></thead><tbody>'+linhas+'</tbody></table></div>'
+    +'<div class="d-flex gap-2" style="margin-top:16px"><button class="btn btn-primary" onclick="salvarAusenciasCursoSelecionado()"><i class="fa-solid fa-floppy-disk"></i> Salvar presença</button></div>';
+}
+
+function marcarAusenciasCursoTodas(valor) {
+  document.querySelectorAll('#auc-lista .auc-ausente').forEach(function(input) { input.checked = !!valor; });
+}
+
+function salvarAusenciasCursoSelecionado() {
+  var cursoId = AUSENCIAS_CURSO_ID;
+  var dataIso = document.getElementById('auc-data').value;
+  var itens = Array.from(document.querySelectorAll('#auc-lista .auc-row')).map(function(tr) {
+    return {
+      matricula_id: tr.getAttribute('data-matricula-id'),
+      ausente: tr.querySelector('.auc-ausente').checked,
+      observacoes: tr.querySelector('.auc-obs').value.trim()
+    };
+  });
+  if (!cursoId || !dataIso || !itens.length) return;
+  setBusyState(true, 'Salvando presença...');
+  google.script.run
+    .withSuccessHandler(function(d) {
+      setBusyState(false);
+      var msg = document.getElementById('auc-msg');
+      if (msg) msg.innerHTML = '<div class="alert alert-success"><i class="fa-solid fa-circle-check"></i> Presença salva para '+esc(String((d && d.salvos) || itens.length))+' socioeducando(s).</div>';
+      carregarDadosAusenciasCursoSelecionado();
+    })
+    .withFailureHandler(function(e) { setBusyState(false); var msg = document.getElementById('auc-msg'); if (msg) msg.innerHTML = '<div class="alert alert-danger"><i class="fa-solid fa-circle-xmark"></i> '+esc(e.message)+'</div>'; })
+    .salvarAusenciasCursoLote(cursoId, dataIso, itens);
+}
+
+function gerarAcompanhamentoCurso(cursoId) {
+  iniciarProgressoAcompanhamentoCursos();
+  google.script.run
+    .withSuccessHandler(function(arquivo) {
+      try { baixarArquivoCursosXlsx(arquivo); finalizarProgressoAcompanhamentoCursos(); }
+      catch (e) { finalizarProgressoAcompanhamentoCursos(); showError(e); }
+    })
+    .withFailureHandler(function(e) { finalizarProgressoAcompanhamentoCursos(); showError(e); })
+    .gerarAcompanhamentoCursoXlsx(cursoId);
+}
+
 function gerarRelatoriosCursos() {
   setBusyState(true, 'Gerando relatórios de cursos...');
   google.script.run
@@ -1418,6 +1537,10 @@ function renderPaginaCursos(d) {
     }).join('');
   }
 
+  function botaoLancarAusenciasCurso(cursoId) {
+    return '<button class="btn btn-outline btn-xs" onclick="mostrarTelaAusenciasCursos(\''+esc(cursoId)+'\')"><i class="fa-solid fa-user-clock"></i> Ausências</button> ';
+  }
+
   var linhasEnc = pagEnc.itens.length === 0
     ? '<tr><td colspan="10" class="no-records">Nenhum curso com inscrições abertas.</td></tr>'
     : pagEnc.itens.map(function(c) {
@@ -1435,6 +1558,7 @@ function renderPaginaCursos(d) {
             +'<button class="btn btn-outline btn-xs" onclick="abrirEditarCursoEncerramento(\''+esc(c.id)+'\')"><i class="fa-solid fa-pen-to-square"></i> Editar</button> '
             +'<button class="btn btn-outline btn-xs" onclick="abrirEditarMatriculasCurso(\''+esc(c.id)+'\')"><i class="fa-solid fa-users-gear"></i> Editar matrícula</button> '
             +'<button class="btn btn-outline btn-xs" onclick="abrirDetalhesCursoEncerramento(\''+esc(c.id)+'\')"><i class="fa-solid fa-circle-info"></i> Detalhes</button> '
+            +botaoLancarAusenciasCurso(c.id)
             +'<button class="btn btn-outline btn-xs" style="color:#dc3545;border-color:#dc3545" onclick="excluirCursoUI(\''+esc(c.id)+'\')"><i class="fa-solid fa-trash"></i> Excluir</button>'
           +'</td>'
           +'</tr>';
@@ -1455,6 +1579,7 @@ function renderPaginaCursos(d) {
             +'<button class="btn btn-outline btn-xs" onclick="abrirEditarCursoEncerramento(\''+esc(c.id)+'\')"><i class="fa-solid fa-pen-to-square"></i> Editar</button> '
             +'<button class="btn btn-outline btn-xs" onclick="abrirEditarMatriculasCurso(\''+esc(c.id)+'\')"><i class="fa-solid fa-users-gear"></i> Editar matrícula</button> '
             +'<button class="btn btn-outline btn-xs" onclick="abrirDetalhesCursoEncerramento(\''+esc(c.id)+'\')"><i class="fa-solid fa-circle-info"></i> Detalhes</button> '
+            +botaoLancarAusenciasCurso(c.id)
             +'<button class="btn btn-outline btn-xs" style="color:#dc3545;border-color:#dc3545" onclick="excluirCursoUI(\''+esc(c.id)+'\')"><i class="fa-solid fa-trash"></i> Excluir</button>'
           +'</td>'
           +'</tr>';
@@ -1503,6 +1628,7 @@ function renderPaginaCursos(d) {
             +'<button class="btn btn-outline btn-xs" onclick="abrirEditarCursoEncerramento(\''+esc(c.id)+'\')"><i class="fa-solid fa-pen-to-square"></i> Editar</button> '
             +'<button class="btn btn-outline btn-xs" onclick="abrirEditarMatriculasCurso(\''+esc(c.id)+'\')"><i class="fa-solid fa-users-gear"></i> Editar matrícula</button> '
             +'<button class="btn btn-outline btn-xs" onclick="abrirDetalhesCursoEncerramento(\''+esc(c.id)+'\')"><i class="fa-solid fa-circle-info"></i> Detalhes</button> '
+            +botaoLancarAusenciasCurso(c.id)
             +'<button class="btn btn-outline btn-xs" style="color:#dc3545;border-color:#dc3545" onclick="excluirCursoUI(\''+esc(c.id)+'\')"><i class="fa-solid fa-trash"></i> Excluir</button>'
           +'</td>'
           +'</tr>';
@@ -1534,6 +1660,7 @@ function renderPaginaCursos(d) {
             +'<button class="btn btn-outline btn-xs" onclick="abrirEditarCursoEncerramento(\''+esc(c.id)+'\')"><i class="fa-solid fa-pen-to-square"></i> Editar</button> '
             +'<button class="btn btn-outline btn-xs" onclick="abrirEditarMatriculasCurso(\''+esc(c.id)+'\')"><i class="fa-solid fa-users-gear"></i> Editar matrícula</button> '
             +'<button class="btn btn-outline btn-xs" onclick="abrirDetalhesCursoEncerramento(\''+esc(c.id)+'\')"><i class="fa-solid fa-circle-info"></i> Detalhes</button> '
+            +botaoLancarAusenciasCurso(c.id)
             +'<button class="btn btn-outline btn-xs" style="color:#dc3545;border-color:#dc3545" onclick="excluirCursoUI(\''+esc(c.id)+'\')"><i class="fa-solid fa-trash"></i> Excluir</button>'
           +'</td></tr>';
       }).join('');
@@ -1886,6 +2013,7 @@ function abrirDetalhesCursoEncerramento(cursoId) {
     +(c.data_limite_inscricao_iso ? '<div style="grid-column:1 / -1"><span class="text-muted" style="font-size:11px">LIMITE DE INSCRIÇÃO</span><div>'+limiteInscricaoInfo(c)+'</div></div>' : '')
     +(c.observacoes ? '<div style="grid-column:1 / -1"><span class="text-muted" style="font-size:11px">OBSERVAÇÕES</span><div>'+escNl(c.observacoes)+'</div></div>' : '')
     +'</div>'
+    +'<div class="d-flex gap-2" style="margin:0 0 14px;justify-content:flex-end"><button class="btn btn-outline btn-xs" onclick="gerarAcompanhamentoCurso(\''+esc(c.id)+'\')"><i class="fa-solid fa-file-excel"></i> Gerar acompanhamento</button></div>'
     +(blocosStatus || '<p class="no-records">Nenhum vínculo registrado.</p>')
     +'</div>';
 
@@ -6879,6 +7007,7 @@ function buildResumoDiaHtml(ad){
       +(subtitulo.length ? '<span class="text-muted" style="font-size:11px">'+esc(subtitulo.join(' - '))+'</span>' : '')
       +'<span style="font-size:11px">'+horario+'</span>'
       +'<span class="text-muted" style="font-size:11px">'+totalSocioeducandos+' socioeducando'+(totalSocioeducandos === 1 ? '' : 's')+'</span>'
+      +'<button class="btn btn-outline btn-xs" onclick="event.stopPropagation();mostrarTelaAusenciasCursos(\''+esc(g.curso_id)+'\',\''+esc(diaIso)+'\')"><i class="fa-solid fa-user-clock"></i> Lançar ausências</button>'
       +'</div>';
   }
 

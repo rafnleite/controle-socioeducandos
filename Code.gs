@@ -570,7 +570,14 @@ function fmtDate(val) {
   if (val instanceof Date) {
     d = val;
   } else {
-    d = new Date(val);
+    var texto = String(val).trim();
+    // Strings ISO somente com data devem ser interpretadas como data local.
+    // new Date('yyyy-MM-dd') usa meia-noite UTC e pode exibir o dia anterior
+    // em fusos como America/Sao_Paulo.
+    var partesIso = texto.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    d = partesIso
+      ? new Date(Number(partesIso[1]), Number(partesIso[2]) - 1, Number(partesIso[3]), 12, 0, 0, 0)
+      : new Date(val);
     if (isNaN(d.getTime())) return String(val);
   }
   var dd = String(d.getDate()).padStart(2, '0');
@@ -597,7 +604,10 @@ function toIso(val) {
   if (val instanceof Date) {
     return Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
   }
-  return String(val).substring(0, 10);
+  var texto = String(val).trim();
+  var partesBr = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (partesBr) return partesBr[3] + '-' + partesBr[2] + '-' + partesBr[1];
+  return texto.substring(0, 10);
 }
 
 function boolVal(v) {
@@ -3823,6 +3833,141 @@ function salvarCursoEventoDia(dados) {
   return { ok: true, id: linha[ce.id], atualizado: false };
 }
 
+/** Dados iniciais da tela operacional de lançamento de ausências por curso. */
+function carregarTelaAusenciasCursos(cursoIdSelecionado) {
+  if (!cursoIdSelecionado) throw new Error('Curso não identificado.');
+  var cc = getCursosCols();
+  var cursos = getRowsAtivas(SHEETS.CURSOS).map(function(curso) {
+    var inicio = toIso(curso[cc.data_inicio]);
+    var termino = toIso(curso[cc.data_termino]);
+    var datas = datasAulasAcompanhamentoCurso(inicio, termino, curso[cc.dias_semana]);
+    return {
+      id: String(curso[cc.id]),
+      nome: String(curso[cc.nome_curso] || ''),
+      tipo: String(curso[cc.tipo_curso] || ''),
+      data_inicio: fmtDate(curso[cc.data_inicio]),
+      data_termino: fmtDate(curso[cc.data_termino]),
+      datas: datas.map(function(data) {
+        var iso = _formatIsoDateLocal(data);
+        return { data_iso: iso, data: fmtDate(iso) };
+      })
+    };
+  }).filter(function(curso) {
+    return String(curso.id) === String(cursoIdSelecionado);
+  }).sort(function(a, b) {
+    return a.nome.localeCompare(b.nome, 'pt-BR') || a.id.localeCompare(b.id);
+  });
+  if (!cursos.length) throw new Error('Curso não encontrado.');
+  return { curso: cursos[0] };
+}
+
+/** Lista os matriculados e a situação já registrada para uma aula. */
+function carregarAusenciasCursoData(cursoId, dataIso) {
+  if (!cursoId) throw new Error('Curso não identificado.');
+  if (!dataIso || !/^\d{4}-\d{2}-\d{2}$/.test(String(dataIso))) throw new Error('Data inválida.');
+
+  var cc = getCursosCols(), cm = getCursoMatriculasCols(), cs = getSocioeducandosCols(), ce = getCursoEventosCols();
+  var curso = getRowsAtivas(SHEETS.CURSOS).find(function(r) { return String(r[cc.id]) === String(cursoId); });
+  if (!curso) throw new Error('Curso não encontrado.');
+  var dataAulaValida = datasAulasAcompanhamentoCurso(toIso(curso[cc.data_inicio]), toIso(curso[cc.data_termino]), curso[cc.dias_semana]).some(function(data) {
+    return _formatIsoDateLocal(data) === String(dataIso);
+  });
+  if (!dataAulaValida) throw new Error('A data selecionada não corresponde a um dia de aula deste curso.');
+
+  var socios = {};
+  getSocioeducandosComStatusUnidade().forEach(function(socio) { socios[String(socio.id)] = socio; });
+  var eventos = {};
+  getRowsAtivas(SHEETS.CURSO_EVENTOS).forEach(function(evento) {
+    if (toIso(evento[ce.data]) === String(dataIso)) eventos[String(evento[ce.curso_matricula_id])] = evento;
+  });
+
+  var matriculados = getRowsAtivas(SHEETS.CURSO_MATRICULAS)
+    .filter(function(matricula) {
+      if (String(matricula[cm.curso_id]) !== String(cursoId) || !boolVal(matricula[cm.matriculado])) return false;
+      var termino = toIso(matricula[cm.data_termino]);
+      // A data X de conclusão/desligamento ainda é válida; a partir do dia
+      // seguinte o socioeducando não aparece mais para lançar ausências.
+      if (termino && termino < String(dataIso)) return false;
+      return !!socios[String(matricula[cm.socioeducando_id])];
+    })
+    .map(function(matricula) {
+      var socio = socios[String(matricula[cm.socioeducando_id])];
+      var evento = eventos[String(matricula[cm.id])];
+      return {
+        matricula_id: String(matricula[cm.id]),
+        socioeducando_id: String(matricula[cm.socioeducando_id]),
+        nome: String(socio.nome || ''),
+        unidade_ativa: socio.unidade_ativa !== false,
+        registrado: !!evento,
+        ausente: evento ? boolVal(evento[ce.ausente]) : false,
+        observacoes: evento ? String(evento[ce.observacoes] || '') : ''
+      };
+    })
+    .sort(function(a, b) { return a.nome.localeCompare(b.nome, 'pt-BR') || a.socioeducando_id.localeCompare(b.socioeducando_id); });
+
+  return {
+    curso: { id: String(curso[cc.id]), nome: String(curso[cc.nome_curso] || ''), tipo: String(curso[cc.tipo_curso] || '') },
+    data_iso: String(dataIso),
+    data: fmtDate(dataIso),
+    matriculados: matriculados
+  };
+}
+
+/** Salva presença/falta e observações de todos os matriculados da aula. */
+function salvarAusenciasCursoLote(cursoId, dataIso, itens) {
+  if (!cursoId) throw new Error('Curso não identificado.');
+  if (!dataIso || !/^\d{4}-\d{2}-\d{2}$/.test(String(dataIso))) throw new Error('Data inválida.');
+  if (!Array.isArray(itens)) throw new Error('Lista de socioeducandos inválida.');
+
+  var cm = getCursoMatriculasCols(), ce = getCursoEventosCols();
+  var cc = getCursosCols();
+  var curso = getRowsAtivas(SHEETS.CURSOS).find(function(cursoRow) { return String(cursoRow[cc.id]) === String(cursoId); });
+  if (!curso) throw new Error('Curso não encontrado.');
+  var dataAulaValida = datasAulasAcompanhamentoCurso(toIso(curso[cc.data_inicio]), toIso(curso[cc.data_termino]), curso[cc.dias_semana]).some(function(data) {
+    return _formatIsoDateLocal(data) === String(dataIso);
+  });
+  if (!dataAulaValida) throw new Error('A data selecionada não corresponde a um dia de aula deste curso.');
+
+  var matriculas = getRowsAtivas(SHEETS.CURSO_MATRICULAS).filter(function(m) {
+    if (String(m[cm.curso_id]) !== String(cursoId) || !boolVal(m[cm.matriculado])) return false;
+    var termino = toIso(m[cm.data_termino]);
+    return !termino || termino >= String(dataIso);
+  });
+  var porId = {};
+  matriculas.forEach(function(m) { porId[String(m[cm.id])] = m; });
+
+  var sh = getSheet(SHEETS.CURSO_EVENTOS), rows = getRows(SHEETS.CURSO_EVENTOS);
+  var user = usuarioAtual(), agora = new Date(), salvos = 0;
+  itens.forEach(function(item) {
+    var matricula = porId[String(item.matricula_id)];
+    if (!matricula) throw new Error('Matrícula de curso inválida: ' + String(item.matricula_id || ''));
+    var idx = rows.findIndex(function(r) {
+      var deletado = ce.deletado_em >= 0 ? toIso(r[ce.deletado_em]) : '';
+      return !deletado && String(r[ce.curso_matricula_id]) === String(item.matricula_id) && toIso(r[ce.data]) === String(dataIso);
+    });
+    var totalCols = sh.getLastColumn(), linha = new Array(totalCols).fill('');
+    linha[ce.curso_matricula_id] = Number(item.matricula_id);
+    linha[ce.data] = String(dataIso);
+    linha[ce.ausente] = !!item.ausente;
+    linha[ce.observacoes] = String(item.observacoes || '').trim();
+    if (idx >= 0) {
+      linha[ce.id] = Number(rows[idx][ce.id]);
+      linha[ce.registrado_em] = rows[idx][ce.registrado_em] || agora;
+      linha[ce.criadoPor] = rows[idx][ce.criadoPor] || user;
+      if (ce.atualizadoEm >= 0) linha[ce.atualizadoEm] = agora;
+      if (ce.atualizadoPor >= 0) linha[ce.atualizadoPor] = user;
+      sh.getRange(idx + 2, 1, 1, totalCols).setValues([linha]);
+    } else {
+      linha[ce.id] = nextId(SHEETS.CURSO_EVENTOS);
+      linha[ce.registrado_em] = agora;
+      linha[ce.criadoPor] = user;
+      sh.getRange(sh.getLastRow() + 1, 1, 1, totalCols).setValues([linha]);
+    }
+    salvos++;
+  });
+  return { ok: true, salvos: salvos };
+}
+
 function excluirCursoEventoDia(id) {
   if (!id) throw new Error('Registro não identificado.');
   var ce = getCursoEventosCols();
@@ -6530,16 +6675,57 @@ function gerarAcompanhamentoCursosXlsx() {
   }
 }
 
-function montarDadosAcompanhamentoCursos() {
+/** Gera o acompanhamento de um curso específico, independentemente do status temporal. */
+function gerarAcompanhamentoCursoXlsx(cursoId) {
+  if (!cursoId) throw new Error('Curso não identificado.');
+  var cursos = montarDadosAcompanhamentoCursos(String(cursoId));
+  if (!cursos.length) throw new Error('Curso não encontrado ou sem dados para gerar o acompanhamento.');
+
+  var arquivoTemporario = SpreadsheetApp.create('Acompanhamento de curso - temporario');
+  var arquivoId = arquivoTemporario.getId();
+  try {
+    var curso = cursos[0];
+    var aba = arquivoTemporario.getSheets()[0];
+    aba.setName(nomeAbaAcompanhamentoCurso(curso.nome_curso, curso.id, {}));
+    preencherAbaAcompanhamentoCurso(aba, curso);
+    SpreadsheetApp.flush();
+    var nome = 'Acompanhamento_de_curso_' + String(curso.nome_curso || curso.id).replace(/[^a-zA-Z0-9À-ÿ _-]/g, '_').substring(0, 70) + '_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd') + '.xlsx';
+    var mimeXlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    var resposta = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + arquivoId + '/export?format=xlsx', {
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+      muteHttpExceptions: true
+    });
+    if (resposta.getResponseCode() !== 200) {
+      throw new Error('Não foi possível converter o acompanhamento para XLSX (código ' + resposta.getResponseCode() + ').');
+    }
+    var blob = resposta.getBlob().setContentType(mimeXlsx).setName(nome);
+    return { nome: nome, mime_type: mimeXlsx, base64: Utilities.base64Encode(blob.getBytes()) };
+  } finally {
+    // A exportação precisa funcionar também para usuários com perfil Leitor.
+  }
+}
+
+function montarDadosAcompanhamentoCursos(cursoIdSelecionado) {
   var cc = getCursosCols();
   var cm = getCursoMatriculasCols();
   var cs = getSocioeducandosCols();
   var hojeIso = toIso(new Date());
-  // Acompanhamento deve conter somente cursos com status "Em andamento":
-  // nem cursos futuros nem cursos já encerrados entram na exportação.
+  var ce = getCursoEventosCols();
+  var eventosPorMatriculaData = {};
+  getRowsAtivas(SHEETS.CURSO_EVENTOS).forEach(function(evento) {
+    eventosPorMatriculaData[String(evento[ce.curso_matricula_id]) + '|' + toIso(evento[ce.data])] = {
+      ausente: boolVal(evento[ce.ausente]),
+      observacoes: String(evento[ce.observacoes] || '')
+    };
+  });
+
+  // O relatório geral considera somente cursos em andamento. A versão de
+  // curso avulso remove esse filtro para atender cursos previstos/encerrados.
   var cursos = getRowsAtivas(SHEETS.CURSOS).filter(function(curso) {
     var inicioIso = toIso(curso[cc.data_inicio]);
     var terminoIso = toIso(curso[cc.data_termino]);
+    if (cursoIdSelecionado && String(curso[cc.id]) !== String(cursoIdSelecionado)) return false;
+    if (cursoIdSelecionado) return true;
     return inicioIso && terminoIso && calcularStatusCurso(inicioIso, terminoIso, hojeIso) === 'Em andamento';
   });
   var matriculas = getRowsAtivas(SHEETS.CURSO_MATRICULAS);
@@ -6570,6 +6756,7 @@ function montarDadosAcompanhamentoCursos() {
         return {
           nome: socioMap[String(matricula[cm.socioeducando_id])],
           id: String(matricula[cm.socioeducando_id]),
+          matricula_id: String(matricula[cm.id]),
           data_termino_iso: toIso(matricula[cm.data_termino])
         };
       })
@@ -6584,10 +6771,12 @@ function montarDadosAcompanhamentoCursos() {
     datasCurso.forEach(function(data) {
       var dataIso = _formatIsoDateLocal(data);
       inscritos.forEach(function(socio) {
-        // Em caso de abandono/conclusão antecipada, não cria chamadas depois
-        // do término da matrícula. O próprio dia do término continua válido.
-        if (!socio.data_termino_iso || socio.data_termino_iso >= dataIso) {
-          linhas.push([socio.nome, '', data, '']);
+        // A data de término vale igualmente para desistência e conclusão:
+        // não cria chamadas depois dela, mas mantém o próprio dia do término.
+        var terminouAntesDestaAula = socio.data_termino_iso && socio.data_termino_iso < dataIso;
+        if (!terminouAntesDestaAula) {
+          var evento = dataIso < hojeIso ? eventosPorMatriculaData[String(socio.matricula_id) + '|' + dataIso] : null;
+          linhas.push([socio.nome, '', data, '', '', evento ? (evento.ausente ? 'Falta' : 'Presente') : '', evento ? evento.observacoes : '']);
         }
       });
     });
@@ -6681,7 +6870,7 @@ function preencherAbaAcompanhamentoCurso(aba, curso) {
     ['Dias da semana', curso.dias_semana || ''],
     ['Horário', horario]
   ];
-  var cabecalhosRegistros = ['Nome do socioeducando', 'Documento', 'Data', 'Observações'];
+  var cabecalhosRegistros = ['Nome do socioeducando', 'Documento', 'Data', 'Horário de entrada', 'Horário de saída', 'Presença', 'Observações'];
 
   aba.clear();
   aba.getRange(1, 1, metadados.length, 2).setValues(metadados);
@@ -6702,12 +6891,29 @@ function preencherAbaAcompanhamentoCurso(aba, curso) {
       .setVerticalAlignment('top').setWrap(true);
     aba.getRange(10, 3, curso.linhas.length, 1).setNumberFormat('dd/mm/yyyy');
     aba.getRange(9, 1, curso.linhas.length + 1, cabecalhosRegistros.length).createFilter();
+    aba.getRange(10, 4, curso.linhas.length, 2).setNumberFormat('hh:mm');
+    var presencaRange = aba.getRange(10, 6, curso.linhas.length, 1);
+    presencaRange.setDataValidation(SpreadsheetApp.newDataValidation()
+      .requireValueInList(['Presente', 'Falta'], true)
+      .setAllowInvalid(false)
+      .build());
+    aba.setConditionalFormatRules([
+      SpreadsheetApp.newConditionalFormatRule()
+        .whenTextEqualTo('Presente').setBackground('#d9ead3').setFontColor('#274e13')
+        .setRanges([presencaRange]).build(),
+      SpreadsheetApp.newConditionalFormatRule()
+        .whenTextEqualTo('Falta').setBackground('#f4cccc').setFontColor('#990000')
+        .setRanges([presencaRange]).build()
+    ]);
   }
   aba.setFrozenRows(9);
   aba.setColumnWidth(1, 260);
   aba.setColumnWidth(2, 150);
   aba.setColumnWidth(3, 110);
-  aba.setColumnWidth(4, 400);
+  aba.setColumnWidth(4, 125);
+  aba.setColumnWidth(5, 125);
+  aba.setColumnWidth(6, 105);
+  aba.setColumnWidth(7, 400);
 }
 
 function montarDadosRelatoriosCursos() {
