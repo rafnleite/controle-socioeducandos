@@ -50,6 +50,12 @@ erDiagram
     string Nome
     date Data_de_Nascimento
     string Escolaridade
+    string RG
+    string CPF
+    string Certidao_de_Nascimento
+    string Titulo_de_Eleitor
+    string Carteira_de_Trabalho
+    string Alistamento_no_Exercito
     string Email_Profissional
     string Senha_Profissional_Criptografada
     datetime Registrado_em
@@ -438,6 +444,12 @@ Cadastro mestre dos adolescentes/jovens atendidos pela unidade.
 | `Nome` | string | Nome completo. Sempre normalizado para **maiúsculas** (`.toUpperCase()`) antes de gravar, tanto no cadastro/edição manual quanto na importação via CSV. |
 | `Data de Nascimento` | date | Opcional. Usada para calcular idade no perfil. Não pode ser futura. |
 | `Escolaridade` | string | Lista fechada no formulário (do 1º ano do fundamental ao 3º do médio, ou "Concluído"), mas armazenada como texto livre. |
+| `RG` | string | Situação documental (`Sim`, `Não` ou vazio), mantida pela tela **Cadastrar → Documentos**. |
+| `CPF` | string | Situação documental (`Sim`, `Não` ou vazio), mantida pela tela **Cadastrar → Documentos**. |
+| `Certidão de Nascimento` | string | Situação documental (`Sim`, `Não` ou vazio), mantida pela tela **Cadastrar → Documentos**. |
+| `Título de Eleitor` | string | Situação documental (`Sim`, `Não` ou vazio), mantida pela tela **Cadastrar → Documentos**. |
+| `Carteira de Trabalho` | string | Situação documental (`Sim`, `Não` ou vazio), mantida pela tela **Cadastrar → Documentos**. |
+| `Alistamento no Exército` | string | Situação documental (`Sim`, `Não` ou vazio), mantida pela tela **Cadastrar → Documentos**. |
 | `E-mail Profissional` | string | Opcional. Dado de credencial profissional do socioeducando. Exibido no perfil e no painel geral. |
 | `Senha Profissional (Criptografada)` | string | Opcional. Armazenada apenas em formato criptografado; a senha em texto puro não é persistida em planilha. |
 | `Registrado em` | datetime | Timestamp de criação do registro. |
@@ -446,9 +458,14 @@ Cadastro mestre dos adolescentes/jovens atendidos pela unidade.
 | `Atualizado por` | string | E-mail de quem editou por último. |
 | `Deletado em` / `Deletado por` | datetime / string | Reservadas para futura exclusão lógica; não preenchidas atualmente. |
 
-**Ordem física de colunas:** `E-mail Profissional` e `Senha Profissional (Criptografada)`
-ficam imediatamente após `Escolaridade` (normalizada automaticamente por
-`ensureOrdemColunas`).
+**Ordem física de colunas:** os seis campos documentais ficam após `Escolaridade`,
+seguidos por `E-mail Profissional` e `Senha Profissional (Criptografada)` (ordem
+normalizada automaticamente por `ensureOrdemColunas`).
+
+**Manutenção documental:** `getSocioeducandosInternadosDocumentos` retorna os
+socioeducandos atualmente internados e `salvarDocumentosSocioeducandos` atualiza os
+seis campos em lote. O perfil pode consultar o resumo dos documentos de qualquer
+socioeducando que possua dados registrados.
 
 **Credenciais profissionais (acesso restrito):**
 
@@ -611,9 +628,9 @@ a migração é interrompida para evitar vincular um histórico ao registro inco
 
 ### Oficinas
 
-`TiposOficina` é o catálogo de tipos de oficina. Ele segue o padrão de
-`TiposAtendimento`: não possui ID próprio, não permite edição/exclusão pela aplicação
-e possui somente `Registrado em` e `Criado por`. A inicialização inclui os tipos padrão
+`TiposOficina` é o catálogo de tipos de oficina. Ele não possui ID próprio e usa o
+próprio nome como chave nominal. A interface permite cadastrar, editar e excluir tipos,
+com confirmação quando existem oficinas vinculadas. A inicialização inclui os tipos padrão
 de Oficina Esportiva, Oficina de Profissionalização, Oficina de Macramê, Oficina
 Jurídica e Oficina de Horticultura.
 
@@ -817,7 +834,7 @@ Cat&aacute;logo de especialidades que podem ter um profissional respons&aacute;v
 | `ID` | number (PK) | Gerado por `nextId()`. |
 | `Nome` | string | Nome &uacute;nico da especialidade. |
 | `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | &mdash; | Auditoria. |
-| `Deletado em`, `Deletado por` | &mdash; | Exclus&atilde;o l&oacute;gica reservada pela estrutura. |
+| `Deletado em`, `Deletado por` | &mdash; | Colunas reservadas pela estrutura; a exclusão atual remove a linha após confirmação de dependências. |
 
 ### Equipes
 
@@ -829,7 +846,7 @@ Cadastro das equipes que agrupam os socioeducandos.
 | `Nome` | string | Nome &uacute;nico da equipe. |
 | `Cor` | string | Cor hexadecimal no formato `#RRGGBB`, usada na identifica&ccedil;&atilde;o visual. |
 | `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | &mdash; | Auditoria. |
-| `Deletado em`, `Deletado por` | &mdash; | Exclus&atilde;o l&oacute;gica reservada pela estrutura. |
+| `Deletado em`, `Deletado por` | &mdash; | Colunas reservadas pela estrutura; a exclusão atual remove dependências e a linha após confirmação. |
 
 ### EquipeEspecialistas
 
@@ -843,7 +860,7 @@ nome de especialista registrado para cada especialidade.
 | `ID Especialidade` | number (FK) | Referencia `Especialidades.ID`. |
 | `Nome Especialista` | string | Nome do profissional respons&aacute;vel naquela equipe/especialidade. |
 | `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | &mdash; | Auditoria. |
-| `Deletado em`, `Deletado por` | &mdash; | Exclus&atilde;o l&oacute;gica reservada pela estrutura. |
+| `Deletado em`, `Deletado por` | &mdash; | Colunas reservadas pela estrutura; a edição substitui os responsáveis atuais da equipe. |
 
 ### SocioeducandoEquipes
 
@@ -857,7 +874,7 @@ uma equipe ativa para cada socioeducando; ao escolher outra equipe, o v&iacute;n
 | `ID Socioeducando` | number (FK) | Referencia `Socioeducandos.ID (SUASE)`. |
 | `ID Equipe` | number (FK) | Referencia `Equipes.ID`. |
 | `Registrado em`, `Criado por`, `Atualizado em`, `Atualizado por` | &mdash; | Auditoria. |
-| `Deletado em`, `Deletado por` | &mdash; | Exclus&atilde;o l&oacute;gica reservada pela estrutura. |
+| `Deletado em`, `Deletado por` | &mdash; | Colunas reservadas pela estrutura; a distribuição mantém a equipe ativa ou a opção sem equipe. |
 
 ### InteressesCurso
 

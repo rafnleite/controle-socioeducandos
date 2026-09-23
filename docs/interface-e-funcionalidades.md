@@ -50,8 +50,8 @@ Barra superior (`Main.html`):
 | **Cursos** | `mostrarPaginaCursos()` — página dedicada com cursos próximos do encerramento de inscrição e socioeducandos sem curso recente. |
 | **Oficinas** | `mostrarPaginaOficinas()` — lista de oficinas pontuais, com edição do evento e das matrículas. |
 | **Importar dados** | `mostrarMenuImportar()` — menu de importação de CSV. |
-| **Cadastrar ▾** | menu suspenso: Socioeducandos, Atendimentos, Cursos, Oficinas, Trabalho, Interesses de Curso, Saídas. |
-| **Configurações ▾** | menu suspenso: Tipos de Atendimento e Tipos de Oficina — cadastro e consulta dos catálogos auxiliares. Esses tipos não possuem edição/exclusão pela aplicação. Separado do menu "Cadastrar" por um divisor na barra. |
+| **Cadastrar ▾** | menu suspenso: Socioeducandos, Documentos, Atendimentos, Cursos, Oficinas, Trabalho, Interesses de Curso, Saídas. |
+| **Configurações ▾** | menu suspenso: Tipos de Atendimento, Tipos de Oficina, Especialidades e Equipes e socioeducandos. Os catálogos podem ser mantidos pela interface, com confirmação/dependências quando aplicável. Separado do menu "Cadastrar" por um divisor na barra. |
 | **Busca (topo)** | campo de busca *live* por nome/ID que abre um menu de resultados navegando direto para `mostrarPerfil(id)`. |
 
 A aplicação também aceita parâmetros de URL (`doGet`) para abrir direto em uma tela
@@ -101,6 +101,11 @@ específica: `?page=perfil&id=...`, `?page=atendimento[&id=...]`, `?page=saida`,
   cultural** quando existe vínculo em saída do tipo `Cultural`, não cancelado, com
   status `Realizada` ou com retorno registrado no evento.
 
+- **Equipe do socioeducando**: quando houver uma equipe ativa atribuída, a tabela exibe
+  uma pill colorida com o nome da equipe. O clique abre um modal com a cor, os
+  especialistas responsáveis por especialidade e os socioeducandos ativos daquela equipe.
+  A equipe é mantida em **Configurações → Equipes e socioeducandos**.
+
 **Ajuste recente de desempenho:** o Painel Geral passou a carregar em duas etapas.
 Primeiro renderiza cartões, filtros e tabela principal; depois busca o bloco
 `Resumo do dia` de forma assíncrona. Isso reduz o tempo percebido de abertura do
@@ -122,9 +127,14 @@ está sendo editado apenas como histórico.
 
 - Cabeçalho com dados pessoais, idade, status atual e botão **Editar**.
 - Quando houver dado cadastrado, o cabeçalho também exibe **E-mail profissional**.
+- Quando houver vínculo, o cabeçalho exibe a **equipe** em uma pill colorida; o clique
+  abre os detalhes da equipe (especialistas e membros ativos).
 - Para o usuário autorizado (`luizasoarespedagoga@gmail.com`), o perfil mostra o
   botão **Ver credenciais**, que abre modal com e-mail e senha profissional
   descriptografada.
+- **Documentos**: o cabeçalho e o card de registros permitem abrir um modal com o
+  status dos seis documentos pessoais mantidos para o socioeducando: RG, CPF, Certidão
+  de Nascimento, Título de Eleitor, Carteira de Trabalho e Alistamento no Exército.
 - **Agenda visual (FullCalendar)** dos últimos/próximos 14 dias, combinando saídas,
   atendimentos e ocorrências recorrentes de cursos e trabalhos (por dia da semana). O clique em
   uma ocorrência de curso abre formulário diário para marcar ausência (`Ausente`) e
@@ -160,6 +170,17 @@ está sendo editado apenas como histórico.
   (Prevista/Realizada/Cancelada). Ações: registrar volta (↩️), editar vínculo (✏️).
 - **Fugas/Evasões (aba)**: histórico com ação de registrar retorno (↩️) e editar (✏️).
 
+### Documentos dos Socioeducandos
+
+- A tela **Cadastrar → Documentos** lista somente socioeducandos atualmente internados
+  na unidade, com busca por nome/ID e os seis campos documentais em colunas.
+- Cada documento possui situação `Sim`/`Não`/em branco. O botão de salvar grava as
+  alterações de várias linhas em uma única operação, sem exigir a abertura de cada
+  perfil individualmente.
+- O mesmo resumo pode ser consultado no perfil, pelo link **ver documentos**. A lista
+  de manutenção não inclui evadidos ou desligados, mas o histórico do perfil preserva
+  os dados já cadastrados.
+
 ### Cadastro de Socioeducando
 
 - Formulário único de criação/edição. Na edição, o `ID` é exibido apenas como texto
@@ -180,13 +201,26 @@ está sendo editado apenas como histórico.
   já registrado para aquele socioeducando — vale tanto no cadastro/edição pelo
   formulário de Admissões quanto no fluxo de readmissão acima.
 
+### Equipes, Especialidades e Responsáveis
+
+- **Especialidades**: catálogo editável usado para organizar os responsáveis de cada
+  equipe. A tela permite cadastrar, editar e excluir; a exclusão solicita confirmação
+  quando houver dependências.
+- **Equipes**: cadastro de nome e cor hexadecimal, com edição dos especialistas por
+  especialidade. A listagem mostra a quantidade de socioeducandos ativos vinculados.
+- **Distribuição de socioeducandos**: a mesma tela permite buscar por nome/ID e
+  atribuir uma equipe ou **Sem equipe** a cada socioeducando elegível, salvando a
+  distribuição em lote. A regra operacional mantém no máximo uma equipe ativa por
+  socioeducando.
+- A equipe aparece no Painel Geral e no Perfil, e o modal de detalhes permite consultar
+  especialistas e membros da equipe sem sair do contexto atual.
+
 ### Oficinas
 
 - **Tipos de oficina**: catálogo em Configurações para cadastrar tipos como Oficina
   Esportiva, Oficina de Profissionalização, Oficina de Macramê, Oficina Jurídica e
-  Oficina de Horticultura. Segue o padrão de Tipos de Atendimento: não permite
-  edição/exclusão pela aplicação, não possui ID próprio e não possui colunas de
-  atualização ou exclusão lógica.
+  Oficina de Horticultura. A tela permite cadastrar, editar e excluir tipos, com
+  confirmação quando existem oficinas vinculadas.
 - **Cadastro em lote** (`mostrarFormOficinaLote`): define nome, tipo, responsável,
   data, horários e observações da oficina e permite selecionar os socioeducandos,
   com busca por nome/ID. As matrículas são criadas com `Realizada` nulo; a situação
@@ -205,6 +239,8 @@ está sendo editado apenas como histórico.
 - **Realização da oficina**: no cadastro, a matrícula começa sem informação de
   realização; uma oficina com data futura não permite marcar a matrícula como
   realizada.
+- No perfil, a matrícula da oficina pode ser editada rapidamente; a realização futura
+  continua bloqueada até que o evento possa ser marcado como realizado.
 - Oficinas pontuais aparecem no resumo de atividades do dia somente para participantes
   ativos e continuam aparecendo no histórico/agenda visual do perfil após desligamento.
 
@@ -230,8 +266,10 @@ está sendo editado apenas como histórico.
 - Página "Cursos" dedicada: cursos com inscrição prestes a encerrar (com contagem de
   vagas ocupadas/disponíveis), cursos em andamento, não iniciados e encerrados, além
   de socioeducandos internados sem curso recente. Os detalhes dos cursos exibem
-  somente matrículas de socioeducandos ativos na unidade. A aba de encerrados possui
-  busca, filtros, paginação e acesso às ações de edição, matrículas e detalhes.
+  somente matrículas de socioeducandos ativos na unidade. A página possui abas para
+  andamento, inscrições abertas, não iniciados e encerrados, filtros por tipo/local,
+  busca por curso/instituição e paginação. As ações incluem edição, matrículas,
+  detalhes, ausências e exclusão.
 - Cada curso também pode ser excluído pela ação `Excluir`, com confirmação. A operação
   é lógica: preenche `Deletado em` e `Deletado por`, sem remover fisicamente o curso.
 - **Gerar relatórios** (página "Cursos"): baixa um arquivo `.xlsx` com duas abas:
@@ -248,6 +286,15 @@ está sendo editado apenas como histórico.
 - **Evento diário do curso** (a partir do calendário do perfil): para cada dia de
   ocorrência do curso e socioeducando, o sistema permite CRUD de observação e flag
   `Ausente` em um modal (create/read/update/delete do registro diário).
+- **Lançar ausências por curso**: a ação `Ausências` abre uma tela/modal com seletor
+  de data de aula, lista de matriculados, observação por participante e atalhos para
+  marcar todos como ausentes ou limpar os lançamentos. A data só pode ser uma ocorrência
+  válida do curso e, após a data seguinte, o socioeducando deixa de aparecer para novo
+  lançamento.
+- **Acompanhamento e histórico**: a página oferece relatório geral de cursos, relatório
+  de acompanhamento com uma aba por curso em andamento, acompanhamento de um curso
+  específico mesmo fora do status atual e histórico mensal de socioeducandos por curso,
+  com consulta detalhada e exportação XLSX.
 
 ### Interesses de Curso
 
@@ -296,6 +343,9 @@ está sendo editado apenas como histórico.
   "Cadastrar saídas", o sistema abre um **modal de confirmação detalhado** com
   os conflitos e as ações "Revisar horários" ou "Cadastrar saídas mesmo assim".
   Vínculos com status cancelada não entram no cálculo de conflito.
+- O Painel Geral também destaca saídas encerradas sem retorno confirmado e abre um modal
+  para preencher os retornos individuais em lote, inclusive sinalizando vínculos de
+  socioeducandos desligados.
 
 ### Atendimentos
 
@@ -307,6 +357,9 @@ está sendo editado apenas como histórico.
   automaticamente um atendimento de reposição encadeado ao original.
 - No resumo do dia, atendimentos de socioeducandos desligados não são exibidos; o
   histórico completo permanece disponível na aba Atendimentos do perfil.
+- O cadastro em lote aceita múltiplas linhas independentes, cada uma com seu
+  socioeducando, tipo, responsável, data/horário e observações; conflitos de agenda são
+  apresentados antes da confirmação do salvamento.
 
 ### Trabalhos
 
@@ -343,6 +396,8 @@ está sendo editado apenas como histórico.
   SUASE (separador `;`), cria socioeducandos novos e suas admissões.
 - **Atualizar Escolaridade**: a partir de relatório de escola, atualiza a escolaridade
   de socioeducandos já cadastrados.
+- O fluxo apresenta uma prévia para revisão antes de confirmar as alterações e mantém
+  a importação de cursos desativada na interface.
 
 ---
 
@@ -353,7 +408,7 @@ exista no backend).
 
 | Entidade | Create | Read | Update | Delete |
 |---|---|---|---|---|
-| TiposOficina | ✅ Configurações | ✅ Configurações + formulários | ❌ | ❌ |
+| TiposOficina | ✅ Configurações | ✅ Configurações + formulários | ✅ Configurações | ✅ Configurações (confirmação/dependências) |
 | Oficinas (evento) | ✅ individual e em lote | ✅ perfil + página "Oficinas" + resumo do dia | ✅ modal de edição | ❌ |
 | OficinaMatriculas (vínculo) | ✅ individual e em lote | ✅ perfil + página "Oficinas" | ✅ realizada, observações, adicionar/remover vínculo | ✅ lógico |
 | Socioeducandos | ✅ formulário (nome/data de nascimento/admissão validados; readmissão de desligados oferece nova admissão em vez de duplicar; credenciais com permissão restrita) | ✅ perfil/listagem/busca (e-mail visível; senha só por modal restrito) | ✅ formulário (exceto ID, exibido como texto; credenciais apenas por usuário autorizado) | ❌ |
@@ -369,6 +424,11 @@ exista no backend).
 | Familiares | ✅ individual (modal no perfil) | ✅ perfil (cards) | ✅ edição por modal | ✅ exclusão lógica (card) |
 | TiposAtendimento | ✅ tela de Configurações | ✅ tela de Configurações + lista de seleção | ✅ tela de Configurações | ✅ tela de Configurações (bloqueia/confirma se houver atendimentos vinculados) |
 | InteressesCurso | ✅ perfil (individual) e em lote (`mostrarFormInteressesLote`) | ✅ perfil + lista de cadastro de curso em lote (com filtro) | ✅ (remover + recriar, sem tela de edição de texto dedicada) | ✅ perfil (chip ✕) |
+| Documentos dos socioeducandos (colunas de `Socioeducandos`) | — | ✅ perfil + tela **Cadastrar → Documentos** | ✅ perfil/tela em lote | — |
+| Especialidades | ✅ Configurações | ✅ Configurações + equipes | ✅ Configurações | ✅ Configurações (confirmação/dependências) |
+| Equipes | ✅ Configurações | ✅ overview + perfil + Configurações | ✅ Configurações | ✅ Configurações (confirmação/dependências) |
+| EquipeEspecialistas | ✅ modal de equipe | ✅ Configurações + modal de detalhes | ✅ modal de equipe | ✅ ao editar a equipe |
+| SocioeducandoEquipes | ✅ distribuição em lote | ✅ overview + perfil + Configurações | ✅ distribuição em lote | ✅ distribuição como **Sem equipe** |
 
 ---
 
@@ -389,6 +449,12 @@ exista no backend).
   rastreabilidade.
 - Cadastro em lote (Cursos/Saídas/Atendimentos) reduz drasticamente o trabalho manual
   quando o mesmo evento envolve vários socioeducandos.
+- Governança por equipes: catálogo de especialidades, equipes com cor, responsáveis
+  por especialidade, distribuição em lote e consulta contextual no overview/perfil.
+- Gestão documental em lote para os seis documentos pessoais, com consulta resumida no
+  perfil e sem necessidade de editar cada cadastro individualmente.
+- Acompanhamento de cursos com lançamento de ausências por data, histórico mensal e
+  exportações gerais, por curso e de acompanhamento.
 - O carregamento do Painel Geral foi otimizado com cache por execução no Apps Script
   (abas, cabeçalhos, linhas e mapeamentos de coluna) e com o `Resumo do dia`
   carregado separadamente, reduzindo bastante o tempo percebido de abertura da tela.
@@ -426,12 +492,9 @@ exista no backend).
 
 ## Funcionalidades incompletas / código morto encontrado
 
-- **Importador de Cursos via CSV parcialmente implementado e não conectado**: as
-  funções `parsearCsvCursos(csvText, tipoCurso)` e `confirmarImportarCursos(linhas)`
-  existem em `Code.gs`, mas **não são chamadas por nenhum botão da interface** — o menu
-  "Importar dados" só oferece Socioeducandos e Escolaridade. Os arquivos de exemplo
-  `exemplos/cursoPreQualificacao.csv` e `exemplos/cursosProfissionalizantes.csv`
-  sugerem que esse importador foi planejado, porém a etapa de UI nunca foi finalizada.
+- **Importador de Cursos desativado**: existem funções auxiliares e arquivos de exemplo,
+  mas a interface não oferece esse fluxo e `confirmarImportarCursos` bloqueia a operação
+  explicitamente. O menu "Importar dados" oferece apenas Socioeducandos e Escolaridade.
 - **Sem importador para Fugas/Evasões**, apesar de existir `exemplos/fugas.csv` e
   `exemplos/evasoes.csv` no repositório (mesmo formato de relatório do Portal SUASE).
 - **Sem importador para oficinas/atendimentos coletivos**: `exemplos/fbtOficinas.csv`

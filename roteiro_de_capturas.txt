@@ -1,0 +1,66 @@
+ROTEIRO DE CAPTURAS — APRESENTAÇÃO DO SISTEMA
+
+Objetivo
+Capturar telas reais do sistema com dados fictícios ou anonimizados e substituir os marcadores PRINT REAL do PowerPoint.
+
+1. Painel Geral — slide 3
+Onde capturar: página inicial, com a parte superior e o Resumo do dia visíveis.
+O que precisa aparecer: cartões de indicadores, filtros da tabela, tabela de socioeducandos, alertas e resumo do dia.
+Como enquadrar: navegador maximizado; se a tela ficar muito comprida, usar uma captura superior e outra inferior no mesmo espaço.
+
+2. Perfil do socioeducando — slide 4
+Onde capturar: abrir um perfil a partir da busca do topo ou clicando na tabela do Painel Geral.
+O que precisa aparecer: cabeçalho do perfil, status, agenda visual e início do histórico.
+Como enquadrar: esconder nome, ID, CPF, e-mail e outros dados identificáveis antes do print.
+
+3. Aba Familiares — slide 4, faixa complementar
+Onde capturar: no mesmo perfil, rolar até o card Familiares.
+O que precisa aparecer: familiar principal, demais contatos e ação Adicionar familiar.
+
+4. Cadastro / Readmissão — slide 5
+Onde capturar: Cadastrar > Socioeducandos.
+O que precisa aparecer: formulário ou modal de readmissão de um socioeducando desligado, usando dados fictícios.
+
+5. Página Cursos — slide 6
+Onde capturar: menu superior Cursos.
+O que precisa aparecer: abas, filtros por tipo/local, busca, paginação, vagas e ações de detalhes/matrículas.
+
+6. Ausências por curso — slide 7
+Onde capturar: na página Cursos, clicar em Ausências.
+O que precisa aparecer: data válida, matriculados, observações e os botões marcar todos/limpar.
+
+7. Histórico ou relatórios de cursos — slide 7, complementar
+Onde capturar: ações de acompanhamento/histórico na página Cursos.
+O que precisa aparecer: modal de histórico mensal ou os botões de relatório geral e acompanhamento.
+
+8. Página Oficinas — slide 8
+Onde capturar: menu superior Oficinas.
+O que precisa aparecer: lista de eventos, data/horário, responsável, participantes e ações de edição/matrículas.
+
+9. Atendimentos em lote — slide 9
+Onde capturar: menu Cadastrar > Atendimentos.
+O que precisa aparecer: duas ou três linhas preenchidas com dados fictícios, horário de término e observações.
+
+10. Saída em lote ou conflitos — slide 10
+Onde capturar: Cadastrar > Saídas ou durante o preenchimento de um horário conflitante.
+O que precisa aparecer: tipo, ida/volta, condução, acompanhante e, se possível, o modal Revisar horários.
+
+11. Documentos, importação e relatórios — slide 11
+Onde capturar: menu Importar dados.
+O que precisa aparecer: fazer três capturas separadas — Cadastrar > Documentos, Importar dados e ações de relatório na página Cursos.
+
+12. Equipes e socioeducandos — slide 12
+Onde capturar: Configurações > Equipes e socioeducandos.
+O que precisa aparecer: equipes, cores, especialistas, contagens e busca/distribuição. Usar nomes fictícios de profissionais.
+
+13. Print opcional para reforçar a gestão
+Onde capturar: no perfil, abrir a aba Atendimentos, Saídas ou Visitas Territoriais.
+Uso: pode complementar o slide 9 se a apresentação quiser enfatizar mais o acompanhamento do que o cadastro.
+
+Boas práticas
+- Use dados fictícios ou anonimize todos os dados pessoais.
+- Mantenha o navegador maximizado e capture sempre a área útil da aplicação.
+- Não capture senhas, credenciais profissionais, CPF, RG, telefone ou endereço reais.
+- Prefira PNG e, se possível, uma resolução mínima de 1600 px de largura.
+- Nomeie os arquivos com o número do item (01_painel.png, 02_perfil.png etc.).
+- Depois de capturar, substitua cada marcador no slide correspondente mantendo a proporção da imagem.

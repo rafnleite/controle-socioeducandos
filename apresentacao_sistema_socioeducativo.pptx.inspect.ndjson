@@ -1,0 +1,386 @@
+{"kind":"deck","id":"pr/6nrrnw","name":"Deck"}
+{"kind":"layout","layoutId":"e9c9132b-e546-4a1a-89ed-389794719433","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"8c7eee7d-ceab-45da-92ee-f5d43dd89f34","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/9ozwiw","slide":1,"title":"APRESENTAÇÃO DO SISTEMA","textShapes":9}
+{"kind":"shape","id":"sh/zqho3qhk","slide":1,"bbox":[0,0,22,720]}
+{"kind":"textbox","id":"sh/krq5cvy5","slide":1,"text":"APRESENTAÇÃO DO SISTEMA","textPreview":"APRESENTAÇÃO DO SISTEMA","textChars":23,"textLines":1,"bbox":[88,112,570,30]}
+{"kind":"textbox","id":"sh/lsz650zq","slide":1,"text":"Sistema de Controle\nda Unidade Socioeducativa","textPreview":"Sistema de Controle | da Unidade Socioeducativa","textChars":45,"textLines":2,"bbox":[88,164,700,150]}
+{"kind":"textbox","id":"sh/mt87e5gv","slide":1,"text":"Visão integrada do acompanhamento, das atividades e da rotina da unidade.","textPreview":"Visão integrada do acompanhamento, das atividades e da rotina da unidade.","textChars":73,"textLines":1,"bbox":[92,348,650,62]}
+{"kind":"shape","id":"sh/7uho7ahg","slide":1,"bbox":[92,462,328,0]}
+{"kind":"textbox","id":"sh/8vapgfy1","slide":1,"text":"Roteiro de demonstração","textPreview":"Roteiro de demonstração","textChars":23,"textLines":1,"bbox":[92,482,350,28]}
+{"kind":"textbox","id":"sh/9gj69kzm","slide":1,"text":"Painel geral  •  Perfil  •  Atividades  •  Registros  •  Relatórios","textPreview":"Painel geral  •  Perfil  •  Atividades  •  Registros  •  Relatórios","textChars":67,"textLines":1,"bbox":[92,516,650,28]}
+{"kind":"shape","id":"sh/2xon2l0r","slide":1,"bbox":[820,122,330,450]}
+{"kind":"shape","id":"sh/nyxov6hc","slide":1,"bbox":[850,166,270,24]}
+{"kind":"shape","id":"sh/7yx0rmlc","slide":1,"bbox":[850,212,82,82]}
+{"kind":"shape","id":"sh/6xojyhk7","slide":1,"bbox":[944,212,82,82]}
+{"kind":"shape","id":"sh/t0fitw3i","slide":1,"bbox":[1038,212,82,82]}
+{"kind":"shape","id":"sh/sz610r2x","slide":1,"bbox":[850,316,270,16]}
+{"kind":"shape","id":"sh/jad0n2lg","slide":1,"bbox":[850,348,120,120]}
+{"kind":"shape","id":"sh/i94zuxkv","slide":1,"bbox":[986,348,134,120]}
+{"kind":"textbox","id":"sh/5wfipc3m","slide":1,"text":"visão integrada","textPreview":"visão integrada","textChars":15,"textLines":1,"bbox":[886,504,200,24]}
+{"kind":"textbox","id":"sh/kv6hw721","slide":1,"text":"estrutura visual inspirada na interface","textPreview":"estrutura visual inspirada na interface","textChars":39,"textLines":1,"bbox":[850,532,270,22]}
+{"kind":"shape","id":"sh/v6d0j2lk","slide":1,"bbox":[72,674,1136,0]}
+{"kind":"textbox","id":"sh/a54zqx4z","slide":1,"text":"Sistema de Controle da Unidade Socioeducativa","textPreview":"Sistema de Controle da Unidade Socioeducativa","textChars":45,"textLines":1,"bbox":[72,684,600,18]}
+{"kind":"textbox","id":"sh/y1kj2xor","slide":1,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[1168,684,40,18]}
+{"kind":"notes","id":"nt/9ozwiw","slide":1,"text":""}
+{"kind":"slide","id":"sl/oa1lw7","slide":2,"title":"01 • VISÃO GERAL","textShapes":20}
+{"kind":"textbox","id":"sh/fy9s3yxs","slide":2,"text":"01 • VISÃO GERAL","textPreview":"01 • VISÃO GERAL","textChars":16,"textLines":1,"bbox":[72,38,650,22]}
+{"kind":"textbox","id":"sh/gzitc3yd","slide":2,"text":"A rotina da unidade em um único lugar","textPreview":"A rotina da unidade em um único lugar","textChars":37,"textLines":1,"bbox":[72,70,1136,48]}
+{"kind":"textbox","id":"sh/h0ru58fi","slide":2,"text":"A demonstração parte do panorama e chega ao detalhe de cada socioeducando.","textPreview":"A demonstração parte do panorama e chega ao detalhe de cada socioeducando.","textChars":74,"textLines":1,"bbox":[72,126,1136,28]}
+{"kind":"textbox","id":"sh/210betg3","slide":2,"text":"A lógica da apresentação","textPreview":"A lógica da apresentação","textChars":24,"textLines":1,"bbox":[72,208,380,30]}
+{"kind":"shape","id":"sh/329c7yxo","slide":2,"bbox":[72,248,1108,0]}
+{"kind":"shape","id":"sh/43itg3y9","slide":2,"bbox":[92,300,210,168]}
+{"kind":"textbox","id":"sh/p4ru98fu","slide":2,"text":"01","textPreview":"01","textChars":2,"textLines":1,"bbox":[110,320,48,26]}
+{"kind":"textbox","id":"sh/y5wb29gz","slide":2,"text":"Visão do dia","textPreview":"Visão do dia","textChars":12,"textLines":1,"bbox":[110,360,174,28]}
+{"kind":"textbox","id":"sh/j6psvexk","slide":2,"text":"Indicadores, alertas e atividades.","textPreview":"Indicadores, alertas e atividades.","textChars":34,"textLines":1,"bbox":[110,402,174,48]}
+{"kind":"shape","id":"sh/b618vy5k","slide":2,"bbox":[302,384,52,0]}
+{"kind":"shape","id":"sh/a5s7mtoz","slide":2,"bbox":[354,300,210,168]}
+{"kind":"textbox","id":"sh/x83qx8nq","slide":2,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[372,320,48,26]}
+{"kind":"textbox","id":"sh/c7apo365","slide":2,"text":"Acompanhamento","textPreview":"Acompanhamento","textChars":14,"textLines":1,"bbox":[372,360,174,28]}
+{"kind":"textbox","id":"sh/ni18ryp8","slide":2,"text":"Perfil, agenda e histórico.","textPreview":"Perfil, agenda e histórico.","textChars":27,"textLines":1,"bbox":[372,402,174,48]}
+{"kind":"shape","id":"sh/2hs7ito3","slide":2,"bbox":[564,384,52,0]}
+{"kind":"shape","id":"sh/pkjqtone","slide":2,"bbox":[616,300,210,168]}
+{"kind":"textbox","id":"sh/ojapkj6t","slide":2,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[634,320,48,26]}
+{"kind":"textbox","id":"sh/fehonepc","slide":2,"text":"Gestão","textPreview":"Gestão","textChars":6,"textLines":1,"bbox":[634,360,174,28]}
+{"kind":"textbox","id":"sh/ed87e9or","slide":2,"text":"Cursos, oficinas e saídas.","textPreview":"Cursos, oficinas e saídas.","textChars":26,"textLines":1,"bbox":[634,402,174,48]}
+{"kind":"shape","id":"sh/i9or698j","slide":2,"bbox":[826,384,52,0]}
+{"kind":"shape","id":"sh/jah8ze94","slide":2,"bbox":[878,300,210,168]}
+{"kind":"textbox","id":"sh/4bq98jqp","slide":2,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[896,320,48,26]}
+{"kind":"textbox","id":"sh/5czq1ora","slide":2,"text":"Decisão","textPreview":"Decisão","textChars":7,"textLines":1,"bbox":[896,360,174,28]}
+{"kind":"textbox","id":"sh/qd8rat8v","slide":2,"text":"Filtros, relatórios e pendências.","textPreview":"Filtros, relatórios e pendências.","textChars":33,"textLines":1,"bbox":[896,402,174,48]}
+{"kind":"shape","id":"sh/reh83e9g","slide":2,"bbox":[72,530,1100,66]}
+{"kind":"textbox","id":"sh/sfq9cjql","slide":2,"text":"Mensagem central","textPreview":"Mensagem central","textChars":16,"textLines":1,"bbox":[96,546,205,22]}
+{"kind":"textbox","id":"sh/dgzq5or6","slide":2,"text":"O registro orienta o próximo atendimento.","textPreview":"O registro orienta o próximo atendimento.","textChars":41,"textLines":1,"bbox":[310,542,820,30]}
+{"kind":"shape","id":"sh/ehsret8r","slide":2,"bbox":[72,674,1136,0]}
+{"kind":"textbox","id":"sh/fi187y9c","slide":2,"text":"Sistema de Controle da Unidade Socioeducativa","textPreview":"Sistema de Controle da Unidade Socioeducativa","textChars":45,"textLines":1,"bbox":[72,684,600,18]}
+{"kind":"textbox","id":"sh/pc3uxsbe","slide":2,"text":"02","textPreview":"02","textChars":2,"textLines":1,"bbox":[1168,684,40,18]}
+{"kind":"notes","id":"nt/oa1lw7","slide":2,"text":""}
+{"kind":"slide","id":"sl/3lcqdo","slide":3,"title":"02 • PAINEL GERAL","textShapes":18}
+{"kind":"textbox","id":"sh/43upwbqh","slide":3,"text":"02 • PAINEL GERAL","textPreview":"02 • PAINEL GERAL","textChars":17,"textLines":1,"bbox":[72,38,650,22]}
+{"kind":"textbox","id":"sh/32lon69w","slide":3,"text":"O painel mostra o que merece atenção hoje","textPreview":"O painel mostra o que merece atenção hoje","textChars":41,"textLines":1,"bbox":[72,70,1136,48]}
+{"kind":"textbox","id":"sh/21c7u18b","slide":3,"text":"Indicadores, contexto do dia e pendências acionáveis.","textPreview":"Indicadores, contexto do dia e pendências acionáveis.","textChars":53,"textLines":1,"bbox":[72,126,1136,28]}
+{"kind":"shape","id":"sh/h036lwrq","slide":3,"bbox":[72,202,720,404]}
+{"kind":"shape","id":"sh/fe1oj69k","slide":3,"bbox":[86,216,132,24]}
+{"kind":"textbox","id":"sh/uds7q18f","slide":3,"text":"CAPTURA REAL","textPreview":"CAPTURA REAL","textChars":12,"textLines":1,"bbox":[94,222,116,14]}
+{"kind":"shape","id":"sh/tcj6hwru","slide":3,"bbox":[838,212,34,34]}
+{"kind":"textbox","id":"sh/sbaporq9","slide":3,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[838,219,34,18]}
+{"kind":"textbox","id":"sh/29cjedgj","slide":3,"text":"Indicadores","textPreview":"Indicadores","textChars":11,"textLines":1,"bbox":[886,210,310,25]}
+{"kind":"textbox","id":"sh/3al0nix4","slide":3,"text":"Totais da unidade e cursos em andamento.","textPreview":"Totais da unidade e cursos em andamento.","textChars":40,"textLines":1,"bbox":[886,239,310,48]}
+{"kind":"shape","id":"sh/ove1gnyp","slide":3,"bbox":[838,312,34,34]}
+{"kind":"textbox","id":"sh/pwnip8fa","slide":3,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[838,319,34,18]}
+{"kind":"textbox","id":"sh/e5cjatgn","slide":3,"text":"Resumo do dia","textPreview":"Resumo do dia","textChars":13,"textLines":1,"bbox":[886,310,310,25]}
+{"kind":"textbox","id":"sh/f6l0jyhs","slide":3,"text":"Atendimentos, saídas, oficinas e alertas.","textPreview":"Atendimentos, saídas, oficinas e alertas.","textChars":41,"textLines":1,"bbox":[886,339,310,48]}
+{"kind":"shape","id":"sh/g7u1c3yd","slide":3,"bbox":[838,412,34,34]}
+{"kind":"textbox","id":"sh/183il8zy","slide":3,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[838,419,34,18]}
+{"kind":"textbox","id":"sh/61sj6tgb","slide":3,"text":"Equipe e prioridades","textPreview":"Equipe e prioridades","textChars":20,"textLines":1,"bbox":[886,410,310,25]}
+{"kind":"textbox","id":"sh/r210fyhw","slide":3,"text":"Pills de equipe e atividades críticas.","textPreview":"Pills de equipe e atividades críticas.","textChars":38,"textLines":1,"bbox":[886,439,310,48]}
+{"kind":"shape","id":"sh/baxorqtc","slide":3,"bbox":[838,512,34,34]}
+{"kind":"textbox","id":"sh/a9o7ylsr","slide":3,"text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[838,519,34,18]}
+{"kind":"textbox","id":"sh/xwf6t0ri","slide":3,"text":"Ação rápida","textPreview":"Ação rápida","textChars":11,"textLines":1,"bbox":[886,510,310,25]}
+{"kind":"textbox","id":"sh/wv6p0vax","slide":3,"text":"Clique no item e abra o detalhe.","textPreview":"Clique no item e abra o detalhe.","textChars":32,"textLines":1,"bbox":[886,539,310,48]}
+{"kind":"shape","id":"sh/jyx8va9o","slide":3,"bbox":[72,674,1136,0]}
+{"kind":"textbox","id":"sh/yxo725s3","slide":3,"text":"Sistema de Controle da Unidade Socioeducativa","textPreview":"Sistema de Controle da Unidade Socioeducativa","textChars":45,"textLines":1,"bbox":[72,684,600,18]}
+{"kind":"textbox","id":"sh/l0zqxkre","slide":3,"text":"03","textPreview":"03","textChars":2,"textLines":1,"bbox":[1168,684,40,18]}
+{"kind":"image","id":"im/hc76lsji","slide":3,"name":"","geometry":"roundRect","alt":"Painel Geral completo","bbox":[80,210,704,388]}
+{"kind":"notes","id":"nt/3lcqdo","slide":3,"text":""}
+{"kind":"slide","id":"sl/8wddhq","slide":4,"title":"03 • ACOMPANHAMENTO","textShapes":16}
+{"kind":"textbox","id":"sh/87yt8ny1","slide":4,"text":"03 • ACOMPANHAMENTO","textPreview":"03 • ACOMPANHAMENTO","textChars":19,"textLines":1,"bbox":[72,38,650,22]}
+{"kind":"textbox","id":"sh/76pcfihg","slide":4,"text":"O perfil transforma histórico em contexto","textPreview":"O perfil transforma histórico em contexto","textChars":41,"textLines":1,"bbox":[72,70,1136,48]}
+{"kind":"textbox","id":"sh/m5gb6dgv","slide":4,"text":"Agenda, admissões, familiares, equipe, documentos e registros em abas.","textPreview":"Agenda, admissões, familiares, equipe, documentos e registros em abas.","textChars":70,"textLines":1,"bbox":[72,126,1136,28]}
+{"kind":"shape","id":"sh/l47ad8za","slide":4,"bbox":[72,202,640,404]}
+{"kind":"shape","id":"sh/z2psbihk","slide":4,"bbox":[86,216,132,24]}
+{"kind":"textbox","id":"sh/yhgbidgz","slide":4,"text":"CAPTURA REAL","textPreview":"CAPTURA REAL","textChars":12,"textLines":1,"bbox":[94,222,116,14]}
+{"kind":"shape","id":"sh/xg7a98ze","slide":4,"bbox":[770,210,34,34]}
+{"kind":"textbox","id":"sh/cfetg3yt","slide":4,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[770,217,34,18]}
+{"kind":"textbox","id":"sh/6x8nmhsf","slide":4,"text":"Agenda visual","textPreview":"Agenda visual","textChars":13,"textLines":1,"bbox":[818,208,310,25]}
+{"kind":"textbox","id":"sh/7y1ofmt0","slide":4,"text":"Cursos, trabalho, saídas e atendimentos.","textPreview":"Cursos, trabalho, saídas e atendimentos.","textChars":40,"textLines":1,"bbox":[818,237,310,48]}
+{"kind":"shape","id":"sh/sja5oral","slide":4,"bbox":[770,310,34,34]}
+{"kind":"textbox","id":"sh/tkj6hwb6","slide":4,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[770,317,34,18]}
+{"kind":"textbox","id":"sh/it8nihcj","slide":4,"text":"Contexto","textPreview":"Contexto","textChars":8,"textLines":1,"bbox":[818,308,310,25]}
+{"kind":"textbox","id":"sh/juhob2t4","slide":4,"text":"Admissões, familiares, equipe e documentos.","textPreview":"Admissões, familiares, equipe e documentos.","textChars":43,"textLines":1,"bbox":[818,337,310,48]}
+{"kind":"shape","id":"sh/kvq5k7up","slide":4,"bbox":[770,410,34,34]}
+{"kind":"textbox","id":"sh/5wz6dcbu","slide":4,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[770,417,34,18]}
+{"kind":"textbox","id":"sh/aponexc7","slide":4,"text":"Histórico","textPreview":"Histórico","textChars":9,"textLines":1,"bbox":[818,408,310,25]}
+{"kind":"textbox","id":"sh/vqho72ts","slide":4,"text":"Registros organizados por tipo.","textPreview":"Registros organizados por tipo.","textChars":31,"textLines":1,"bbox":[818,437,310,48]}
+{"kind":"shape","id":"sh/zudkfy9k","slide":4,"bbox":[770,542,390,48]}
+{"kind":"textbox","id":"sh/yt43mtsz","slide":4,"text":"Complemento: abas Familiares e Documentos","textPreview":"Complemento: abas Familiares e Documentos","textChars":41,"textLines":1,"bbox":[788,556,354,20]}
+{"kind":"shape","id":"sh/lwvmh8rq","slide":4,"bbox":[72,674,1136,0]}
+{"kind":"textbox","id":"sh/0vmlo3a5","slide":4,"text":"Sistema de Controle da Unidade Socioeducativa","textPreview":"Sistema de Controle da Unidade Socioeducativa","textChars":45,"textLines":1,"bbox":[72,684,600,18]}
+{"kind":"textbox","id":"sh/nyd4ji9w","slide":4,"text":"04","textPreview":"04","textChars":2,"textLines":1,"bbox":[1168,684,40,18]}
+{"kind":"image","id":"im/5w7ilsfq","slide":4,"name":"","geometry":"roundRect","alt":"Perfil do socioeducando","bbox":[80,210,624,388]}
+{"kind":"notes","id":"nt/8wddhq","slide":4,"text":""}
+{"kind":"slide","id":"sl/vhbso4","slide":5,"title":"04 • CADASTRO","textShapes":16}
+{"kind":"textbox","id":"sh/c3etsbe9","slide":5,"text":"04 • CADASTRO","textPreview":"04 • CADASTRO","textChars":13,"textLines":1,"bbox":[72,38,650,22]}
+{"kind":"textbox","id":"sh/bi5cj6xo","slide":5,"text":"Cadastro e readmissão preservam o histórico","textPreview":"Cadastro e readmissão preservam o histórico","textChars":43,"textLines":1,"bbox":[72,70,1136,48]}
+{"kind":"textbox","id":"sh/ahwbq1w3","slide":5,"text":"A pessoa, o vínculo e cada ciclo de internação ficam separados.","textPreview":"A pessoa, o vínculo e cada ciclo de internação ficam separados.","textChars":63,"textLines":1,"bbox":[72,126,1136,28]}
+{"kind":"shape","id":"sh/l87up0v6","slide":5,"bbox":[72,202,600,382]}
+{"kind":"shape","id":"sh/z6pcnqd0","slide":5,"bbox":[86,216,132,24]}
+{"kind":"textbox","id":"sh/y5wbulwf","slide":5,"text":"CAPTURA REAL","textPreview":"CAPTURA REAL","textChars":12,"textLines":1,"bbox":[94,222,116,14]}
+{"kind":"shape","id":"sh/1c3adwfm","slide":5,"bbox":[738,214,34,34]}
+{"kind":"textbox","id":"sh/0butkre1","slide":5,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[738,221,34,18]}
+{"kind":"textbox","id":"sh/2dgfqp43","slide":5,"text":"Admissão","textPreview":"Admissão","textChars":8,"textLines":1,"bbox":[786,212,310,25]}
+{"kind":"textbox","id":"sh/3epgjulo","slide":5,"text":"Data obrigatória e não futura.","textPreview":"Data obrigatória e não futura.","textChars":30,"textLines":1,"bbox":[786,241,310,48]}
+{"kind":"shape","id":"sh/4fyxszm9","slide":5,"bbox":[738,314,34,34]}
+{"kind":"textbox","id":"sh/pgryl43u","slide":5,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[738,321,34,18]}
+{"kind":"textbox","id":"sh/qh0fu94f","slide":5,"text":"Readmissão","textPreview":"Readmissão","textChars":10,"textLines":1,"bbox":[786,312,310,25]}
+{"kind":"textbox","id":"sh/ri9gnelk","slide":5,"text":"Reaproveita o cadastro e cria novo ciclo.","textPreview":"Reaproveita o cadastro e cria novo ciclo.","textChars":41,"textLines":1,"bbox":[786,341,310,48]}
+{"kind":"shape","id":"sh/cjixwjm5","slide":5,"bbox":[738,414,34,34]}
+{"kind":"textbox","id":"sh/d4rypo3q","slide":5,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[738,421,34,18]}
+{"kind":"textbox","id":"sh/e50fy94b","slide":5,"text":"Integridade","textPreview":"Integridade","textChars":11,"textLines":1,"bbox":[786,412,310,25]}
+{"kind":"textbox","id":"sh/z69grelw","slide":5,"text":"Evita duplicidade e retrocesso de datas.","textPreview":"Evita duplicidade e retrocesso de datas.","textChars":40,"textLines":1,"bbox":[786,441,310,48]}
+{"kind":"shape","id":"sh/batwfe14","slide":5,"bbox":[72,614,1080,34]}
+{"kind":"textbox","id":"sh/a9kfmtkj","slide":5,"text":"Pessoa  →  vínculo  →  ciclo de internação","textPreview":"Pessoa  →  vínculo  →  ciclo de internação","textChars":42,"textLines":1,"bbox":[94,622,1036,20]}
+{"kind":"shape","id":"sh/xcbehoju","slide":5,"bbox":[72,674,1136,0]}
+{"kind":"textbox","id":"sh/wb2xoj2p","slide":5,"text":"Sistema de Controle da Unidade Socioeducativa","textPreview":"Sistema de Controle da Unidade Socioeducativa","textChars":45,"textLines":1,"bbox":[72,684,600,18]}
+{"kind":"textbox","id":"sh/n69wbe1s","slide":5,"text":"05","textPreview":"05","textChars":2,"textLines":1,"bbox":[1168,684,40,18]}
+{"kind":"image","id":"im/x4bydozq","slide":5,"name":"","geometry":"roundRect","alt":"Novo socioeducando","bbox":[80,210,584,366]}
+{"kind":"notes","id":"nt/vhbso4","slide":5,"text":""}
+{"kind":"slide","id":"sl/vu9wsg","slide":6,"title":"05 • CURSOS","textShapes":18}
+{"kind":"textbox","id":"sh/vmd4rm9k","slide":6,"text":"05 • CURSOS","textPreview":"05 • CURSOS","textChars":11,"textLines":1,"bbox":[72,38,650,22]}
+{"kind":"textbox","id":"sh/gn65kra5","slide":6,"text":"Cursos organizam ciclo, status e ocupação","textPreview":"Cursos organizam ciclo, status e ocupação","textChars":41,"textLines":1,"bbox":[72,70,1136,48]}
+{"kind":"textbox","id":"sh/hofmdwra","slide":6,"text":"Planejamento, matrículas, acompanhamento e conclusão em uma única página.","textPreview":"Planejamento, matrículas, acompanhamento e conclusão em uma única página.","textChars":73,"textLines":1,"bbox":[72,126,1136,28]}
+{"kind":"shape","id":"sh/6h43exsn","slide":6,"bbox":[72,202,720,404]}
+{"kind":"shape","id":"sh/8jmlg7at","slide":6,"bbox":[86,216,132,24]}
+{"kind":"textbox","id":"sh/tkvmpcre","slide":6,"text":"CAPTURA REAL","textPreview":"CAPTURA REAL","textChars":12,"textLines":1,"bbox":[94,222,116,14]}
+{"kind":"shape","id":"sh/qdonq1s7","slide":6,"bbox":[838,212,34,34]}
+{"kind":"textbox","id":"sh/reh4j69s","slide":6,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[838,219,34,18]}
+{"kind":"textbox","id":"sh/ni1on2d0","slide":6,"text":"Quatro visões","textPreview":"Quatro visões","textChars":13,"textLines":1,"bbox":[886,210,310,25]}
+{"kind":"textbox","id":"sh/mhsnuxwf","slide":6,"text":"Em andamento, abertas, não iniciados e encerrados.","textPreview":"Em andamento, abertas, não iniciados e encerrados.","textChars":50,"textLines":1,"bbox":[886,239,310,48]}
+{"kind":"shape","id":"sh/9k36pcvq","slide":6,"bbox":[838,312,34,34]}
+{"kind":"textbox","id":"sh/oju5w7el","slide":6,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[838,319,34,18]}
+{"kind":"textbox","id":"sh/b6lormdw","slide":6,"text":"Filtros","textPreview":"Filtros","textChars":7,"textLines":1,"bbox":[886,310,310,25]}
+{"kind":"textbox","id":"sh/a5cnyhwb","slide":6,"text":"Tipo, local, instituição e busca.","textPreview":"Tipo, local, instituição e busca.","textChars":33,"textLines":1,"bbox":[886,339,310,48]}
+{"kind":"shape","id":"sh/x836twv2","slide":6,"bbox":[838,412,34,34]}
+{"kind":"textbox","id":"sh/w7u50reh","slide":6,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[838,419,34,18]}
+{"kind":"textbox","id":"sh/jalovmd8","slide":6,"text":"Matrícula em lote","textPreview":"Matrícula em lote","textChars":17,"textLines":1,"bbox":[886,410,310,25]}
+{"kind":"textbox","id":"sh/y9cn2hwn","slide":6,"text":"Interessado ou matriculado.","textPreview":"Interessado ou matriculado.","textChars":27,"textLines":1,"bbox":[886,439,310,48]}
+{"kind":"shape","id":"sh/u5grulgv","slide":6,"bbox":[838,512,34,34]}
+{"kind":"textbox","id":"sh/f6p8nqxg","slide":6,"text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[838,519,34,18]}
+{"kind":"textbox","id":"sh/g7y9wvy1","slide":6,"text":"Conclusão","textPreview":"Conclusão","textChars":9,"textLines":1,"bbox":[886,510,310,25]}
+{"kind":"textbox","id":"sh/h87qp0f6","slide":6,"text":"Término, desistência e certificado.","textPreview":"Término, desistência e certificado.","textChars":35,"textLines":1,"bbox":[886,539,310,48]}
+{"kind":"shape","id":"sh/61w7qlgj","slide":6,"bbox":[72,674,1136,0]}
+{"kind":"textbox","id":"sh/72p8jqx4","slide":6,"text":"Sistema de Controle da Unidade Socioeducativa","textPreview":"Sistema de Controle da Unidade Socioeducativa","textChars":45,"textLines":1,"bbox":[72,684,600,18]}
+{"kind":"textbox","id":"sh/83ypsvyp","slide":6,"text":"06","textPreview":"06","textChars":2,"textLines":1,"bbox":[1168,684,40,18]}
+{"kind":"image","id":"im/6t8jadg3","slide":6,"name":"","geometry":"roundRect","alt":"Página Cursos","bbox":[80,210,704,388]}
+{"kind":"notes","id":"nt/vu9wsg","slide":6,"text":""}
+{"kind":"slide","id":"sl/0fdaur","slide":7,"title":"06 • FREQUÊNCIA","textShapes":13}
+{"kind":"textbox","id":"sh/8jahkzip","slide":7,"text":"06 • FREQUÊNCIA","textPreview":"06 • FREQUÊNCIA","textChars":15,"textLines":1,"bbox":[72,38,650,22]}
+{"kind":"textbox","id":"sh/ni1gbu14","slide":7,"text":"A presença é lançada por curso, dia e pessoa","textPreview":"A presença é lançada por curso, dia e pessoa","textChars":44,"textLines":1,"bbox":[72,70,1136,48]}
+{"kind":"textbox","id":"sh/mh8zip0j","slide":7,"text":"Agenda e página de cursos oferecem caminhos complementares.","textPreview":"Agenda e página de cursos oferecem caminhos complementares.","textChars":59,"textLines":1,"bbox":[72,126,1136,28]}
+{"kind":"shape","id":"sh/lgzy9kjy","slide":7,"bbox":[72,202,580,382]}
+{"kind":"shape","id":"sh/zehg7u1s","slide":7,"bbox":[86,216,132,24]}
+{"kind":"textbox","id":"sh/yd8zepkn","slide":7,"text":"CAPTURA REAL","textPreview":"CAPTURA REAL","textChars":12,"textLines":1,"bbox":[94,222,116,14]}
+{"kind":"shape","id":"sh/5c3iloj2","slide":7,"bbox":[704,202,454,382]}
+{"kind":"textbox","id":"sh/kbuhsjix","slide":7,"text":"Também disponível","textPreview":"Também disponível","textChars":17,"textLines":1,"bbox":[730,226,390,26]}
+{"kind":"shape","id":"sh/i903edgz","slide":7,"bbox":[730,282,396,62]}
+{"kind":"textbox","id":"sh/ja9knih4","slide":7,"text":"Calendário","textPreview":"Calendário","textChars":10,"textLines":1,"bbox":[748,291,145,22]}
+{"kind":"textbox","id":"sh/4bilgnyp","slide":7,"text":"Ausência e observação por pessoa.","textPreview":"Ausência e observação por pessoa.","textChars":33,"textLines":1,"bbox":[900,290,208,40]}
+{"kind":"shape","id":"sh/5cr2psza","slide":7,"bbox":[730,364,396,62]}
+{"kind":"textbox","id":"sh/u5gjatgn","slide":7,"text":"Histórico mensal","textPreview":"Histórico mensal","textChars":16,"textLines":1,"bbox":[748,373,145,22]}
+{"kind":"textbox","id":"sh/v69kjyh8","slide":7,"text":"Consulta e exportação XLSX.","textPreview":"Consulta e exportação XLSX.","textChars":27,"textLines":1,"bbox":[900,372,208,40]}
+{"kind":"shape","id":"sh/w7ilc3yt","slide":7,"bbox":[730,446,396,62]}
+{"kind":"textbox","id":"sh/h8r2l8ze","slide":7,"text":"Relatórios","textPreview":"Relatórios","textChars":10,"textLines":1,"bbox":[748,455,145,22]}
+{"kind":"textbox","id":"sh/e1k3mxgr","slide":7,"text":"Geral, por curso e específico.","textPreview":"Geral, por curso e específico.","textChars":30,"textLines":1,"bbox":[900,454,208,40]}
+{"kind":"shape","id":"sh/f2tkv2hc","slide":7,"bbox":[72,674,1136,0]}
+{"kind":"textbox","id":"sh/bml0nuxo","slide":7,"text":"Sistema de Controle da Unidade Socioeducativa","textPreview":"Sistema de Controle da Unidade Socioeducativa","textChars":45,"textLines":1,"bbox":[72,684,600,18]}
+{"kind":"textbox","id":"sh/alczepwj","slide":7,"text":"07","textPreview":"07","textChars":2,"textLines":1,"bbox":[1168,684,40,18]}
+{"kind":"image","id":"im/tcve5wve","slide":7,"name":"","geometry":"roundRect","alt":"Lançar ausências por curso","bbox":[80,210,564,366]}
+{"kind":"notes","id":"nt/0fdaur","slide":7,"text":""}
+{"kind":"slide","id":"sl/msp9t6","slide":8,"title":"07 • OFICINAS","textShapes":15}
+{"kind":"textbox","id":"sh/p4b6dk7y","slide":8,"text":"07 • OFICINAS","textPreview":"07 • OFICINAS","textChars":13,"textLines":1,"bbox":[72,38,650,22]}
+{"kind":"textbox","id":"sh/21knipon","slide":8,"text":"Oficinas combinam evento coletivo e participação individual","textPreview":"Oficinas combinam evento coletivo e participação individual","textChars":59,"textLines":1,"bbox":[72,70,1136,48]}
+{"kind":"textbox","id":"sh/32tobap8","slide":8,"text":"Um evento envolve várias pessoas, mas a realização é acompanhada por matrícula.","textPreview":"Um evento envolve várias pessoas, mas a realização é acompanhada por matrícula.","textChars":79,"textLines":1,"bbox":[72,126,1136,28]}
+{"kind":"shape","id":"sh/crm5oz6p","slide":8,"bbox":[72,202,650,382]}
+{"kind":"shape","id":"sh/q54nmpoj","slide":8,"bbox":[86,216,132,24]}
+{"kind":"textbox","id":"sh/r6dofup4","slide":8,"text":"CAPTURA REAL","textPreview":"CAPTURA REAL","textChars":12,"textLines":1,"bbox":[94,222,116,14]}
+{"kind":"shape","id":"sh/0vm5sz6l","slide":8,"bbox":[776,220,34,34]}
+{"kind":"textbox","id":"sh/1wf6l476","slide":8,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[776,227,34,18]}
+{"kind":"textbox","id":"sh/tkjepszu","slide":8,"text":"Cadastro em lote","textPreview":"Cadastro em lote","textChars":16,"textLines":1,"bbox":[824,218,310,25]}
+{"kind":"textbox","id":"sh/sjadgny9","slide":8,"text":"Nome, tipo, responsável e participantes.","textPreview":"Nome, tipo, responsável e participantes.","textChars":40,"textLines":1,"bbox":[824,247,310,48]}
+{"kind":"shape","id":"sh/7i1wniho","slide":8,"bbox":[776,320,34,34]}
+{"kind":"textbox","id":"sh/6hsvexg3","slide":8,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[776,327,34,18]}
+{"kind":"textbox","id":"sh/h83etczq","slide":8,"text":"Realização","textPreview":"Realização","textChars":10,"textLines":1,"bbox":[824,318,310,25]}
+{"kind":"textbox","id":"sh/gnadk7yl","slide":8,"text":"Sim ou não por participante.","textPreview":"Sim ou não por participante.","textChars":28,"textLines":1,"bbox":[824,347,310,48]}
+{"kind":"shape","id":"sh/fm1wr2h0","slide":8,"bbox":[776,420,34,34]}
+{"kind":"textbox","id":"sh/ulsvixgf","slide":8,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[776,427,34,18]}
+{"kind":"textbox","id":"sh/xczuh8zm","slide":8,"text":"Agenda segura","textPreview":"Agenda segura","textChars":13,"textLines":1,"bbox":[824,418,310,25]}
+{"kind":"textbox","id":"sh/wrqd83y1","slide":8,"text":"Valida conflitos com outros eventos.","textPreview":"Valida conflitos com outros eventos.","textChars":36,"textLines":1,"bbox":[824,447,310,48]}
+{"kind":"shape","id":"sh/ovudo36x","slide":8,"bbox":[72,674,1136,0]}
+{"kind":"textbox","id":"sh/pw3ex87i","slide":8,"text":"Sistema de Controle da Unidade Socioeducativa","textPreview":"Sistema de Controle da Unidade Socioeducativa","textChars":45,"textLines":1,"bbox":[72,684,600,18]}
+{"kind":"textbox","id":"sh/2tsvmdor","slide":8,"text":"08","textPreview":"08","textChars":2,"textLines":1,"bbox":[1168,684,40,18]}
+{"kind":"image","id":"im/sbi9crmp","slide":8,"name":"","geometry":"roundRect","alt":"Página Oficinas","bbox":[80,210,634,366]}
+{"kind":"notes","id":"nt/msp9t6","slide":8,"text":""}
+{"kind":"slide","id":"sl/ioyzpk","slide":9,"title":"08 • ROTINA MULTIPROFISSIONAL","textShapes":15}
+{"kind":"textbox","id":"sh/8jipk7a5","slide":9,"text":"08 • ROTINA MULTIPROFISSIONAL","textPreview":"08 • ROTINA MULTIPROFISSIONAL","textChars":29,"textLines":1,"bbox":[72,38,650,22]}
+{"kind":"textbox","id":"sh/7i98r2tk","slide":9,"text":"Cada registro alimenta o acompanhamento","textPreview":"Cada registro alimenta o acompanhamento","textChars":39,"textLines":1,"bbox":[72,70,1136,48]}
+{"kind":"textbox","id":"sh/6h07ixsz","slide":9,"text":"A rotina coletiva e individual fica rastreável no perfil.","textPreview":"A rotina coletiva e individual fica rastreável no perfil.","textChars":57,"textLines":1,"bbox":[72,126,1136,28]}
+{"kind":"shape","id":"sh/lgr6psbe","slide":9,"bbox":[72,202,570,382]}
+{"kind":"shape","id":"sh/je9onit8","slide":9,"bbox":[86,216,132,24]}
+{"kind":"textbox","id":"sh/yd07eds3","slide":9,"text":"CAPTURA REAL","textPreview":"CAPTURA REAL","textChars":12,"textLines":1,"bbox":[94,222,116,14]}
+{"kind":"shape","id":"sh/5cvq1wri","slide":9,"bbox":[700,202,458,382]}
+{"kind":"textbox","id":"sh/4bmpsrad","slide":9,"text":"Fluxos conectados","textPreview":"Fluxos conectados","textChars":17,"textLines":1,"bbox":[726,226,390,28]}
+{"kind":"textbox","id":"sh/el8ry1wr","slide":9,"text":"Atendimento","textPreview":"Atendimento","textChars":11,"textLines":1,"bbox":[726,280,150,21]}
+{"kind":"textbox","id":"sh/zmh8r6dc","slide":9,"text":"Motivo e reposição encadeada.","textPreview":"Motivo e reposição encadeada.","textChars":29,"textLines":1,"bbox":[886,280,242,36]}
+{"kind":"shape","id":"sh/0nq90bex","slide":9,"bbox":[726,330,402,0]}
+{"kind":"textbox","id":"sh/1ojqtgvi","slide":9,"text":"Trabalho","textPreview":"Trabalho","textChars":8,"textLines":1,"bbox":[726,346,150,21]}
+{"kind":"textbox","id":"sh/qx8ru1wf","slide":9,"text":"Vínculo, empresa e horário.","textPreview":"Vínculo, empresa e horário.","textChars":27,"textLines":1,"bbox":[886,346,242,36]}
+{"kind":"shape","id":"sh/ryh8n6d0","slide":9,"bbox":[726,396,402,0]}
+{"kind":"textbox","id":"sh/szq9wbel","slide":9,"text":"Visita territorial","textPreview":"Visita territorial","textChars":18,"textLines":1,"bbox":[726,412,150,21]}
+{"kind":"textbox","id":"sh/d0zqpgv6","slide":9,"text":"Técnico e encaminhamentos.","textPreview":"Técnico e encaminhamentos.","textChars":26,"textLines":1,"bbox":[886,412,242,36]}
+{"kind":"shape","id":"sh/atsr6lwz","slide":9,"bbox":[726,462,402,0]}
+{"kind":"textbox","id":"sh/bu1szqdk","slide":9,"text":"Familiares","textPreview":"Familiares","textChars":10,"textLines":1,"bbox":[726,478,150,21]}
+{"kind":"textbox","id":"sh/7mtwbypk","slide":9,"text":"Cards e pessoa principal.","textPreview":"Cards e pessoa principal.","textChars":25,"textLines":1,"bbox":[886,478,242,36]}
+{"kind":"shape","id":"sh/mlkf2t8z","slide":9,"bbox":[72,674,1136,0]}
+{"kind":"textbox","id":"sh/9obed87q","slide":9,"text":"Sistema de Controle da Unidade Socioeducativa","textPreview":"Sistema de Controle da Unidade Socioeducativa","textChars":45,"textLines":1,"bbox":[72,684,600,18]}
+{"kind":"textbox","id":"sh/8n2x43q5","slide":9,"text":"09","textPreview":"09","textChars":2,"textLines":1,"bbox":[1168,684,40,18]}
+{"kind":"image","id":"im/lkvelg7e","slide":9,"name":"","geometry":"roundRect","alt":"Registrar atendimentos","bbox":[80,210,554,366]}
+{"kind":"notes","id":"nt/ioyzpk","slide":9,"text":""}
+{"kind":"slide","id":"sl/odwkcv","slide":10,"title":"09 • SAÍDAS","textShapes":16}
+{"kind":"textbox","id":"sh/2dkfmd8r","slide":10,"text":"09 • SAÍDAS","textPreview":"09 • SAÍDAS","textChars":11,"textLines":1,"bbox":[72,38,650,22]}
+{"kind":"textbox","id":"sh/pgbexsr2","slide":10,"text":"Saídas têm planejamento, retorno e validação","textPreview":"Saídas têm planejamento, retorno e validação","textChars":44,"textLines":1,"bbox":[72,70,1136,48]}
+{"kind":"textbox","id":"sh/4f2xonqx","slide":10,"text":"O retorno individual não se confunde com a previsão de volta do evento.","textPreview":"O retorno individual não se confunde com a previsão de volta do evento.","textChars":71,"textLines":1,"bbox":[72,126,1136,28]}
+{"kind":"shape","id":"sh/fa9wry90","slide":10,"bbox":[72,202,590,382]}
+{"kind":"shape","id":"sh/hcbet8r6","slide":10,"bbox":[86,216,132,24]}
+{"kind":"textbox","id":"sh/gb2dk3ql","slide":10,"text":"CAPTURA REAL","textPreview":"CAPTURA REAL","textChars":12,"textLines":1,"bbox":[94,222,116,14]}
+{"kind":"shape","id":"sh/z6dw32pk","slide":10,"bbox":[730,210,34,34]}
+{"kind":"textbox","id":"sh/e54fux8z","slide":10,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[730,217,34,18]}
+{"kind":"textbox","id":"sh/ozudo76h","slide":10,"text":"Status do evento","textPreview":"Status do evento","textChars":16,"textLines":1,"bbox":[778,208,310,25]}
+{"kind":"textbox","id":"sh/p03uxcn2","slide":10,"text":"Prevista, realizada ou cancelada.","textPreview":"Prevista, realizada ou cancelada.","textChars":33,"textLines":1,"bbox":[778,237,310,48]}
+{"kind":"shape","id":"sh/2xsvmxob","slide":10,"bbox":[730,310,34,34]}
+{"kind":"textbox","id":"sh/3y1cv25w","slide":10,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[730,317,34,18]}
+{"kind":"textbox","id":"sh/gbadk765","slide":10,"text":"Retorno","textPreview":"Retorno","textChars":7,"textLines":1,"bbox":[778,308,310,25]}
+{"kind":"textbox","id":"sh/1wjutcnq","slide":10,"text":"Pendências aparecem no painel.","textPreview":"Pendências aparecem no painel.","textChars":30,"textLines":1,"bbox":[778,337,310,48]}
+{"kind":"shape","id":"sh/e9svixof","slide":10,"bbox":[730,410,34,34]}
+{"kind":"textbox","id":"sh/fa1cr250","slide":10,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[730,417,34,18]}
+{"kind":"textbox","id":"sh/s7qdgn69","slide":10,"text":"Conflitos","textPreview":"Conflitos","textChars":9,"textLines":1,"bbox":[778,408,310,25]}
+{"kind":"textbox","id":"sh/t8jupsnu","slide":10,"text":"Cruza cursos, oficinas e atendimentos.","textPreview":"Cruza cursos, oficinas e atendimentos.","textChars":38,"textLines":1,"bbox":[778,437,310,48]}
+{"kind":"shape","id":"sh/9sr2xkv6","slide":10,"bbox":[730,542,410,48]}
+{"kind":"textbox","id":"sh/8ri14fu1","slide":10,"text":"Revisar horários antes de salvar","textPreview":"Revisar horários antes de salvar","textChars":32,"textLines":1,"bbox":[748,556,374,20]}
+{"kind":"shape","id":"sh/nq9kvadg","slide":10,"bbox":[72,674,1136,0]}
+{"kind":"textbox","id":"sh/mpgj2pcv","slide":10,"text":"Sistema de Controle da Unidade Socioeducativa","textPreview":"Sistema de Controle da Unidade Socioeducativa","textChars":45,"textLines":1,"bbox":[72,684,600,18]}
+{"kind":"textbox","id":"sh/lo72tkva","slide":10,"text":"10","textPreview":"10","textChars":2,"textLines":1,"bbox":[1168,684,40,18]}
+{"kind":"image","id":"im/7elgn6h0","slide":10,"name":"","geometry":"roundRect","alt":"Saída em lote","bbox":[80,210,574,366]}
+{"kind":"notes","id":"nt/odwkcv","slide":10,"text":""}
+{"kind":"slide","id":"sl/2f8gpf","slide":11,"title":"10 • DOCUMENTOS","textShapes":15}
+{"kind":"textbox","id":"sh/jad4nih4","slide":11,"text":"10 • DOCUMENTOS","textPreview":"10 • DOCUMENTOS","textChars":15,"textLines":1,"bbox":[72,38,650,22]}
+{"kind":"textbox","id":"sh/kbmlgnip","slide":11,"text":"Documentos ficam visíveis e atualizáveis em lote","textPreview":"Documentos ficam visíveis e atualizáveis em lote","textChars":48,"textLines":1,"bbox":[72,70,1136,48]}
+{"kind":"textbox","id":"sh/lcvmp8za","slide":11,"text":"A tela reúne seis documentos pessoais e uma ação única de salvamento.","textPreview":"A tela reúne seis documentos pessoais e uma ação única de salvamento.","textChars":69,"textLines":1,"bbox":[72,126,1136,28]}
+{"kind":"shape","id":"sh/alk3at0n","slide":11,"bbox":[72,202,860,404]}
+{"kind":"shape","id":"sh/wn2lc3id","slide":11,"bbox":[86,216,132,24]}
+{"kind":"textbox","id":"sh/xovml8zy","slide":11,"text":"CAPTURA REAL","textPreview":"CAPTURA REAL","textChars":12,"textLines":1,"bbox":[94,222,116,14]}
+{"kind":"shape","id":"sh/uhonmxgr","slide":11,"bbox":[978,220,34,34]}
+{"kind":"textbox","id":"sh/vix4v2hc","slide":11,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[978,227,34,18]}
+{"kind":"textbox","id":"sh/jeh87258","slide":11,"text":"Seis documentos","textPreview":"Seis documentos","textChars":15,"textLines":1,"bbox":[1026,218,310,25]}
+{"kind":"textbox","id":"sh/it87ehon","slide":11,"text":"RG, CPF e demais documentos.","textPreview":"RG, CPF e demais documentos.","textChars":28,"textLines":1,"bbox":[1026,247,310,48]}
+{"kind":"shape","id":"sh/5gzq9cne","slide":11,"bbox":[978,320,34,34]}
+{"kind":"textbox","id":"sh/kfqpg76t","slide":11,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[978,327,34,18]}
+{"kind":"textbox","id":"sh/7i18bm5k","slide":11,"text":"Atualização em lote","textPreview":"Atualização em lote","textChars":19,"textLines":1,"bbox":[1026,318,310,25]}
+{"kind":"textbox","id":"sh/6h87ihoz","slide":11,"text":"Vários registros na mesma tela.","textPreview":"Vários registros na mesma tela.","textChars":31,"textLines":1,"bbox":[1026,347,310,48]}
+{"kind":"shape","id":"sh/tkjqdwnq","slide":11,"bbox":[978,420,34,34]}
+{"kind":"textbox","id":"sh/sjapkr65","slide":11,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[978,427,34,18]}
+{"kind":"textbox","id":"sh/fm18fm5g","slide":11,"text":"Salvar uma vez","textPreview":"Salvar uma vez","textChars":14,"textLines":1,"bbox":[1026,418,310,25]}
+{"kind":"textbox","id":"sh/uls7m1ov","slide":11,"text":"Revisão antes de confirmar.","textPreview":"Revisão antes de confirmar.","textChars":27,"textLines":1,"bbox":[1026,447,310,48]}
+{"kind":"shape","id":"sh/qhwbel83","slide":11,"bbox":[72,674,1136,0]}
+{"kind":"textbox","id":"sh/ri5snqpo","slide":11,"text":"Sistema de Controle da Unidade Socioeducativa","textPreview":"Sistema de Controle da Unidade Socioeducativa","textChars":45,"textLines":1,"bbox":[72,684,600,18]}
+{"kind":"textbox","id":"sh/cjetgvq9","slide":11,"text":"11","textPreview":"11","textChars":2,"textLines":1,"bbox":[1168,684,40,18]}
+{"kind":"image","id":"im/yhwb6lkv","slide":11,"name":"","geometry":"roundRect","alt":"Documentos dos socioeducandos","bbox":[80,210,844,388]}
+{"kind":"notes","id":"nt/2f8gpf","slide":11,"text":""}
+{"kind":"slide","id":"sl/rie8tl","slide":12,"title":"11 • IMPORTAÇÃO","textShapes":15}
+{"kind":"textbox","id":"sh/yp8vq9wn","slide":12,"text":"11 • IMPORTAÇÃO","textPreview":"11 • IMPORTAÇÃO","textChars":15,"textLines":1,"bbox":[72,38,650,22]}
+{"kind":"textbox","id":"sh/lsje1ovy","slide":12,"text":"Importar dados reduz trabalho repetitivo","textPreview":"Importar dados reduz trabalho repetitivo","textChars":40,"textLines":1,"bbox":[72,70,1136,48]}
+{"kind":"textbox","id":"sh/krqdsjed","slide":12,"text":"O sistema oferece dois fluxos e orienta a origem dos arquivos CSV.","textPreview":"O sistema oferece dois fluxos e orienta a origem dos arquivos CSV.","textChars":66,"textLines":1,"bbox":[72,126,1136,28]}
+{"kind":"shape","id":"sh/7u1w3yd4","slide":12,"bbox":[72,202,720,404]}
+{"kind":"shape","id":"sh/9wje5ova","slide":12,"bbox":[86,216,132,24]}
+{"kind":"textbox","id":"sh/8vaxw3ep","slide":12,"text":"CAPTURA REAL","textPreview":"CAPTURA REAL","textChars":12,"textLines":1,"bbox":[94,222,116,14]}
+{"kind":"shape","id":"sh/vy1w7yd0","slide":12,"bbox":[838,220,34,34]}
+{"kind":"textbox","id":"sh/uxsfytwf","slide":12,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[838,227,34,18]}
+{"kind":"textbox","id":"sh/wba9cve9","slide":12,"text":"Novos cadastros","textPreview":"Novos cadastros","textChars":15,"textLines":1,"bbox":[886,218,310,25]}
+{"kind":"textbox","id":"sh/xcja50vu","slide":12,"text":"Cria socioeducandos e admissões.","textPreview":"Cria socioeducandos e admissões.","textChars":32,"textLines":1,"bbox":[886,247,310,48]}
+{"kind":"shape","id":"sh/a9sralwj","slide":12,"bbox":[838,320,34,34]}
+{"kind":"textbox","id":"sh/va1s3qd4","slide":12,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[838,327,34,18]}
+{"kind":"textbox","id":"sh/kfu9gfel","slide":12,"text":"Escolaridade","textPreview":"Escolaridade","textChars":12,"textLines":1,"bbox":[886,318,310,25]}
+{"kind":"textbox","id":"sh/5g3a9kv6","slide":12,"text":"Atualiza quem já está cadastrado.","textPreview":"Atualiza quem já está cadastrado.","textChars":33,"textLines":1,"bbox":[886,347,310,48]}
+{"kind":"shape","id":"sh/idsre5wf","slide":12,"bbox":[838,420,34,34]}
+{"kind":"textbox","id":"sh/jels7ad0","slide":12,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[838,427,34,18]}
+{"kind":"textbox","id":"sh/s3utkfuh","slide":12,"text":"Prévia e origem","textPreview":"Prévia e origem","textChars":15,"textLines":1,"bbox":[886,418,310,25]}
+{"kind":"textbox","id":"sh/t43adkv2","slide":12,"text":"CSV exportado diretamente do Portal.","textPreview":"CSV exportado diretamente do Portal.","textChars":36,"textLines":1,"bbox":[886,447,310,48]}
+{"kind":"shape","id":"sh/10zaxkn6","slide":12,"bbox":[72,674,1136,0]}
+{"kind":"textbox","id":"sh/gzq94fml","slide":12,"text":"Sistema de Controle da Unidade Socioeducativa","textPreview":"Sistema de Controle da Unidade Socioeducativa","textChars":45,"textLines":1,"bbox":[72,684,600,18]}
+{"kind":"textbox","id":"sh/fyhsva5g","slide":12,"text":"12","textPreview":"12","textChars":2,"textLines":1,"bbox":[1168,684,40,18]}
+{"kind":"image","id":"im/7yx0ny1w","slide":12,"name":"","geometry":"roundRect","alt":"Importar dados do Portal SUASE","bbox":[80,210,704,388]}
+{"kind":"notes","id":"nt/rie8tl","slide":12,"text":""}
+{"kind":"slide","id":"sl/g939sf","slide":13,"title":"12 • RELATÓRIOS","textShapes":15}
+{"kind":"textbox","id":"sh/l0nat0z2","slide":13,"text":"12 • RELATÓRIOS","textPreview":"12 • RELATÓRIOS","textChars":15,"textLines":1,"bbox":[72,38,650,22]}
+{"kind":"textbox","id":"sh/ydcrylgr","slide":13,"text":"Relatórios transformam registros em acompanhamento","textPreview":"Relatórios transformam registros em acompanhamento","textChars":50,"textLines":1,"bbox":[72,70,1136,48]}
+{"kind":"textbox","id":"sh/ze5srqhw","slide":13,"text":"A página Cursos concentra exportações e visões de acompanhamento.","textPreview":"A página Cursos concentra exportações e visões de acompanhamento.","textChars":65,"textLines":1,"bbox":[72,126,1136,28]}
+{"kind":"shape","id":"sh/cbu9wvyl","slide":13,"bbox":[72,202,720,404]}
+{"kind":"shape","id":"sh/a9crulgf","slide":13,"bbox":[86,216,132,24]}
+{"kind":"textbox","id":"sh/balsnqh0","slide":13,"text":"CAPTURA REAL","textPreview":"CAPTURA REAL","textChars":12,"textLines":1,"bbox":[94,222,116,14]}
+{"kind":"shape","id":"sh/o7u9sby9","slide":13,"bbox":[838,220,34,34]}
+{"kind":"textbox","id":"sh/p83algzu","slide":13,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[838,227,34,18]}
+{"kind":"textbox","id":"sh/hkjqdcfa","slide":13,"text":"Visão geral","textPreview":"Visão geral","textChars":11,"textLines":1,"bbox":[886,218,310,25]}
+{"kind":"textbox","id":"sh/gjapk7ep","slide":13,"text":"Panorama dos cursos cadastrados.","textPreview":"Panorama dos cursos cadastrados.","textChars":32,"textLines":1,"bbox":[886,247,310,48]}
+{"kind":"shape","id":"sh/vi18b2x4","slide":13,"bbox":[838,320,34,34]}
+{"kind":"textbox","id":"sh/uhs7ixwz","slide":13,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[838,327,34,18]}
+{"kind":"textbox","id":"sh/tgjq9sfe","slide":13,"text":"Por curso","textPreview":"Por curso","textChars":9,"textLines":1,"bbox":[886,318,310,25]}
+{"kind":"textbox","id":"sh/8fqpgnet","slide":13,"text":"Acompanhamento de uma turma.","textPreview":"Acompanhamento de uma turma.","textChars":28,"textLines":1,"bbox":[886,347,310,48]}
+{"kind":"shape","id":"sh/7eh872x8","slide":13,"bbox":[838,420,34,34]}
+{"kind":"textbox","id":"sh/6d87exwn","slide":13,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[838,427,34,18]}
+{"kind":"textbox","id":"sh/lcz65sf2","slide":13,"text":"Exportação","textPreview":"Exportação","textChars":10,"textLines":1,"bbox":[886,418,310,25]}
+{"kind":"textbox","id":"sh/kbqpcnyh","slide":13,"text":"Relatórios em XLSX.","textPreview":"Relatórios em XLSX.","textChars":19,"textLines":1,"bbox":[886,447,310,48]}
+{"kind":"shape","id":"sh/w7eh8rap","slide":13,"bbox":[72,674,1136,0]}
+{"kind":"textbox","id":"sh/x8nyhwra","slide":13,"text":"Sistema de Controle da Unidade Socioeducativa","textPreview":"Sistema de Controle da Unidade Socioeducativa","textChars":45,"textLines":1,"bbox":[72,684,600,18]}
+{"kind":"textbox","id":"sh/a5cz6hsj","slide":13,"text":"13","textPreview":"13","textChars":2,"textLines":1,"bbox":[1168,684,40,18]}
+{"kind":"image","id":"im/ofelk32d","slide":13,"name":"","geometry":"roundRect","alt":"Cursos e relatórios","bbox":[80,210,704,388]}
+{"kind":"notes","id":"nt/g939sf","slide":13,"text":""}
+{"kind":"slide","id":"sl/0rxjhb","slide":14,"title":"13 • GOVERNANÇA","textShapes":16}
+{"kind":"textbox","id":"sh/0vul8bu5","slide":14,"text":"13 • GOVERNANÇA","textPreview":"13 • GOVERNANÇA","textChars":15,"textLines":1,"bbox":[72,38,650,22]}
+{"kind":"textbox","id":"sh/zul4z6t0","slide":14,"text":"Equipes tornam a responsabilidade visível","textPreview":"Equipes tornam a responsabilidade visível","textChars":41,"textLines":1,"bbox":[72,70,1136,48]}
+{"kind":"textbox","id":"sh/etc361cf","slide":14,"text":"Especialidades, profissionais e distribuição aparecem no sistema inteiro.","textPreview":"Especialidades, profissionais e distribuição aparecem no sistema inteiro.","textChars":73,"textLines":1,"bbox":[72,126,1136,28]}
+{"kind":"shape","id":"sh/9knm5gb2","slide":14,"bbox":[72,202,640,404]}
+{"kind":"shape","id":"sh/nil43qtw","slide":14,"bbox":[86,216,132,24]}
+{"kind":"textbox","id":"sh/mhcnalcb","slide":14,"text":"CAPTURA REAL","textPreview":"CAPTURA REAL","textChars":12,"textLines":1,"bbox":[94,222,116,14]}
+{"kind":"shape","id":"sh/xonm90by","slide":14,"bbox":[770,212,34,34]}
+{"kind":"textbox","id":"sh/wne5gvud","slide":14,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[770,219,34,18]}
+{"kind":"textbox","id":"sh/2pgnmx4b","slide":14,"text":"Especialidades","textPreview":"Especialidades","textChars":14,"textLines":1,"bbox":[818,210,310,25]}
+{"kind":"textbox","id":"sh/3qpov25w","slide":14,"text":"Catálogo editável de responsáveis.","textPreview":"Catálogo editável de responsáveis.","textChars":34,"textLines":1,"bbox":[818,239,310,48]}
+{"kind":"shape","id":"sh/ory5o7mh","slide":14,"bbox":[770,312,34,34]}
+{"kind":"textbox","id":"sh/ps76xsn2","slide":14,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[770,319,34,18]}
+{"kind":"textbox","id":"sh/qtgnqx4n","slide":14,"text":"Equipes","textPreview":"Equipes","textChars":7,"textLines":1,"bbox":[818,310,310,25]}
+{"kind":"textbox","id":"sh/bu9oz25s","slide":14,"text":"Nome, cor e especialistas.","textPreview":"Nome, cor e especialistas.","textChars":26,"textLines":1,"bbox":[818,339,310,48]}
+{"kind":"shape","id":"sh/cvi5s7md","slide":14,"bbox":[770,412,34,34]}
+{"kind":"textbox","id":"sh/dwr61cny","slide":14,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[770,419,34,18]}
+{"kind":"textbox","id":"sh/6xwned43","slide":14,"text":"Distribuição","textPreview":"Distribuição","textChars":12,"textLines":1,"bbox":[818,410,310,25]}
+{"kind":"textbox","id":"sh/ry5oni5o","slide":14,"text":"Busca por nome, ID ou equipe.","textPreview":"Busca por nome, ID ou equipe.","textChars":29,"textLines":1,"bbox":[818,439,310,48]}
+{"kind":"shape","id":"sh/v21kvelg","slide":14,"bbox":[770,542,390,48]}
+{"kind":"textbox","id":"sh/u1s3m9kv","slide":14,"text":"A informação reaparece no Painel e no Perfil.","textPreview":"A informação reaparece no Painel e no Perfil.","textChars":45,"textLines":1,"bbox":[790,556,350,20]}
+{"kind":"shape","id":"sh/h432xo3m","slide":14,"bbox":[72,674,1136,0]}
+{"kind":"textbox","id":"sh/w3uloj21","slide":14,"text":"Sistema de Controle da Unidade Socioeducativa","textPreview":"Sistema de Controle da Unidade Socioeducativa","textChars":45,"textLines":1,"bbox":[72,684,600,18]}
+{"kind":"textbox","id":"sh/7y1krulk","slide":14,"text":"14","textPreview":"14","textChars":2,"textLines":1,"bbox":[1168,684,40,18]}
+{"kind":"image","id":"im/d47qxknm","slide":14,"name":"","geometry":"roundRect","alt":"Configurações de equipes","bbox":[80,210,624,388]}
+{"kind":"notes","id":"nt/0rxjhb","slide":14,"text":""}
+{"kind":"slide","id":"sl/whoc27","slide":15,"title":"FECHAMENTO","textShapes":18}
+{"kind":"textbox","id":"sh/8fyh4zit","slide":15,"text":"FECHAMENTO","textPreview":"FECHAMENTO","textChars":10,"textLines":1,"bbox":[88,88,300,28]}
+{"kind":"textbox","id":"sh/7ep0bu1o","slide":15,"text":"Uma demonstração simples para mostrar o valor do sistema","textPreview":"Uma demonstração simples para mostrar o valor do sistema","textChars":56,"textLines":1,"bbox":[88,134,1080,52]}
+{"kind":"textbox","id":"sh/6dgz2p03","slide":15,"text":"Comece no painel. Entre em um perfil. Mostre a atividade. Termine com a decisão.","textPreview":"Comece no painel. Entre em um perfil. Mostre a atividade. Termine com a decisão.","textChars":80,"textLines":1,"bbox":[92,210,1000,36]}
+{"kind":"shape","id":"sh/lc7i9kji","slide":15,"bbox":[92,332,230,150]}
+{"kind":"textbox","id":"sh/kbyh0fix","slide":15,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[112,354,34,28]}
+{"kind":"textbox","id":"sh/ja5g7a1c","slide":15,"text":"Painel","textPreview":"Painel","textChars":6,"textLines":1,"bbox":[112,400,190,28]}
+{"kind":"textbox","id":"sh/ypwzy50r","slide":15,"text":"O que merece atenção?","textPreview":"O que merece atenção?","textChars":21,"textLines":1,"bbox":[112,440,190,38]}
+{"kind":"shape","id":"sh/xony5kj6","slide":15,"bbox":[364,332,230,150]}
+{"kind":"textbox","id":"sh/wnehwfi1","slide":15,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[384,354,34,28]}
+{"kind":"textbox","id":"sh/aps7a94v","slide":15,"text":"Perfil","textPreview":"Perfil","textChars":6,"textLines":1,"bbox":[384,400,190,28]}
+{"kind":"textbox","id":"sh/vq18jelg","slide":15,"text":"Quem precisa de contexto?","textPreview":"Quem precisa de contexto?","textChars":25,"textLines":1,"bbox":[384,440,190,38]}
+{"kind":"shape","id":"sh/wrupcjml","slide":15,"bbox":[636,332,230,150]}
+{"kind":"textbox","id":"sh/hs3qlo36","slide":15,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[656,354,34,28]}
+{"kind":"textbox","id":"sh/m1s7694j","slide":15,"text":"Operação","textPreview":"Operação","textChars":8,"textLines":1,"bbox":[656,400,190,28]}
+{"kind":"textbox","id":"sh/n218ful4","slide":15,"text":"O que foi feito?","textPreview":"O que foi feito?","textChars":16,"textLines":1,"bbox":[656,440,190,38]}
+{"kind":"shape","id":"sh/83ap8zmp","slide":15,"bbox":[908,332,230,150]}
+{"kind":"textbox","id":"sh/9ojqh43a","slide":15,"text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[928,354,34,28]}
+{"kind":"textbox","id":"sh/yx872p4n","slide":15,"text":"Gestão","textPreview":"Gestão","textChars":6,"textLines":1,"bbox":[928,400,190,28]}
+{"kind":"textbox","id":"sh/zyhobul8","slide":15,"text":"Que decisão fica fácil?","textPreview":"Que decisão fica fácil?","textChars":23,"textLines":1,"bbox":[928,440,190,38]}
+{"kind":"textbox","id":"sh/32x4jq10","slide":15,"text":"Próximo passo: ensaiar uma demonstração de 5 a 7 minutos.","textPreview":"Próximo passo: ensaiar uma demonstração de 5 a 7 minutos.","textChars":57,"textLines":1,"bbox":[92,552,980,30]}
+{"kind":"shape","id":"sh/21onalkf","slide":15,"bbox":[92,674,1096,0]}
+{"kind":"textbox","id":"sh/p4fml0jq","slide":15,"text":"Sistema de Controle da Unidade Socioeducativa","textPreview":"Sistema de Controle da Unidade Socioeducativa","textChars":45,"textLines":1,"bbox":[92,684,600,18]}
+{"kind":"textbox","id":"sh/o365cv2l","slide":15,"text":"15","textPreview":"15","textChars":2,"textLines":1,"bbox":[1148,684,40,18]}
+{"kind":"notes","id":"nt/whoc27","slide":15,"text":""}
